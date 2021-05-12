@@ -1,0 +1,20 @@
+LPREC_SEQ
+
+
+OVERVIEW
+
+Pure python version for computing the Radon transform and backprojection via the log-polar-based method, for details see:
+[1] Andersson, Fredrik, Marcus Carlsson, and Viktor V. Nikitin. "Fast algorithms and efficient GPU implementations 
+for the Radon transform and the back-projection operator represented as convolution operators." 
+SIAM Journal on Imaging Sciences 9.2 (2016): 637-664.
+
+
+
+INSTALLATION
+
+run python setup.py build
+
+
+TESTS
+
+See directory tests/ and jupyter notebook therein
