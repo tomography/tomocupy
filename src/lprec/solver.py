@@ -8,6 +8,7 @@ from scipy import interpolate
 from itertools import islice
 from cupyx.scipy.fft import rfft, irfft, rfft2, irfft2
 import h5py
+import dxchange
 import matplotlib.pyplot as plt
 
 class LpRec(cfunc):
@@ -126,8 +127,15 @@ class LpRec(cfunc):
         data = self.minus_log(data)
         data = self.fix_inf_nan(data)
         data = self.fbp_filter(data)
+        data = cp.ascontiguousarray(data.swapaxes(0,1))
+        #print(data.shape)
+        # plt.imshow(data[:,0].get())
+        # plt.show()
         obj = cp.zeros([self.nz,self.n,self.n],dtype='float32')
+        #print(data.shape)
         # data = cp.array(cp.load('data/R.npy')).swapaxes(1,2)
+        # print(data.shape)
+        # exit()
         # data = cp.tile(data,[self.nz,1,1])        
         self.backprojection(obj.data.ptr,data.data.ptr)
         #obj1 = self.backprojection2(data.swapaxes(1,2))
@@ -159,9 +167,9 @@ class LpRec(cfunc):
         # theta = theta[:nnproj]
 
         print(self.nz)
-        data = data[:,:512,:]
-        dark = dark[:,:512,:]
-        flat = flat[:,:512,:]
+        data = data[:-1,:512,:]
+        dark = 0*dark[:,:512,:]
+        flat = dark[:,:512,:]
         theta = theta[:]
         pchunk = self.nz
         
@@ -181,5 +189,5 @@ class LpRec(cfunc):
             obj=obj_gpu.get()
             cp.cuda.stream.get_current_stream().synchronize()
             print(f'copy back {toc()}')
-            dxchange.write_tiff_stack(obj, '/local/data/lprec/r',start=k*pchunk,startoverwrite=True)
+            dxchange.write_tiff_stack(obj, '/local/data/lprec/r',start=k*pchunk,overwrite=True)
 
