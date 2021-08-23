@@ -19,5 +19,7 @@ set_source_files_properties(cfunc.i PROPERTIES CPLUSPLUS ON)
 swig_add_library(cfunc LANGUAGE python SOURCES cfunc.i cfunc.cu)
 swig_link_libraries(cfunc cudart cufft)
 
+set_target_properties(cfunc PROPERTIES CUDA_ARCHITECTURES "60;72")
+
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc.py" DESTINATION lprec)
 install(TARGETS cfunc LIBRARY DESTINATION lprec)

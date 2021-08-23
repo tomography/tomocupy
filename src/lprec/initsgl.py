@@ -44,8 +44,8 @@ def getparameters(beta, dtheta, ds, N, Nproj):
 
     # wrapping
     g = osg(aR, beta/2)
-    Ntheta = N
-    Nrho = 2*N
+    Ntheta = 2048#N
+    Nrho = 4096#2*N
     dtheta = (2*beta)/Ntheta
     drho = (g-cp.log(am))/Nrho
     return (Nrho, Ntheta, dtheta, drho, aR, am, g)

@@ -2,13 +2,26 @@
 #define CFUNC_CUH
 
 #include <cufft.h>
+#include <cufftXt.h>
+#include <cuda_fp16.h>
+
+#define CUDA_R CUDA_R_16F
+#define CUDA_C CUDA_C_16F
+typedef half real;
+typedef half2 complex;
+
+// #define CUDA_R CUDA_R_32F
+// #define CUDA_C CUDA_C_32F
+// typedef float real;
+// typedef float2 complex;
 
 class cfunc
 {
     bool is_free;
-	float* fl;
-    float2* flc;
-    float2* fz;
+	real* fl;
+    complex* flc;
+    complex* gc;    
+    complex* fz;
     float* lp2p1;
     float* lp2p2;
     float* lp2p1w;
