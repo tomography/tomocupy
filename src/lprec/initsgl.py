@@ -18,15 +18,15 @@ class Pgl:
         self.g = g
 
 
-def create_gl(N, Nproj):
+def create_gl(N, Nproj, Ntheta, Nrho):
     Nspan = 3
     beta = cp.pi/Nspan
     # size after zero padding in the angle direction (for nondense sampling rate)
     proj = cp.arange(0, Nproj)*cp.pi/Nproj-beta/2
     s = cp.linspace(-1, 1, N)
     # log-polar parameters
-    (Nrho, Ntheta, dtheta, drho, aR, am, g) = getparameters(
-        beta, proj[1]-proj[0], 2.0/(N-1), N, Nproj)
+    (dtheta, drho, aR, am, g) = getparameters(
+        beta, proj[1]-proj[0], 2.0/(N-1), N, Nproj, Ntheta, Nrho)
     # log-polar space
     thsp = (cp.arange(-Ntheta/2, Ntheta/2) *
             cp.float32(dtheta)).astype('float32')
@@ -38,17 +38,15 @@ def create_gl(N, Nproj):
     return P
 
 
-def getparameters(beta, dtheta, ds, N, Nproj):
+def getparameters(beta, dtheta, ds, N, Nproj, Ntheta, Nrho):
     aR = cp.sin(beta/2)/(1+cp.sin(beta/2))
     am = (cp.cos(beta/2)-cp.sin(beta/2))/(1+cp.sin(beta/2))
 
     # wrapping
     g = osg(aR, beta/2)
-    Ntheta = 2048#N
-    Nrho = 4096#2*N
     dtheta = (2*beta)/Ntheta
     drho = (g-cp.log(am))/Nrho
-    return (Nrho, Ntheta, dtheta, drho, aR, am, g)
+    return (dtheta, drho, aR, am, g)
 
 
 def osg(aR, theta):

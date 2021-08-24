@@ -2,8 +2,8 @@
 #include "kernels.cuh"
 #include <stdio.h>
 
-cfunc::cfunc(int nproj, int nz, int n, int nrho, int ntheta):
-nproj(nproj), nz(nz), n(n), nrho(nrho), ntheta(ntheta) {
+cfunc::cfunc(int nproj, int nz, int n, int ntheta, int nrho):
+nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
 
     // Create FFT plans for Fourier Transform in log-polar coordinates
     long long ffts[] = {nrho,ntheta};
@@ -68,7 +68,7 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
     real* g = (real*)g_;
     cudaStream_t stream = (cudaStream_t)stream_;
     // set thread block and grid sizes
-    uint BS1 = 16; uint BS2 = 16; uint BS3 = 4;    
+    uint BS1 = 32; uint BS2 = 32; uint BS3 = 1;    
 	uint GS1, GS2, GS3;    
     dim3 dimBlock(BS1,BS2,BS3);
     GS1 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);

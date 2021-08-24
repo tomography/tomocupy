@@ -19,10 +19,10 @@ cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 mtype = 'float32'
 class LpRec(cfunc):
 
-    def __init__(self, n, nproj, nz, ndark, nflat, data_type):
+    def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
 
         # precompute parameters for the lp method
-        self.Pgl = initsgl.create_gl(n, nproj)
+        self.Pgl = initsgl.create_gl(n, nproj, ntheta, nrho)
         self.Padj = initsadj.create_adj(self.Pgl)
         lp2p1 = self.Padj.lp2p1.data.ptr
         lp2p2 = self.Padj.lp2p2.data.ptr
@@ -45,7 +45,7 @@ class LpRec(cfunc):
         nwids = len(self.Padj.wids)
         ncids = len(self.Padj.cids)
 
-        super().__init__(nproj, nz, n, self.Pgl.Nrho, self.Pgl.Ntheta)
+        super().__init__(nproj, nz, n, ntheta, nrho)
         super().setgrids(fZnptr, lp2p1, lp2p2, lp2p1w, lp2p2w,
                          C2lp1, C2lp2, lpids, wids, cids,
                          nlpids, nwids, ncids)
@@ -79,19 +79,12 @@ class LpRec(cfunc):
         data = -cp.log(cp.maximum(data, 1e-6))
         return data
 
-    # def fix_inf_nan(self, data):
-    #     """Fix inf and nan values in projections"""
-    #     data[cp.isnan(data)] = 0
-    #     data[cp.isinf(data)] = 0
-    #     return data
-
-
     def recon(self, item):
         """Full reconstruction pipeline for a data chunk"""
         data = self.darkflat_correction(item['data'], item['dark'], item['flat'])
         data = self.minus_log(data)        
-        # data = self.fix_inf_nan(data)        
-        data = self.fbp_filter(data)        
+        data = self.fbp_filter(data)     
+        # data = self.   
         # reshape to sinograms
         obj = cp.zeros([self.nz, self.n, self.n], dtype=mtype)        
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
@@ -109,23 +102,21 @@ class LpRec(cfunc):
     
     def thread0(self, file_name):
         fid = h5py.File(file_name, 'r')
-        data = fid['exchange/data']# why <=4 doesnt work???
+        data = fid['exchange/data']
         flat = fid['exchange/data_white']
         dark = fid['exchange/data_dark']
-        theta = fid['exchange/theta']
+        #theta = fid['exchange/theta']
         for ids in chunk(range(data.shape[1]), self.nz):
             # print(f'0: {ids[0]} {ids[-1]}')
             item = {}
             item['data'] = np.pad(data[:,ids],((0,0),(0,self.nz-len(ids)),(0,0)))
             item['flat'] = np.pad(flat[:,ids],((0,0),(0,self.nz-len(ids)),(0,0)))
             item['dark'] = np.pad(dark[:,ids],((0,0),(0,self.nz-len(ids)),(0,0)))
-            item['theta'] = theta
             item['ids'] = ids          
             self.data_queue.put(item)  
                         
     def thread1(self):
-        stream1 = cp.cuda.Stream()
-        
+        stream1 = cp.cuda.Stream()        
         item_pinned = {}
         item_pinned['data'] = self.pinned_array(np.zeros([self.nproj, self.nz,self.n],dtype=self.data_type))
         item_pinned['dark'] = self.pinned_array(np.zeros([self.ndark, self.nz,self.n],dtype=self.data_type))
@@ -176,18 +167,18 @@ class LpRec(cfunc):
                 # obj.dtype = 'uint16'#???temp
             stream3.synchronize()
             # print(f"3: {item_gpu['ids'][0]} {item_gpu['ids'][-1]}")                                                    
-            # print(item_gpu['ids'])
             write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                         args = (obj[:len(item_gpu['ids'])],),
                                         kwargs = {'fname': '/local/ssd/lprec/r',
                                                     'start': item_gpu['ids'][0],
                                                     'overwrite': True})                    
             write_thread.start()
-            self.write_threads.append(write_thread)                
+            self.write_threads.append(write_thread)                            
             if(item_gpu['ids'][-1]==899):
+                dxchange.write_tiff(obj[-1],'/local/ssd/lprec/test/'+str(self.ntheta)+'_'+str(self.nrho))
                 return        
         
-    def recon_all(self, data, flat, dark, theta, pchunk=16):
+    def recon_all(self, data, flat, dark, pchunk=16):
         """Reconstruction by splitting data into chunks"""
         
         thread0 = threading.Thread(target=self.thread0,args = ('/local/ssd/286_2_spfp_019.h5',))   
@@ -202,35 +193,8 @@ class LpRec(cfunc):
         thread1.join()        
         thread2.join()        
         thread3.join()        
-        
-        # thread3.join()                     
-        
         for thread in self.write_threads:
             thread.join()     
-        # while self.running or not self.data_queue.empty():
-        #     #tic()                            
-        #     item = self.data_queue.get()    
-        #     item_gpu[v%2] = self.gpu_copy(item)      
-        #     if(v>1):
-        #         obj_gpu[v%2] = self.recon(item_gpu[(v-1)%2])            
-        #     if(v>2):
-        #         obj = obj_gpu[(v-2)%2,:len(item['ids'])].get()
-        #         obj.dtype = 'uint16'#???
-        #         write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-        #                                     args = (obj,),
-        #                                     kwargs = {'fname': '/local/ssd/lprec/r',
-        #                                                 'start': item['ids'][0],
-        #                                                 'overwrite': True})            
-        #         if write_thread is not None:
-        #             write_thread.start()
-        #             write_threads.append(write_thread)
-        #     v+=1
-        # print(f'waiting threads')
-        # for thread in write_threads:
-        #     thread.join()                
-        # print(f'waiting threads done')            
-                
-
     # def minterplp(self, f, g, x, y, xi, ni, mi):
     #     xc = x.astype('int32')
     #     xf = x-xc

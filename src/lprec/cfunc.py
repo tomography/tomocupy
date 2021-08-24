@@ -70,8 +70,8 @@ class cfunc(object):
     nrho = property(_cfunc.cfunc_nrho_get)
     nz = property(_cfunc.cfunc_nz_get)
 
-    def __init__(self, nproj, nz, n, nrho, ntheta):
-        _cfunc.cfunc_swiginit(self, _cfunc.new_cfunc(nproj, nz, n, nrho, ntheta))
+    def __init__(self, nproj, nz, n, ntheta, nrho):
+        _cfunc.cfunc_swiginit(self, _cfunc.new_cfunc(nproj, nz, n, ntheta, nrho))
     __swig_destroy__ = _cfunc.delete_cfunc
 
     def free(self):

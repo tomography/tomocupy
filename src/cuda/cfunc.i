@@ -17,7 +17,7 @@ public:
     int nz;  
     
     %mutable;
-    cfunc(size_t nproj, size_t nz, size_t n, size_t nrho, size_t ntheta);
+    cfunc(size_t nproj, size_t nz, size_t n, size_t ntheta, size_t nrho);
 	~cfunc();      
     void free();
     void setgrids(size_t fz, size_t lp2p1, size_t lp2p2, size_t lp2p1w, size_t lp2p2w, 

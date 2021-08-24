@@ -44,7 +44,7 @@ public:
     int nrho; 
     int nz;  
 
-    cfunc(int nproj, int nz, int n, int nrho, int ntheta);
+    cfunc(int nproj, int nz, int n, int ntheta, int nrho);
 	~cfunc();      
     void free();
     void setgrids(size_t fz, size_t lp2p1, size_t lp2p2, size_t lp2p1w, size_t lp2p2w, 

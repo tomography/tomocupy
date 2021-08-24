@@ -3,23 +3,22 @@ from lprec.timing import *
 import h5py
 import dxchange
 
-[nslices,nproj,n] = [16,1500,2448] # 32 for RTX4000
-[ndark,nflat] = [40,80]
+# sizes
+[nz, nproj, n] = [1, 1500, 2448]  # 16 max for RTX4000 float32
+[ndark, nflat] = [40, 80]
+[ntheta, nrho] = [2048, 4096] # to check other sizes
 data_type = 'uint8'
 
+# take links to datasets in h5 file
 fid = h5py.File('/local/ssd/286_2_spfp_019.h5', 'r')
-data = fid['exchange/data']# why <=4 doesnt work???
+data = fid['exchange/data']
 flat = fid['exchange/data_white']
 dark = fid['exchange/data_dark']
-theta = fid['exchange/theta']
+# angles are iitialized as np.arange(nproj)*np.pi/nproj
 
 tic()
-clpthandle = lprec.LpRec(n, nproj, nslices, ndark, nflat, data_type)
-print(toc())
+clpthandle = lprec.LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
+print(f'Init time: {toc():.3f}s')
 tic()
-clpthandle.recon_all(data,flat,dark,theta)
-print(f'Total time for reconstruction:{toc():.3f}s')
-# print(f'Saving tiffs...')
-# tic()
-# # dxchange.write_tiff_stack(obj.astype('float32'), '/local/ssd/lprec/r', start=0, overwrite=True)
-# print(f'Save tiffs time: {toc():.3f}s')
+clpthandle.recon_all(data, flat, dark)
+print(f'Reconstruction time:{toc():.3f}s')
