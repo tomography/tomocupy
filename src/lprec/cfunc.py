@@ -80,8 +80,8 @@ class cfunc(object):
     def setgrids(self, fz, lp2p1, lp2p2, lp2p1w, lp2p2w, C2lp1, C2lp2, lpids, wids, cids, nlpids, nwids, ncids):
         return _cfunc.cfunc_setgrids(self, fz, lp2p1, lp2p2, lp2p1w, lp2p2w, C2lp1, C2lp2, lpids, wids, cids, nlpids, nwids, ncids)
 
-    def backprojection(self, f, g):
-        return _cfunc.cfunc_backprojection(self, f, g)
+    def backprojection(self, f, g, stream):
+        return _cfunc.cfunc_backprojection(self, f, g, stream)
 
 # Register cfunc in _cfunc:
 _cfunc.cfunc_swigregister(cfunc)

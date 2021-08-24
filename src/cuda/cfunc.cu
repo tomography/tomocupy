@@ -62,11 +62,11 @@ void cfunc::setgrids(size_t fz_, size_t lp2p1_, size_t lp2p2_, size_t lp2p1w_, s
     ncids = ncids_;        
 }
 
-void cfunc::backprojection(size_t f_, size_t g_) 
+void cfunc::backprojection(size_t f_, size_t g_, size_t stream_) 
 {
     real* f = (real*)f_;
     real* g = (real*)g_;
-
+    cudaStream_t stream = (cudaStream_t)stream_;
     // set thread block and grid sizes
     uint BS1 = 16; uint BS2 = 16; uint BS3 = 4;    
 	uint GS1, GS2, GS3;    
@@ -80,21 +80,24 @@ void cfunc::backprojection(size_t f_, size_t g_)
     GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);
     dim3 dimGrid4(GS1,GS2,GS3);
 
+    cufftSetStream(plan_forward, stream);
+    cufftSetStream(plan_inverse, stream);    
+    
     //iterations over log-polar angular spans
     for(int k=0; k<3;k++)
     {
-        cudaMemset(fl, 0, nz*ntheta*nrho*sizeof(real)); 
+        cudaMemsetAsync(fl, 0, nz*ntheta*nrho*sizeof(real),stream); 
 		//interp from polar to log-polar grid
-        interplp<<<dimGrid1, dimBlock>>>(fl,g,&lp2p2[k*nlpids],&lp2p1[k*nlpids],BS1*GS1,nlpids,n,nproj,nz,lpids,ntheta*nrho);
+        interplp<<<dimGrid1, dimBlock, 0, stream>>>(fl,g,&lp2p2[k*nlpids],&lp2p1[k*nlpids],BS1*GS1,nlpids,n,nproj,nz,lpids,ntheta*nrho);
 		//interp from polar to log-polar grid additional points
-        interplp<<<dimGrid2, dimBlock>>>(fl,g,&lp2p2w[k*nwids],&lp2p1w[k*nwids],BS1*GS1,nwids,n,nproj,nz,wids,ntheta*nrho);
+        interplp<<<dimGrid2, dimBlock, 0, stream>>>(fl,g,&lp2p2w[k*nwids],&lp2p1w[k*nwids],BS1*GS1,nwids,n,nproj,nz,wids,ntheta*nrho);
         //Forward FFT
         cufftXtExec(plan_forward, fl,flc,CUFFT_FORWARD);        
 		//multiplication by adjoint fZ
-		mul<<<dimGrid3, dimBlock>>>(flc,fz,ntheta/2+1,nrho,nz);
+		mul<<<dimGrid3, dimBlock, 0, stream>>>(flc,fz,ntheta/2+1,nrho,nz);
 		//Inverse FFT
 		cufftXtExec(plan_inverse,flc,fl,CUFFT_INVERSE);        
 		//interp from log-polar to Cartesian grid
-		interpc<<<dimGrid4, dimBlock>>>(f,fl,&C2lp1[k*ncids],&C2lp2[k*ncids],BS1*GS1,ncids,ntheta,nrho,nz,cids,n*n);                    
+		interpc<<<dimGrid4, dimBlock, 0, stream>>>(f,fl,&C2lp1[k*ncids],&C2lp2[k*ncids],BS1*GS1,ncids,ntheta,nrho,nz,cids,n*n);                    
     }
 }
