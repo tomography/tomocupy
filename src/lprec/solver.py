@@ -60,9 +60,13 @@ class LpRec(cfunc):
         self.data_queue = queue.Queue()
         self.running = True
 
-    def fbp_filter(self, data):
+    def fbp_filter_center(self, data, center):
         """FBP filtering of projections"""
-        w = cp.tile(self.Padj.wfilter, [data.shape[1], 1])
+        t = cp.fft.rfftfreq(self.n).astype('float32')
+        
+        w = t * (1 - t * 2)**3  # parzen
+        w = w*cp.exp(2*cp.pi*1j*t*(center-self.n/2)) # center fix       
+        w = cp.tile(w, [data.shape[1], 1])
         data = irfft(
             w*rfft(data, overwrite_x=True, axis=2), overwrite_x=True, axis=2).astype(mtype)  # note: filter works with complex64, however, it doesnt take much time
         return data
@@ -79,11 +83,11 @@ class LpRec(cfunc):
         data = -cp.log(cp.maximum(data, 1e-6))
         return data
 
-    def recon(self, obj, data, dark, flat):
+    def recon(self, obj, data, dark, flat, center):
         """Full reconstruction pipeline for a data chunk"""
         data = self.darkflat_correction(data, dark, flat)
         data = self.minus_log(data)
-        data = self.fbp_filter(data)
+        data = self.fbp_filter_center(data, center)
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
         self.backprojection(obj.data.ptr, data.data.ptr,
                             cp.cuda.get_current_stream().ptr)
@@ -105,7 +109,7 @@ class LpRec(cfunc):
             item['dark'] = dark[:,  k*self.nz:k*self.nz+lchunk[k]]
             self.data_queue.put(item)    
 
-    def recon_all(self, fname, pchunk=16):
+    def recon_all(self, fname, center, pchunk=16):
         """GPU reconstruction of data from an h5file by splitting into chunks"""
         # take links to datasets
         fid = h5py.File(fname, 'r')
@@ -157,7 +161,7 @@ class LpRec(cfunc):
             if(k > 0 and k < nchunk+1):
                 with stream2:  # reconstruction
                     self.recon(rec[(k-1) % 2], item_gpu['data'][(k-1) % 2],
-                               item_gpu['dark'][(k-1) % 2], item_gpu['flat'][(k-1) % 2])
+                               item_gpu['dark'][(k-1) % 2], item_gpu['flat'][(k-1) % 2], center)
             if(k > 1):
                 with stream3:  # gpu->cpu copy
                     rec[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
@@ -173,10 +177,10 @@ class LpRec(cfunc):
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
             stream3.synchronize()
             if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)                
+                # add a new thread for writing to hard disk (after gpu->cpu copy is done) 
+                rec_pinned0 = rec_pinned[(k-2) % 2,:lchunk[k-2]].copy()
                 write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                                      args=(
-                                                          rec_pinned[(k-2) % 2, :lchunk[k-2]],),
+                                                      args=(rec_pinned0,),
                                                       kwargs={'fname': '/local/ssd/lprec/r',
                                                               'start': (k-2)*self.nz,
                                                               'overwrite': True})
