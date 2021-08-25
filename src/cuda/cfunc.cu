@@ -71,15 +71,7 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
     uint BS1 = 32; uint BS2 = 32; uint BS3 = 1;    
 	uint GS1, GS2, GS3;    
     dim3 dimBlock(BS1,BS2,BS3);
-    GS1 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);
-    dim3 dimGrid1(GS1,GS2,GS3);
-    GS1 = (uint)ceil(ceil(sqrt(nwids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nwids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);
-    dim3 dimGrid2(GS1,GS2,GS3);
-    GS1 = (uint)ceil((ntheta/2+1)/(float)BS1); GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);
-    dim3 dimGrid3(GS1,GS2,GS3);
-    GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);
-    dim3 dimGrid4(GS1,GS2,GS3);
-
+    
     cufftSetStream(plan_forward, stream);
     cufftSetStream(plan_inverse, stream);    
     
@@ -88,16 +80,20 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
     {
         cudaMemsetAsync(fl, 0, nz*ntheta*nrho*sizeof(real),stream); 
 		//interp from polar to log-polar grid
+        GS1 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid1(GS1,GS2,GS3);    
         interplp<<<dimGrid1, dimBlock, 0, stream>>>(fl,g,&lp2p2[k*nlpids],&lp2p1[k*nlpids],BS1*GS1,nlpids,n,nproj,nz,lpids,ntheta*nrho);
 		//interp from polar to log-polar grid additional points
+        GS1 = (uint)ceil(ceil(sqrt(nwids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nwids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid2(GS1,GS2,GS3);    
         interplp<<<dimGrid2, dimBlock, 0, stream>>>(fl,g,&lp2p2w[k*nwids],&lp2p1w[k*nwids],BS1*GS1,nwids,n,nproj,nz,wids,ntheta*nrho);
         //Forward FFT
         cufftXtExec(plan_forward, fl,flc,CUFFT_FORWARD);        
 		//multiplication by adjoint fZ
-		mul<<<dimGrid3, dimBlock, 0, stream>>>(flc,fz,ntheta/2+1,nrho,nz);
+        GS1 = (uint)ceil((ntheta/2+1)/(float)BS1); GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid3(GS1,GS2,GS3);    
+        mul<<<dimGrid3, dimBlock, 0, stream>>>(flc,fz,ntheta/2+1,nrho,nz);
 		//Inverse FFT
 		cufftXtExec(plan_inverse,flc,fl,CUFFT_INVERSE);        
-		//interp from log-polar to Cartesian grid
+        //interp from log-polar to Cartesian grid
+        GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid4(GS1,GS2,GS3);
 		interpc<<<dimGrid4, dimBlock, 0, stream>>>(f,fl,&C2lp1[k*ncids],&C2lp2[k*ncids],BS1*GS1,ncids,ntheta,nrho,nz,cids,n*n);                    
     }
 }

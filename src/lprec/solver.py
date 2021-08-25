@@ -16,7 +16,7 @@ pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 # 'float32'- c++ code needs to be recompiled with changed directives in cfunc.cuh
-mtype = 'float32'
+mtype = 'float16'
 class LpRec(cfunc):
 
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
@@ -36,7 +36,8 @@ class LpRec(cfunc):
             [self.Padj.fZ.shape[0], self.Padj.fZ.shape[1]*2], dtype=mtype)
         fZn[:, ::2] = self.Padj.fZ.real
         fZn[:, 1::2] = self.Padj.fZ.imag
-        fZnptr = cp.ascontiguousarray(fZn).data.ptr
+        self.fZn = fZn # keep in class, otherwise collector will remove it
+        fZnptr = cp.ascontiguousarray(self.fZn).data.ptr
 
         lpids = self.Padj.lpids.data.ptr
         wids = self.Padj.wids.data.ptr
@@ -84,8 +85,6 @@ class LpRec(cfunc):
         data = self.darkflat_correction(item['data'], item['dark'], item['flat'])
         data = self.minus_log(data)        
         data = self.fbp_filter(data)     
-        # data = self.   
-        # reshape to sinograms
         obj = cp.zeros([self.nz, self.n, self.n], dtype=mtype)        
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
         self.backprojection(obj.data.ptr, data.data.ptr, cp.cuda.get_current_stream().ptr)
@@ -107,13 +106,15 @@ class LpRec(cfunc):
         dark = fid['exchange/data_dark']
         #theta = fid['exchange/theta']
         for ids in chunk(range(data.shape[1]), self.nz):
-            # print(f'0: {ids[0]} {ids[-1]}')
+            print(f'0: {ids[0]} {ids[-1]}')
             item = {}
-            item['data'] = np.pad(data[:,ids],((0,0),(0,self.nz-len(ids)),(0,0)))
+            item['data'] = np.pad(data[:-1,ids],((0,0),(0,self.nz-len(ids)),(0,0)))
             item['flat'] = np.pad(flat[:,ids],((0,0),(0,self.nz-len(ids)),(0,0)))
             item['dark'] = np.pad(dark[:,ids],((0,0),(0,self.nz-len(ids)),(0,0)))
-            item['ids'] = ids          
+            item['ids'] = ids.copy()          
             self.data_queue.put(item)  
+            if(item['ids'][-1]==1791):
+                return   
                         
     def thread1(self):
         stream1 = cp.cuda.Stream()        
@@ -137,9 +138,9 @@ class LpRec(cfunc):
                 item_gpu['ids'] = item['ids'].copy()            
             stream1.synchronize()                
             
-            # print(f"1: {item_gpu['ids'][0]} {item_gpu['ids'][-1]}")
+            print(f"1: {item_gpu['ids'][0]} {item_gpu['ids'][-1]}")
             self.data_gpu_queue.put(item_gpu)              
-            if(item_gpu['ids'][-1]==899):
+            if(item_gpu['ids'][-1]==1791):
                 return             
     
     def thread2(self):
@@ -151,9 +152,9 @@ class LpRec(cfunc):
                 item_obj_gpu['obj'] = self.recon(item_gpu) 
                 item_obj_gpu['ids'] = item_gpu['ids'].copy()            
             stream2.synchronize()                            
+            print(f"2: {item_obj_gpu['ids'][0]} {item_obj_gpu['ids'][-1]}")                        
             self.obj_gpu_queue.put(item_obj_gpu)   
-            # print(f"2: {item_obj_gpu['ids'][0]} {item_obj_gpu['ids'][-1]}")            
-            if(item_gpu['ids'][-1]==899):
+            if(item_gpu['ids'][-1]==1791):
                 return             
     
     def thread3(self):        
@@ -166,22 +167,22 @@ class LpRec(cfunc):
                 obj = obj_pinned.copy()# temp
                 # obj.dtype = 'uint16'#???temp
             stream3.synchronize()
-            # print(f"3: {item_gpu['ids'][0]} {item_gpu['ids'][-1]}")                                                    
+            print(f"3: {item_gpu['ids'][0]} {item_gpu['ids'][-1]}")                                                    
             write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                         args = (obj[:len(item_gpu['ids'])],),
                                         kwargs = {'fname': '/local/ssd/lprec/r',
                                                     'start': item_gpu['ids'][0],
                                                     'overwrite': True})                    
-            write_thread.start()
-            self.write_threads.append(write_thread)                            
-            if(item_gpu['ids'][-1]==899):
-                dxchange.write_tiff(obj[-1],'/local/ssd/lprec/test/'+str(self.ntheta)+'_'+str(self.nrho))
+            write_thread.start()            
+            self.write_threads.append(write_thread)                
+            if(item_gpu['ids'][-1]==1791):
+                # dxchange.write_tiff(obj[0],'/local/ssd/data/tmp/t'+str(self.ntheta)+str(self.nrho),overwrite=True)
                 return        
         
-    def recon_all(self, data, flat, dark, pchunk=16):
+    def recon_all(self, fname, pchunk=16):
         """Reconstruction by splitting data into chunks"""
         
-        thread0 = threading.Thread(target=self.thread0,args = ('/local/ssd/286_2_spfp_019.h5',))   
+        thread0 = threading.Thread(target=self.thread0,args = (fname,))   
         thread1 = threading.Thread(target=self.thread1)   
         thread2 = threading.Thread(target=self.thread2)   
         thread3 = threading.Thread(target=self.thread3)   
