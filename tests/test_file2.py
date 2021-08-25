@@ -25,9 +25,5 @@ fname = '/local/ssd/data/tmp/tomo_00001.h5'
 # exit()
 # angles are iitialized as np.arange(nproj)*np.pi/nproj
 
-tic()
 clpthandle = lprec.LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
-print(f'Init time: {toc():.3f}s')
-tic()
 clpthandle.recon_all(fname)
-print(f'Reconstruction time:{toc():.3f}s')

@@ -17,6 +17,8 @@ cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 # 'float32'- c++ code needs to be recompiled with changed directives in cfunc.cuh
 mtype = 'float32'
+
+
 class LpRec(cfunc):
 
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
@@ -36,7 +38,7 @@ class LpRec(cfunc):
             [self.Padj.fZ.shape[0], self.Padj.fZ.shape[1]*2], dtype=mtype)
         fZn[:, ::2] = self.Padj.fZ.real
         fZn[:, 1::2] = self.Padj.fZ.imag
-        self.fZn = fZn # keep in class, otherwise collector will remove it
+        self.fZn = fZn  # keep in class, otherwise collector will remove it
         fZnptr = cp.ascontiguousarray(self.fZn).data.ptr
 
         lpids = self.Padj.lpids.data.ptr
@@ -50,16 +52,13 @@ class LpRec(cfunc):
         super().setgrids(fZnptr, lp2p1, lp2p2, lp2p1w, lp2p2w,
                          C2lp1, C2lp2, lpids, wids, cids,
                          nlpids, nwids, ncids)
+
         self.ndark = ndark
         self.nflat = nflat
         self.data_type = data_type
-                    
-        self.write_threads = []
-        self.data_queue = queue.Queue()   
-        self.data_gpu_queue = queue.Queue(maxsize=1)   
-        self.obj_gpu_queue = queue.Queue(maxsize=1)   
+
+        self.data_queue = queue.Queue()
         self.running = True
-            
 
     def fbp_filter(self, data):
         """FBP filtering of projections"""
@@ -70,8 +69,8 @@ class LpRec(cfunc):
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
-        dark0 = cp.mean(dark,axis=0).astype(mtype)
-        flat0 = cp.mean(flat,axis=0).astype(mtype)                
+        dark0 = cp.mean(dark, axis=0).astype(mtype)
+        flat0 = cp.mean(flat, axis=0).astype(mtype)
         data = (data.astype(mtype)-dark0)/cp.maximum(flat0-dark0, 1e-6)
         return data
 
@@ -82,85 +81,112 @@ class LpRec(cfunc):
 
     def recon(self, obj, data, dark, flat):
         """Full reconstruction pipeline for a data chunk"""
-        data = self.darkflat_correction(data,dark,flat)
-        data = self.minus_log(data)        
-        data = self.fbp_filter(data)     
+        data = self.darkflat_correction(data, dark, flat)
+        data = self.minus_log(data)
+        data = self.fbp_filter(data)
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
-        self.backprojection(obj.data.ptr, data.data.ptr, cp.cuda.get_current_stream().ptr)
-            
-    def pinned_array(self,array):
-        # first constructing pinned memory
+        self.backprojection(obj.data.ptr, data.data.ptr,
+                            cp.cuda.get_current_stream().ptr)
+
+    def pinned_array(self, array):
+        """Allocate pinned memory and associate it with numpy array"""
         mem = cp.cuda.alloc_pinned_memory(array.nbytes)
         src = np.frombuffer(
-                    mem, array.dtype, array.size).reshape(array.shape)
+            mem, array.dtype, array.size).reshape(array.shape)
         src[...] = array
         return src
-    
-    def thread0(self, data, dark, flat):
-        for ids in chunk(range(data.shape[1]), self.nz):
-            # print(f'0: {ids[0]} {ids[-1]}')
+
+    def read_data(self, data, dark, flat, nchunk, lchunk):
+        """Reading data from hard disk and putting it to a queue"""
+        for k in range(nchunk):
             item = {}
-            item['data'] = data[:-1,ids]# temoriry -1
-            item['flat'] = flat[:,ids]
-            item['dark'] = dark[:,ids]
-            self.data_queue.put(item)  
-            
+            item['data'] = data[:-1, k*self.nz:k*self.nz+lchunk[k]]  # temoriry -1
+            item['flat'] = flat[:,  k*self.nz:k*self.nz+lchunk[k]]
+            item['dark'] = dark[:,  k*self.nz:k*self.nz+lchunk[k]]
+            self.data_queue.put(item)    
+
     def recon_all(self, fname, pchunk=16):
-        """Reconstruction by splitting data into chunks"""
-        
+        """GPU reconstruction of data from an h5file by splitting into chunks"""
+        # take links to datasets
         fid = h5py.File(fname, 'r')
         data = fid['exchange/data']
-        dark = fid['exchange/data_dark']        
+        dark = fid['exchange/data_dark']
         flat = fid['exchange/data_white']
-        
-        thread0 = threading.Thread(target=self.thread0,args = (data,dark,flat))   
-        thread0.start()                
-        
-        stream1 = cp.cuda.Stream(non_blocking=False)        
-        stream2 = cp.cuda.Stream(non_blocking=False)     
-        stream3 = cp.cuda.Stream(non_blocking=False)     
-        
+
+        nchunk = int(np.ceil(data.shape[1]/self.nz))  # number of chunks
+        lchunk = np.minimum(
+            self.nz, data.shape[1]-np.arange(nchunk)*self.nz)  # chunk sizes
+
+        # start reading data to a queue
+        read_thread = threading.Thread(
+            target=self.read_data, args=(data, dark, flat, nchunk, lchunk))
+        read_thread.start()
+
+        # pinned memory for data item
         item_pinned = {}
-        item_pinned['data'] = self.pinned_array(np.zeros([2, self.nproj, self.nz,self.n],dtype=self.data_type))
-        item_pinned['dark'] = self.pinned_array(np.zeros([2, self.ndark, self.nz,self.n],dtype=self.data_type))
-        item_pinned['flat'] = self.pinned_array(np.ones([2, self.nflat, self.nz,self.n],dtype=self.data_type))
-        
-        item_gpu = {}        
+        item_pinned['data'] = self.pinned_array(
+            np.zeros([2, self.nproj, self.nz, self.n], dtype=self.data_type))
+        item_pinned['dark'] = self.pinned_array(
+            np.zeros([2, self.ndark, self.nz, self.n], dtype=self.data_type))
+        item_pinned['flat'] = self.pinned_array(
+            np.ones([2, self.nflat, self.nz, self.n], dtype=self.data_type))
+
+        # gpu memory for data item
+        item_gpu = {}
         item_gpu['data'] = cp.empty_like(item_pinned['data'])
         item_gpu['dark'] = cp.empty_like(item_pinned['dark'])
         item_gpu['flat'] = cp.empty_like(item_pinned['flat'])
-        
-        rec = cp.zeros([2,self.nz,self.n,self.n],dtype=mtype)
-        rec_pinned = self.pinned_array(np.zeros([2,self.nz,self.n, self.n],dtype=mtype))
-        
-        nchunk = int(np.ceil(data.shape[1]/self.nz))
-        lchunk = np.minimum(self.nz,data.shape[1]-np.arange(nchunk)*self.nz) 
-        for k in range(nchunk+2):         
-            if(k>0 and k<nchunk+1):
-                with stream2:                
-                    self.recon(rec[(k-1)%2],item_gpu['data'][(k-1)%2],item_gpu['dark'][(k-1)%2],item_gpu['flat'][(k-1)%2]) 
-            if(k>1):
-                with stream3:
-                    rec[(k-2)%2].get(out=rec_pinned[(k-2)%2]) 
-            if(k<nchunk):
-                item = self.data_queue.get()                    
-                item_pinned['data'][k%2,:,:lchunk[k]] = item['data']
-                item_pinned['dark'][k%2,:,:lchunk[k]] = item['dark']
-                item_pinned['flat'][k%2,:,:lchunk[k]] = item['flat']                                                    
-                with stream1:             
-                    item_gpu['data'][k%2].set(item_pinned['data'][k%2])      
-                    item_gpu['dark'][k%2].set(item_pinned['dark'][k%2])      
-                    item_gpu['flat'][k%2].set(item_pinned['flat'][k%2])                  
-            
-            stream3.synchronize()                      
-            if(k>1):
+
+        # pinned memory for reconstrution
+        rec_pinned = self.pinned_array(
+            np.zeros([2, self.nz, self.n, self.n], dtype=mtype))
+        # gpu memory for reconstrution
+        rec = cp.empty_like(rec_pinned)
+
+        # list of threads for parallel writing to hard disk
+        write_threads = []
+
+        # streams for overlapping data transfers with computations
+        stream1 = cp.cuda.Stream(non_blocking=False)
+        stream2 = cp.cuda.Stream(non_blocking=False)
+        stream3 = cp.cuda.Stream(non_blocking=False)
+
+        # Conveyor for data cpu-gpu copy and reconstruction
+        tic()
+        for k in range(nchunk+2):
+            if(k > 0 and k < nchunk+1):
+                with stream2:  # reconstruction
+                    self.recon(rec[(k-1) % 2], item_gpu['data'][(k-1) % 2],
+                               item_gpu['dark'][(k-1) % 2], item_gpu['flat'][(k-1) % 2])
+            if(k > 1):
+                with stream3:  # gpu->cpu copy
+                    rec[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
+            if(k < nchunk):
+                # copy to pinned memory
+                item = self.data_queue.get()
+                item_pinned['data'][k % 2, :, :lchunk[k]] = item['data']
+                item_pinned['dark'][k % 2, :, :lchunk[k]] = item['dark']
+                item_pinned['flat'][k % 2, :, :lchunk[k]] = item['flat']
+                with stream1:  # cpu->gpu copy
+                    item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
+                    item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
+                    item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
+            stream3.synchronize()
+            if(k > 1):
+                # add a new thread for writing to hard disk (after gpu->cpu copy is done)                
                 write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                    args = (rec_pinned[(k-2)%2,:lchunk[k-2]],),
-                                    kwargs = {'fname': '/local/ssd/lprec/r',
-                                                'start': (k-2)*self.nz,
-                                                'overwrite': True})                    
-                write_thread.start()            
-                            
-            stream1.synchronize()                            
-            stream2.synchronize()                            
-                
+                                                      args=(
+                                                          rec_pinned[(k-2) % 2, :lchunk[k-2]],),
+                                                      kwargs={'fname': '/local/ssd/lprec/r',
+                                                              'start': (k-2)*self.nz,
+                                                              'overwrite': True})
+                write_threads.append(write_thread)
+                write_thread.start()
+            stream1.synchronize()
+            stream2.synchronize()
+
+        # wait until reconstructions are written to hard disk        
+        for thread in write_threads:
+            thread.join()
+
+        print(f'Reconstruction time:{toc():.3f}s')
