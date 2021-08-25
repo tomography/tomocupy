@@ -16,7 +16,7 @@ pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 # 'float32'- c++ code needs to be recompiled with changed directives in cfunc.cuh
-mtype = 'float16'
+mtype = 'float32'
 class LpRec(cfunc):
 
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
