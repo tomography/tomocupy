@@ -74,7 +74,8 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
     
     cufftSetStream(plan_forward, stream);
     cufftSetStream(plan_inverse, stream);    
-    
+    cudaMemsetAsync(f, 0, nz*n*n*sizeof(real),stream); 
+		
     //iterations over log-polar angular spans
     for(int k=0; k<3;k++)
     {
