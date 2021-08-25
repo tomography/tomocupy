@@ -5,15 +5,15 @@
 #include <cufftXt.h>
 #include <cuda_fp16.h>
 
-// #define CUDA_R CUDA_R_16F
-// #define CUDA_C CUDA_C_16F
-// typedef half real;
-// typedef half2 complex;
+#define CUDA_R CUDA_R_16F
+#define CUDA_C CUDA_C_16F
+typedef half real;
+typedef half2 complex;
 
-#define CUDA_R CUDA_R_32F
-#define CUDA_C CUDA_C_32F
-typedef float real;
-typedef float2 complex;
+// #define CUDA_R CUDA_R_32F
+// #define CUDA_C CUDA_C_32F
+// typedef float real;
+// typedef float2 complex;
 
 class cfunc
 {

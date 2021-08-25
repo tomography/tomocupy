@@ -16,7 +16,7 @@ pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 # 'float32'- c++ code needs to be recompiled with changed directives in cfunc.cuh
-mtype = 'float32'
+mtype = 'float16'
 class LpRec(cfunc):
 
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
@@ -96,205 +96,71 @@ class LpRec(cfunc):
         src[...] = array
         return src
     
-    def thread0(self, file_name):
-        fid = h5py.File(file_name, 'r')
-        data = fid['exchange/data']
-        flat = fid['exchange/data_white']
-        dark = fid['exchange/data_dark']
-        #theta = fid['exchange/theta']
+    def thread0(self, data, dark, flat):
         for ids in chunk(range(data.shape[1]), self.nz):
             # print(f'0: {ids[0]} {ids[-1]}')
             item = {}
-            item['data'] = data[:-1,ids]
+            item['data'] = data[:-1,ids]# temoriry -1
             item['flat'] = flat[:,ids]
             item['dark'] = dark[:,ids]
-            
-            # item['data'] = np.zeros([self.nproj, self.nz,self.n],dtype=self.data_type)
-            # item['dark'] = np.zeros([self.ndark, self.nz,self.n],dtype=self.data_type)
-            # item['flat'] = np.ones([self.nflat, self.nz,self.n],dtype=self.data_type)
-        
-            item['ids'] = ids.copy()          
             self.data_queue.put(item)  
-            if(item['ids'][-1]==1791):
-                return   
-                        
-    def thread1(self):
-        stream1 = cp.cuda.Stream()        
-        item_pinned = {}
-        item_pinned['data'] = self.pinned_array(np.zeros([self.nproj, self.nz,self.n],dtype=self.data_type))
-        item_pinned['dark'] = self.pinned_array(np.zeros([self.ndark, self.nz,self.n],dtype=self.data_type))
-        item_pinned['flat'] = self.pinned_array(np.ones([self.nflat, self.nz,self.n],dtype=self.data_type))
-        while self.running:
-            item_gpu = {}
-            item_gpu['data'] = cp.empty_like(item_pinned['data'])
-            item_gpu['dark'] = cp.empty_like(item_pinned['dark'])
-            item_gpu['flat'] = cp.empty_like(item_pinned['flat'])
-            with stream1:             
-                item = self.data_queue.get()                    
-                item_pinned['data'][:,:len(item['ids'])] = item['data']
-                item_pinned['dark'][:,:len(item['ids'])] = item['dark']
-                item_pinned['flat'][:,:len(item['ids'])] = item['flat']                                
-                item_gpu['data'].set(item_pinned['data'])      
-                item_gpu['dark'].set(item_pinned['dark'])      
-                item_gpu['flat'].set(item_pinned['flat'])                  
-                item_gpu['ids'] = item['ids'].copy()            
-            stream1.synchronize()                
             
-            print(f"1: {item_gpu['ids'][0]} {item_gpu['ids'][-1]}")
-            self.data_gpu_queue.put(item_gpu)              
-            if(item_gpu['ids'][-1]==1791):
-                return             
-    
-    def thread2(self):
-        stream2 = cp.cuda.Stream()        
-        while self.running:
-            item_obj_gpu = {}                                                
-            with stream2:                
-                item_gpu = self.data_gpu_queue.get()            
-                item_obj_gpu['obj'] = cp.zeros([self.nz,self.n, self.n],dtype=mtype)
-                self.recon(item_obj_gpu['obj'], item_gpu['data'],item_gpu['dark'],item_gpu['flat']) 
-                item_obj_gpu['ids'] = item_gpu['ids'].copy()            
-            stream2.synchronize()                            
-            print(f"2: {item_obj_gpu['ids'][0]} {item_obj_gpu['ids'][-1]}")                        
-            self.obj_gpu_queue.put(item_obj_gpu)   
-            if(item_gpu['ids'][-1]==1791):
-                return             
-    
-    def thread3(self):        
-        stream3 = cp.cuda.Stream()        
-        obj_pinned = self.pinned_array(np.zeros([self.nz,self.n, self.n],dtype=mtype))
-        while self.running:
-            with stream3:                
-                item_gpu = self.obj_gpu_queue.get()                
-                item_gpu['obj'].get(out=obj_pinned)                    
-                obj = obj_pinned.copy()# temp
-                # obj.dtype = 'uint16'#???temp
-            stream3.synchronize()
-            print(f"3: {item_gpu['ids'][0]} {item_gpu['ids'][-1]}")                                                    
-            write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                        args = (obj[:len(item_gpu['ids'])],),
-                                        kwargs = {'fname': '/local/ssd/lprec/r',
-                                                    'start': item_gpu['ids'][0],
-                                                    'overwrite': True})                    
-            write_thread.start()            
-            self.write_threads.append(write_thread)                
-            if(item_gpu['ids'][-1]==1791):
-                # dxchange.write_tiff(obj[0],'/local/ssd/data/tmp/t'+str(self.ntheta)+str(self.nrho),overwrite=True)
-                return        
-        
     def recon_all(self, fname, pchunk=16):
         """Reconstruction by splitting data into chunks"""
         
-        thread0 = threading.Thread(target=self.thread0,args = (fname,))   
-        # thread1 = threading.Thread(target=self.thread1)   
-        # thread2 = threading.Thread(target=self.thread2)   
-        # thread3 = threading.Thread(target=self.thread3)   
+        fid = h5py.File(fname, 'r')
+        data = fid['exchange/data']
+        dark = fid['exchange/data_dark']        
+        flat = fid['exchange/data_white']
+        
+        thread0 = threading.Thread(target=self.thread0,args = (data,dark,flat))   
         thread0.start()                
-        # thread1.start()
-        # thread2.start()
-        # thread3.start()
-        # thread0.join()        
-        # thread1.join()        
-        # thread2.join()        
-        # thread3.join()        
-        # return
+        
         stream1 = cp.cuda.Stream(non_blocking=False)        
         stream2 = cp.cuda.Stream(non_blocking=False)     
         stream3 = cp.cuda.Stream(non_blocking=False)     
         
         item_pinned = {}
-        item_gpu = {}        
         item_pinned['data'] = self.pinned_array(np.zeros([2, self.nproj, self.nz,self.n],dtype=self.data_type))
         item_pinned['dark'] = self.pinned_array(np.zeros([2, self.ndark, self.nz,self.n],dtype=self.data_type))
         item_pinned['flat'] = self.pinned_array(np.ones([2, self.nflat, self.nz,self.n],dtype=self.data_type))
+        
+        item_gpu = {}        
         item_gpu['data'] = cp.empty_like(item_pinned['data'])
         item_gpu['dark'] = cp.empty_like(item_pinned['dark'])
         item_gpu['flat'] = cp.empty_like(item_pinned['flat'])
+        
         rec = cp.zeros([2,self.nz,self.n,self.n],dtype=mtype)
         rec_pinned = self.pinned_array(np.zeros([2,self.nz,self.n, self.n],dtype=mtype))
         
-        for k in range(1792//self.nz+2):
-            if(k>0 and k<1792//self.nz+1):
+        nchunk = int(np.ceil(data.shape[1]/self.nz))
+        lchunk = np.minimum(self.nz,data.shape[1]-np.arange(nchunk)*self.nz) 
+        for k in range(nchunk+2):         
+            if(k>0 and k<nchunk+1):
                 with stream2:                
                     self.recon(rec[(k-1)%2],item_gpu['data'][(k-1)%2],item_gpu['dark'][(k-1)%2],item_gpu['flat'][(k-1)%2]) 
             if(k>1):
                 with stream3:
                     rec[(k-2)%2].get(out=rec_pinned[(k-2)%2]) 
-            if(k<1792//self.nz):
+            if(k<nchunk):
                 item = self.data_queue.get()                    
-                item_pinned['data'][k%2,:,:len(item['ids'])] = item['data']
-                item_pinned['dark'][k%2,:,:len(item['ids'])] = item['dark']
-                item_pinned['flat'][k%2,:,:len(item['ids'])] = item['flat']                                                    
+                item_pinned['data'][k%2,:,:lchunk[k]] = item['data']
+                item_pinned['dark'][k%2,:,:lchunk[k]] = item['dark']
+                item_pinned['flat'][k%2,:,:lchunk[k]] = item['flat']                                                    
                 with stream1:             
                     item_gpu['data'][k%2].set(item_pinned['data'][k%2])      
                     item_gpu['dark'][k%2].set(item_pinned['dark'][k%2])      
                     item_gpu['flat'][k%2].set(item_pinned['flat'][k%2])                  
             
-            stream3.synchronize()                            
-            write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                    args = (rec_pinned[(k-2)%2],),
+            stream3.synchronize()                      
+            if(k>1):
+                write_thread = threading.Thread(target=dxchange.write_tiff_stack,
+                                    args = (rec_pinned[(k-2)%2,:lchunk[k-2]],),
                                     kwargs = {'fname': '/local/ssd/lprec/r',
                                                 'start': (k-2)*self.nz,
                                                 'overwrite': True})                    
-            write_thread.start()            
+                write_thread.start()            
                             
             stream1.synchronize()                            
             stream2.synchronize()                            
-            stream3.synchronize()            
                 
-            # write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-            #                             args = (obj[:len(item_gpu['ids'])],),
-            #                             kwargs = {'fname': '/local/ssd/lprec/r',
-            #                                         'start': item_gpu['ids'][0],
-            #                                         'overwrite': True})                    
-            # write_thread.start()            
-            # self.write_threads.append(write_thread)                
-            # if(item_gpu['ids'][-1]==1791):
-            
-            
-                                
-        
-        
-        
-        # stream1.synchronize()                
-                
-        
-        
-        
-        for thread in self.write_threads:
-            thread.join()     
-    # def minterplp(self, f, g, x, y, xi, ni, mi):
-    #     xc = x.astype('int32')
-    #     xf = x-xc
-    #     yc = y.astype('int32')
-    #     yf = y-yc
-    #     ix, iy = cp.unravitem_index(xi, (ni, mi))
-    #     f[:, ix, iy] = g[:, xc, yc]*(1-xf)*(1-yf)+g[:, xc+1, yc] * \
-    #         xf*(1-yf)+g[:, xc, yc+1]*(1-xf)*yf+g[:, xc+1, yc+1]*xf*yf
-
-    # def minterpc(self, f, g, x, y, xi, ni, mi, n, m):
-    #     xc = x.astype('int32')
-    #     xf = x-xc
-    #     yc = y.astype('int32')
-    #     yf = y-yc
-    #     ix, iy = cp.unravitem_index(xi, (ni, mi))
-    #     f[:, ix, iy] += g[:, xc, yc]*(1-xf)*(1-yf)+g[:, (xc+1) % n, yc]*xf*(
-    #         1-yf)+g[:, xc, (yc+1) % m]*(1-xf)*yf+g[:, (xc+1) % n, (yc+1) % m]*xf*yf
-    #     return f
-
-    # def backprojection2(self, R):
-    #     nz = R.shape[0]
-    #     f = cp.zeros([nz, self.n, self.n], dtype=mtype)
-    #     Nchunk = nz
-    #     for ids in chunk(range(nz),Nchunk):
-    #         for k in range(3):
-    #             Rlp0 = cp.zeros([Nchunk, self.nrho, self.ntheta], dtype=mtype)
-    #             self.minterplp(Rlp0, R[ids], self.Padj.lp2p1[k],
-    #                             self.Padj.lp2p2[k], self.Padj.lpids, self.nrho, self.ntheta)
-    #             self.minterplp(Rlp0, R[ids], self.Padj.lp2p1w[k],
-    #                             self.Padj.lp2p2w[k], self.Padj.wids, self.nrho, self.ntheta)
-    #             # flp=Rlp0*self.Padj.fZ;
-    #             flp = irfft2(rfft2(Rlp0,overwrite_x=True)*self.Padj.fZ,overwrite_x=True)
-    #             f[ids] = self.minterpc(f[ids], flp, self.Padj.C2lp2[k],
-    #                                     self.Padj.C2lp1[k], self.Padj.cids, self.n, self.n, self.nrho, self.ntheta)
-    #     return f
