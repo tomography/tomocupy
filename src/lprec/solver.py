@@ -62,8 +62,7 @@ class LpRec(cfunc):
 
     def fbp_filter_center(self, data, center):
         """FBP filtering of projections"""
-        t = cp.fft.rfftfreq(self.n).astype('float32')
-        
+        t = cp.fft.rfftfreq(self.n).astype(mtype)        
         w = t * (1 - t * 2)**3  # parzen
         w = w*cp.exp(2*cp.pi*1j*t*(center-self.n/2)) # center fix       
         w = cp.tile(w, [data.shape[1], 1])

@@ -5,6 +5,9 @@
 #include <cufftXt.h>
 #include <cuda_fp16.h>
 
+#define BS1 32
+#define BS2 32
+#define BS3 1
 // #define CUDA_R CUDA_R_16F
 // #define CUDA_C CUDA_C_16F
 // typedef half real;
@@ -20,7 +23,7 @@ class cfunc
     bool is_free;
 	real* fl;
     complex* flc;
-    complex* gc;    
+    real* gtmp;
     complex* fz;
     float* lp2p1;
     float* lp2p2;
@@ -36,7 +39,8 @@ class cfunc
     int ncids;
     cufftHandle plan_forward;
 	cufftHandle plan_inverse;
-
+    cudaArray* ga;
+    cudaArray* fla;
 public:
     int n;      
     int nproj;      

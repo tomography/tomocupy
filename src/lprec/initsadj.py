@@ -3,9 +3,8 @@ import numpy as np
 from cupyx.scipy.fft import rfft, irfft, rfft2, irfft2
 
 class Padj:
-    def __init__(self, fZ,  wfilter, lp2p1, lp2p2, lp2p1w, lp2p2w, C2lp1, C2lp2, cids, lpids, wids):
+    def __init__(self, fZ, lp2p1, lp2p2, lp2p1w, lp2p2w, C2lp1, C2lp2, cids, lpids, wids):
         self.fZ = fZ
-        self.wfilter = wfilter
         self.lp2p1 = lp2p1
         self.lp2p2 = lp2p2
         self.lp2p1w = lp2p1w
@@ -102,12 +101,10 @@ def create_adj(P):
         C2lp2[k] = (C2lp2[k]-P.rhosp[0])/(P.rhosp[-1]-P.rhosp[0])*(P.Nrho-1)
 
     const = (P.N+1)*(P.N-1)/P.N**2/2*np.sqrt(P.Nproj/P.N/2)
-    fZ = cp.ascontiguousarray(fZ[:, :P.Ntheta//2+1])*const        
+    fZ = cp.ascontiguousarray(fZ[:, :P.Ntheta//2+1]/(P.B3com[:, :P.Ntheta//2+1]))*const  
     
-    t = cp.fft.rfftfreq(P.N).astype('float32')
-    wfilter = t * (1 - t * 2)**3  # parzen
-                
-    Padj0 = Padj(fZ, wfilter, lp2p1, lp2p2, lp2p1w, lp2p2w,
+                    
+    Padj0 = Padj(fZ, lp2p1, lp2p2, lp2p1w, lp2p2w,
                  C2lp1, C2lp2, cids, lpids, wids)
     return Padj0
 
