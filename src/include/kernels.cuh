@@ -21,56 +21,19 @@ __host__ __device__ void bspline_weights(complex fraction, complex& w0, complex&
 	w3 = static_cast<real>(1.0f/6.0f) * squared * fraction;
 }
 
-__device__ real linearTex2D(texture<real, cudaTextureType2DLayered, cudaReadModeElementType> tex, real x, real y, real z, int N0,int N1)
+__device__ real linearTex2D(texture<real, cudaTextureType2DLayered, cudaReadModeElementType> tex, real x, real y, real z, int n0,int n1)
 {
 	complex t0;
-	t0.x = x/(real)N0;
-	t0.y = y/(real)N1;
+	t0.x = x/(real)n0;
+	t0.y = y/(real)n1;
 	return tex2DLayered(tex, t0.x, t0.y, z);
 }
 
-__global__ void interplp(real *f, real* g, float* x, float* y, int w, int np,int n1,int n2, int ni, int* cids, int step2d)
-{
-	uint tx = blockIdx.x*blockDim.x + threadIdx.x;
-	uint ty = blockIdx.y*blockDim.y + threadIdx.y;
-	uint tz = blockIdx.z*blockDim.z + threadIdx.z;
-	uint tid = ty*w+tx;
-	if(tid>=np||tz>=ni) return;
-
-	int xc = (uint)x[tid];
-    int yc = (uint)y[tid];
-    real xf = real(x[tid]-xc);    
-    real yf = real(y[tid]-yc);
-    f[tz*step2d+cids[tid]] = g[tz*n1*n2+yc*n1+xc]*(static_cast<real>(1)-xf)*(static_cast<real>(1)-yf)
-                     +g[tz*n1*n2+yc*n1+(xc+1)%n1]*xf*(static_cast<real>(1)-yf)
-                     +g[tz*n1*n2+((yc+1)%n2)*n1+xc]*(static_cast<real>(1)-xf)*yf
-                     +g[tz*n1*n2+((yc+1)%n2)*n1+(xc+1)%n1]*xf*yf;                                     
-}
-
-__global__ void interpc(real *f, real* g, float* x, float* y, int w, int np,int n1,int n2, int ni, int* cids, int step2d)
-{
-	uint tx = blockIdx.x*blockDim.x + threadIdx.x;
-	uint ty = blockIdx.y*blockDim.y + threadIdx.y;
-	uint tz = blockIdx.z*blockDim.z + threadIdx.z;
-	uint tid = ty*w+tx;
-	if(tid>=np||tz>=ni) return;
-
-	int xc = uint(x[tid]);
-    int yc = uint(y[tid]);
-    real xf = real(x[tid]-xc);    
-    real yf = real(y[tid]-yc);
-    // real cr = real(1.0f/n1/n2);
-    f[tz*step2d+cids[tid]] += (g[tz*n1*n2+yc*n1+xc]*(static_cast<real>(1)-xf)*(static_cast<real>(1)-yf)
-                    +g[tz*n1*n2+yc*n1+(xc+1)%n1]*xf*(static_cast<real>(1)-yf)
-                    +g[tz*n1*n2+((yc+1)%n2)*n1+xc]*(static_cast<real>(1)-xf)*yf
-                    +g[tz*n1*n2+((yc+1)%n2)*n1+(xc+1)%n1]*xf*yf);  
-}
-
 //cubic interpolation via two linear interpolations for several slices, texture is not normalized
-__device__ real cubicTex2D(texture<real, cudaTextureType2DLayered, cudaReadModeElementType> tex, real x, real y, real z, int N0,int N1)
+__device__ real cubicTex2D(texture<real, cudaTextureType2DLayered, cudaReadModeElementType> tex, real x, real y, real z, int n0,int n1)
 {
 	// transform the coordinate from [0,extent] to [-0.5, extent-0.5]
-	const complex coord_grid = make_complex(x - 0.5f, y - 0.5f);
+	const complex coord_grid = make_complex(x - static_cast<real>(0.5f), y - static_cast<real>(0.5f));
 	const complex index = floor(coord_grid);
 	const complex fraction = coord_grid - index;
 	complex w0, w1, w2, w3;
@@ -78,14 +41,14 @@ __device__ real cubicTex2D(texture<real, cudaTextureType2DLayered, cudaReadModeE
 
 	const complex g0 = w0 + w1;
 	const complex g1 = w2 + w3;
-	const complex h0 = (w1 / g0) - make_complex(0.5f) + index;  //h0 = w1/g0 - 1, move from [-0.5, extent-0.5] to [0, extent]
-	const complex h1 = (w3 / g1) + make_complex(1.5f) + index;  //h1 = w3/g1 + 1, move from [-0.5, extent-0.5] to [0, extent]
+	const complex h0 = (w1 / g0) - make_complex(static_cast<real>(0.5f)) + index;  //h0 = w1/g0 - 1, move from [-0.5, extent-0.5] to [0, extent]
+	const complex h1 = (w3 / g1) + make_complex(static_cast<real>(1.5f)) + index;  //h1 = w3/g1 + 1, move from [-0.5, extent-0.5] to [0, extent]
 
 	complex t0,t1;
-	t0.x = h0.x/(real)N0;
-	t1.x = h1.x/(real)N0;
-	t0.y = h0.y/(real)N1;
-	t1.y = h1.y/(real)N1;
+	t0.x = h0.x/(real)n0;
+	t1.x = h1.x/(real)n0;
+	t0.y = h0.y/(real)n1;
+	t1.y = h1.y/(real)n1;
 	real tex00 = tex2DLayered(tex, t0.x, t0.y, z);
 	real tex10 = tex2DLayered(tex, t1.x, t0.y, z);
 	real tex01 = tex2DLayered(tex, t0.x, t1.y, z);
@@ -107,8 +70,8 @@ __global__ void interp(int interp_id, real *f, float* x, float* y, int w, int np
 	uint tz = blockIdx.z*blockDim.z + threadIdx.z;
 	uint tid = ty*w+tx;
 	if(tid>=np||tz>=nz) return;
-	real u = real(x[tid]+0.5f);
-	real v = real(y[tid]+0.5f);
+	real u = real(x[tid]+static_cast<real>(0.5f));
+	real v = real(y[tid]+static_cast<real>(0.5f));
 	switch(interp_id)//no overhead, all threads have the same way
 	{ 		
 		case 0: f[tz*step2d+cids[tid]] += linearTex2D(texg, u, v, tz,n1,n2);break;   
