@@ -47,7 +47,10 @@ class cfunc
     cufftHandle plan_forward;
 	cufftHandle plan_inverse;
     cudaArray* ga;
-    cudaArray* fla;    
+    cudaArray* fla;  
+    cudaTextureObject_t texfl;  
+    cudaTextureObject_t texg;  
+
 public:
     int n;      
     int nproj;      

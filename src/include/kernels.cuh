@@ -1,8 +1,8 @@
 #include<cfunc.cuh>
 #define Pole static_cast<real>(-0.267949192431123f)
 
-texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texg; //type 0
-texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texfl; //type 1
+// texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texg; //type 0
+// texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texfl; //type 1
 
 //CODE adapted from https://github.com/nikitinvv/lprec/blob/master/src/include/main_kernels.cuh
 
@@ -19,25 +19,24 @@ __device__ void bspline_weights(real fraction, real* w)
 	w[3] = static_cast<real>(1.0f/6.0f) * squared * fraction;
 }
 
-__device__ real linearTex2D(texture<float, cudaTextureType2DLayered, cudaReadModeElementType> tex, float x, float y, float z, int n0,int n1)
+__device__ real linearTex2D(cudaTextureObject_t tex, float x, float y, float z, int n0,int n1)
 {
 	return TEX2D_L(tex, (x+0.5f)/float(n0), (y+0.5f)/float(n1), z);
 }
 
 //cubic interpolation via two linear interpolations for several slices, texture is not normalized
-__device__ real cubicTex2D(texture<float, cudaTextureType2DLayered, cudaReadModeElementType> tex, float x, float y, float z, int n0,int n1)
+__device__ real cubicTex2D(cudaTextureObject_t tex, float x, float y, float z, int n0,int n1)
 {
 	// transform the coordinate from [0,extent] to [-0.5, extent-0.5]
 	real w[4] = {};
 	const float indexx = floor(x);
-	const real fractionx = real(x - indexx); //big-big number
+	const real fractionx = real(x - indexx); //big - big -> compute in floats
 	bspline_weights(fractionx, w);
 	const real g0x = (w[0] + w[1]);
 	const real g1x = (w[2] + w[3]);
-	const float h0x = (float(w[1] / g0x - static_cast<real>(0.5f))+float(indexx))/float(n0);  //big+small number
+	const float h0x = (float(w[1] / g0x - static_cast<real>(0.5f))+float(indexx))/float(n0);  //big + small -> compute in floats
 	const float h1x = (float(w[3] / g1x + static_cast<real>(1.5f))+float(indexx))/float(n0);  
-	
-	
+		
 	const float indexy = floor(y);
 	const real fractiony = real(y - indexy);
 	bspline_weights(fractiony, w);
@@ -46,7 +45,6 @@ __device__ real cubicTex2D(texture<float, cudaTextureType2DLayered, cudaReadMode
 	const float h0y = (float(w[1] / g0y - static_cast<real>(0.5f))+float(indexy))/float(n1);  
 	const float h1y = (float(w[3] / g1y + static_cast<real>(1.5f))+float(indexy))/float(n1);  
 	
-
 	real tex00 = TEX2D_L(tex, h0x, h0y, z);
 	real tex10 = TEX2D_L(tex, h1x, h0y, z);
 	real tex01 = TEX2D_L(tex, h0x, h1y, z);
@@ -58,21 +56,14 @@ __device__ real cubicTex2D(texture<float, cudaTextureType2DLayered, cudaReadMode
 	return g0x * tex00 + g1x * tex10;
 }
 
-__global__ void interp(int interp_id, real *f, float* x, float* y, int w, int np,int n1,int n2, int nz, int* cids, int step2d)
+__global__ void interp(cudaTextureObject_t tex, real *f, float* x, float* y, int w, int np,int n1,int n2, int nz, int* cids, int step2d)
 {
 	uint tx = blockIdx.x*blockDim.x + threadIdx.x;
 	uint ty = blockIdx.y*blockDim.y + threadIdx.y;
 	uint tz = blockIdx.z*blockDim.z + threadIdx.z;
 	uint tid = ty*w+tx;
 	if(tid>=np||tz>=nz) return;
-	
-	switch(interp_id)//no overhead, all threads have the same way
-	{ 		
-		case 0: f[tz*step2d+cids[tid]] += linearTex2D(texg, x[tid], y[tid], tz,n1,n2);break;   
-		case 1: f[tz*step2d+cids[tid]] += linearTex2D(texfl, x[tid], y[tid], tz,n1,n2);break;   
-		case 2: f[tz*step2d+cids[tid]] += cubicTex2D(texg, x[tid], y[tid], tz,n1,n2);break;   
-		case 3: f[tz*step2d+cids[tid]] += cubicTex2D(texfl, x[tid], y[tid], tz,n1,n2);break;  
-	}	
+	f[tz*step2d+cids[tid]] += cubicTex2D(tex, x[tid], y[tid], tz,n1,n2);	
 }
 
 //casual cofficients for prefilter

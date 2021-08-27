@@ -6,11 +6,6 @@ inline __device__ __host__ complex make_complex(real a, real b)
     r.y = b;
     return r;
 }
-// lerp
-inline __device__ __host__ real lerp(real a, real b, real t)
-{
-    return a + t*(b-a);
-}
 
 // addition
 inline __host__ __device__ int2 operator+(int2 a, int2 b)
@@ -134,39 +129,9 @@ inline __host__ __device__ void operator/=(complex &a, real s)
     a *= inv;
 }
 
-// lerp
-inline __device__ __host__ complex lerp(complex a, complex b, real t)
-{
-    return a + t*(b-a);
-}
-
-// dot product
-inline __host__ __device__ real dot(complex a, complex b)
-{ 
-    return a.x * b.x + a.y * b.y;
-}
-
-// length
-inline __host__ __device__ real length(complex v)
-{
-    return sqrtf(dot(v, v));
-}
-
-// normalize
-inline __host__ __device__ complex normalize(complex v)
-{
-    real invLen = static_cast<real>(1.0f) / sqrtf(dot(v, v));
-    return v * invLen;
-}
 
 // floor
 inline __host__ __device__ complex floor(const complex v)
 {
-    return make_complex(floor(v.x), floor(v.y));
-}
-
-
-inline __host__ __device__ float3 operator-(real a, float3 b)
-{
-	return make_float3(a - b.x, a - b.y, a - b.z);
+    return make_complex(uint(v.x), uint(v.y));
 }

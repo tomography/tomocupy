@@ -38,29 +38,46 @@ nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
     cudaMalloc((void **)&flc, nz*(ntheta/2+1)*nrho*sizeof(complex)); 
     cudaMalloc((void **)&gtmp, nz*n*nproj*sizeof(real)); 
     
+    // 3d arrays for textures
+    cudaChannelFormatDesc texf_desc = CUDA_CREATE_CHANNEL_DESC();   
+    cudaExtent volumeSize = make_cudaExtent(n,nproj,nz); 
+	  
+    cudaMalloc3DArray(&ga, &texf_desc, make_cudaExtent(n,nproj,nz),cudaArrayLayered);
+	
     // Init texture references
     // texture texfl
-    cudaChannelFormatDesc texf_desc;
-    texf_desc = CUDA_CREATE_CHANNEL_DESC();     
-    cudaExtent volumeSize = make_cudaExtent(ntheta,nrho,nz); 
-	
-	cudaMalloc3DArray(&fla, &texf_desc,volumeSize,cudaArrayLayered); 
-	texfl.addressMode[0] = cudaAddressModeWrap;
-	texfl.addressMode[1] = cudaAddressModeWrap;
-	texfl.filterMode = cudaFilterModeLinear;
-	texfl.normalized  = true;
-    cudaBindTextureToArray(texfl, fla,texf_desc); 
-
-    // texture texg
-    texf_desc = CUDA_CREATE_CHANNEL_DESC();    
-    volumeSize = make_cudaExtent(n,nproj,nz); 
-	cudaMalloc3DArray(&ga, &texf_desc, volumeSize,cudaArrayLayered);
-	texg.addressMode[0] = cudaAddressModeWrap;
-	texg.addressMode[1] = cudaAddressModeWrap;
-	texg.filterMode = cudaFilterModeLinear;
-	texg.normalized = true;
-    cudaBindTextureToArray(texg, ga,texf_desc);
+           
+    cudaResourceDesc texgRes;
     
+    memset(&texgRes,0,sizeof(cudaResourceDesc));
+    texgRes.resType            = cudaResourceTypeArray;
+    texgRes.res.array.array    = ga;
+    cudaTextureDesc             texgDescr;    
+    memset(&texgDescr,0,sizeof(cudaTextureDesc));
+    
+	texgDescr.addressMode[0] = cudaAddressModeWrap;
+	texgDescr.addressMode[1] = cudaAddressModeWrap;
+	texgDescr.filterMode = cudaFilterModeLinear;
+    texgDescr.normalizedCoords = true;
+    texgDescr.readMode = cudaReadModeElementType;
+    cudaCreateTextureObject(&texg, &texgRes, &texgDescr, NULL);
+    
+    texf_desc = CUDA_CREATE_CHANNEL_DESC(); 
+    volumeSize = make_cudaExtent(ntheta,nrho,nz); 	
+    cudaMalloc3DArray(&fla, &texf_desc,volumeSize,cudaArrayLayered); 
+    cudaResourceDesc texflRes;
+    memset(&texflRes,0,sizeof(cudaResourceDesc));
+    texflRes.resType            = cudaResourceTypeArray;
+    texflRes.res.array.array    = fla;
+    cudaTextureDesc             texflDescr;    
+    memset(&texflDescr,0,sizeof(cudaTextureDesc));
+    
+	texflDescr.addressMode[0] = cudaAddressModeWrap;
+	texflDescr.addressMode[1] = cudaAddressModeWrap;
+	texflDescr.filterMode = cudaFilterModeLinear;
+    texflDescr.normalizedCoords = true;
+    texflDescr.readMode = cudaReadModeElementType;
+    cudaCreateTextureObject(&texfl, &texflRes, &texflDescr, NULL);
     // // texture texg    
     // texf_desc = cudaCreateChannelDesc<real>();	
     // volumeSize = make_cudaExtent(n,nproj,nz);     
@@ -150,10 +167,10 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
         cudaMemsetAsync(fl, 0, nz*ntheta*nrho*sizeof(real),stream); 
 		//interp from polar to log-polar grid
         GS1 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid1(GS1,GS2,GS3);    
-        interp<<<dimGrid1, dimBlock, 0, stream>>>(0, fl,&lp2p2[k*nlpids],&lp2p1[k*nlpids],BS1*GS1,nlpids,n,nproj,nz,lpids,ntheta*nrho);
+        interp<<<dimGrid1, dimBlock, 0, stream>>>(texg, fl,&lp2p2[k*nlpids],&lp2p1[k*nlpids],BS1*GS1,nlpids,n,nproj,nz,lpids,ntheta*nrho);
 		//interp from polar to log-polar grid additional points
         GS1 = (uint)ceil(ceil(sqrt(nwids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nwids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid2(GS1,GS2,GS3);    
-        interp<<<dimGrid2, dimBlock, 0, stream>>>(2, fl,&lp2p2w[k*nwids],&lp2p1w[k*nwids],BS1*GS1,nwids,n,nproj,nz,wids,ntheta*nrho);
+        interp<<<dimGrid2, dimBlock, 0, stream>>>(texg, fl,&lp2p2w[k*nwids],&lp2p1w[k*nwids],BS1*GS1,nwids,n,nproj,nz,wids,ntheta*nrho);
         //Forward FFT
         cufftXtExec(plan_forward, fl,flc,CUFFT_FORWARD);        
 		//multiplication by adjoint fZ
@@ -165,7 +182,7 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
         copy3DDeviceToArray(fla,fl,make_cudaExtent(ntheta, nrho, nz),stream);
         //interp from log-polar to Cartesian grid
         GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid4(GS1,GS2,GS3);
-		interp<<<dimGrid4, dimBlock, 0, stream>>>(3, f,&C2lp1[k*ncids],&C2lp2[k*ncids],BS1*GS1,ncids,ntheta,nrho,nz,cids,n*n);                    
+		interp<<<dimGrid4, dimBlock, 0, stream>>>(texfl, f,&C2lp1[k*ncids],&C2lp2[k*ncids],BS1*GS1,ncids,ntheta,nrho,nz,cids,n*n);                    
     }
 }
 
