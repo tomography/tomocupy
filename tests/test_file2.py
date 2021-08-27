@@ -1,7 +1,4 @@
 import lprec
-from lprec.timing import *
-import h5py
-import dxchange
 
 # sizes
 [nz, nproj, n] = [16, 1500, 2048]  # 16 max for RTX4000 float32

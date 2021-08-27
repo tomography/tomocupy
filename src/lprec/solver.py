@@ -3,14 +3,12 @@ from lprec import initsadj
 from lprec import initsadj
 from lprec.cfunc import cfunc
 from lprec.utils import *
-import cupy as cp
 from cupyx.scipy.fft import rfft, irfft, rfft2, irfft2
-import cupyx
+import cupy as cp
 import dxchange
 import threading
 import queue
 import h5py
-import time
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
@@ -18,10 +16,9 @@ cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 # 'float32'- c++ code needs to be recompiled with changed directives in cfunc.cuh
 mtype = 'float16'
 
+
 class LpRec(cfunc):
-
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
-
         # precompute parameters for the lp method
         self.Pgl = initsgl.create_gl(n, nproj, ntheta, nrho)
         self.Padj = initsadj.create_adj(self.Pgl)

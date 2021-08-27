@@ -39,65 +39,27 @@ nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
     cudaMalloc((void **)&gtmp, nz*n*nproj*sizeof(real)); 
     
     // 3d arrays for textures
-    cudaChannelFormatDesc texf_desc = CUDA_CREATE_CHANNEL_DESC();   
-    cudaExtent volumeSize = make_cudaExtent(n,nproj,nz); 
-	  
+    cudaChannelFormatDesc texf_desc = CUDA_CREATE_CHANNEL_DESC();         
     cudaMalloc3DArray(&ga, &texf_desc, make_cudaExtent(n,nproj,nz),cudaArrayLayered);
-	
-    // Init texture references
-    // texture texfl
-           
-    cudaResourceDesc texgRes;
+	cudaMalloc3DArray(&fla, &texf_desc, make_cudaExtent(ntheta,nrho,nz),cudaArrayLayered);
     
-    memset(&texgRes,0,sizeof(cudaResourceDesc));
-    texgRes.resType            = cudaResourceTypeArray;
-    texgRes.res.array.array    = ga;
-    cudaTextureDesc             texgDescr;    
-    memset(&texgDescr,0,sizeof(cudaTextureDesc));
+    // texture objects
+    cudaTextureDesc             texDescr;    
+    memset(&texDescr,0,sizeof(cudaTextureDesc));
     
-	texgDescr.addressMode[0] = cudaAddressModeWrap;
-	texgDescr.addressMode[1] = cudaAddressModeWrap;
-	texgDescr.filterMode = cudaFilterModeLinear;
-    texgDescr.normalizedCoords = true;
-    texgDescr.readMode = cudaReadModeElementType;
-    cudaCreateTextureObject(&texg, &texgRes, &texgDescr, NULL);
+	texDescr.addressMode[0] = cudaAddressModeWrap;
+	texDescr.addressMode[1] = cudaAddressModeWrap;
+	texDescr.filterMode = cudaFilterModeLinear;
+    texDescr.normalizedCoords = true;
+    texDescr.readMode = cudaReadModeElementType;
     
-    texf_desc = CUDA_CREATE_CHANNEL_DESC(); 
-    volumeSize = make_cudaExtent(ntheta,nrho,nz); 	
-    cudaMalloc3DArray(&fla, &texf_desc,volumeSize,cudaArrayLayered); 
-    cudaResourceDesc texflRes;
-    memset(&texflRes,0,sizeof(cudaResourceDesc));
-    texflRes.resType            = cudaResourceTypeArray;
-    texflRes.res.array.array    = fla;
-    cudaTextureDesc             texflDescr;    
-    memset(&texflDescr,0,sizeof(cudaTextureDesc));
-    
-	texflDescr.addressMode[0] = cudaAddressModeWrap;
-	texflDescr.addressMode[1] = cudaAddressModeWrap;
-	texflDescr.filterMode = cudaFilterModeLinear;
-    texflDescr.normalizedCoords = true;
-    texflDescr.readMode = cudaReadModeElementType;
-    cudaCreateTextureObject(&texfl, &texflRes, &texflDescr, NULL);
-    // // texture texg    
-    // texf_desc = cudaCreateChannelDesc<real>();	
-    // volumeSize = make_cudaExtent(n,nproj,nz);     
-    // cudaMalloc3DArray(&ga, &texf_desc, volumeSize,cudaArrayLayered);
-    
-    // cudaResourceDesc texgRes;
-    // memset(&texgRes,0,sizeof(cudaResourceDesc));
-    // texgRes.resType            = cudaResourceTypeArray;
-    // texgRes.res.array.array    = ga;
-    // cudaTextureDesc             texgDescr;    
-    // memset(&texgDescr,0,sizeof(cudaTextureDesc));
-    
-	// texgDescr.addressMode[0] = cudaAddressModeWrap;
-	// texgDescr.addressMode[1] = cudaAddressModeWrap;
-	// texgDescr.filterMode = cudaFilterModeLinear;
-    // texgDescr.normalizedCoords = true;
-    // texgDescr.readMode = cudaReadModeNormalizedFloat;
-    // cudaArrayLayered
-    // cudaCreateTextureObject(&texg, &texgRes, &texgDescr, NULL);
-    
+    cudaResourceDesc texRes;    
+    memset(&texRes,0,sizeof(cudaResourceDesc));
+    texRes.resType            = cudaResourceTypeArray;    
+    texRes.res.array.array    = ga;    
+    cudaCreateTextureObject(&texg, &texRes, &texDescr, NULL);    
+    texRes.res.array.array    = fla;
+    cudaCreateTextureObject(&texfl, &texRes, &texDescr, NULL);
     is_free = false;    
 }
 
@@ -108,8 +70,14 @@ void cfunc::free() {
     if (!is_free) {
         cufftDestroy(plan_forward);
         cufftDestroy(plan_inverse);    
+        cudaDestroyTextureObject(texg);
+        cudaDestroyTextureObject(texfl);
         cudaFree(fl);
         cudaFree(flc);
+        cudaFree(gtmp);
+        cudaFreeArray(ga);        
+        cudaFreeArray(fla);
+
         is_free = true;
     }
 }
@@ -137,15 +105,17 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
 {
     real* f = (real*)f_;
     real* g = (real*)g_;
-    cudaStream_t stream = (cudaStream_t)stream_;
-    // set thread block and grid sizes
+    cudaStream_t stream = (cudaStream_t)stream_;    
+    cufftSetStream(plan_forward, stream);
+    cufftSetStream(plan_inverse, stream);    
+    
+    cudaMemsetAsync(f, 0, nz*n*n*sizeof(real),stream); 
+
+    // set thread block, grid sizes will be computed before cuda kernel execution
     dim3 dimBlock(BS1,BS2,BS3);    
     uint GS1, GS2, GS3;    
     
-    cufftSetStream(plan_forward, stream);
-    cufftSetStream(plan_inverse, stream);    
-    cudaMemsetAsync(f, 0, nz*n*n*sizeof(real),stream); 
-
+    ////// Prefilter for cubic interpolation in polar coordinates //////
 	//transpose for optimal cache usage
 	GS1 = (uint)ceil(n/(float)BS1); GS2 = (uint)ceil(nproj/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid1(GS1,GS2,GS3);    
 	transpose<<<dimGrid1,dimBlock, 0, stream>>>(gtmp, g,n, nproj,nz);
@@ -158,10 +128,11 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
 	//compensate in samples for y direction
 	GS1 = (uint)ceil(n/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid4(GS1,GS2,1); 
 	SamplesToCoefficients2DY<<<dimGrid4, dimBlock, 0, stream>>>(g,n*sizeof(real),n,nproj,nz);
-
+    
+    //copy to the array associated with texture memory
     copy3DDeviceToArray(ga,g,make_cudaExtent(n, nproj, nz),stream);
-
-    //iterations over log-polar angular spans
+    
+    //////// Iterations over log-polar angular spans ///////
     for(int k=0; k<3;k++)
     {
         cudaMemsetAsync(fl, 0, nz*ntheta*nrho*sizeof(real),stream); 
@@ -173,7 +144,7 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
         interp<<<dimGrid2, dimBlock, 0, stream>>>(texg, fl,&lp2p2w[k*nwids],&lp2p1w[k*nwids],BS1*GS1,nwids,n,nproj,nz,wids,ntheta*nrho);
         //Forward FFT
         cufftXtExec(plan_forward, fl,flc,CUFFT_FORWARD);        
-		//multiplication by adjoint fZ
+		//multiplication by adjoint transfer function and division by FFT of the cubic spline in log-polar coordinates (fz:=:fz/fB3)
         GS1 = (uint)ceil((ntheta/2+1)/(float)BS1); GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid3(GS1,GS2,GS3);    
         mul<<<dimGrid3, dimBlock, 0, stream>>>(flc,fz,ntheta/2+1,nrho,nz);
 		//Inverse FFT
