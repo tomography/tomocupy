@@ -40,8 +40,9 @@ nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
     
     // Init texture references
     // texture texfl
-    cudaChannelFormatDesc texf_desc = cudaCreateChannelDesc<real>();	
-	cudaExtent volumeSize = make_cudaExtent(ntheta,nrho,nz); 
+    cudaChannelFormatDesc texf_desc;
+    texf_desc = CUDA_CREATE_CHANNEL_DESC();     
+    cudaExtent volumeSize = make_cudaExtent(ntheta,nrho,nz); 
 	
 	cudaMalloc3DArray(&fla, &texf_desc,volumeSize,cudaArrayLayered); 
 	texfl.addressMode[0] = cudaAddressModeWrap;
@@ -51,14 +52,34 @@ nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
     cudaBindTextureToArray(texfl, fla,texf_desc); 
 
     // texture texg
-    texf_desc = cudaCreateChannelDesc<real>();	
-	volumeSize = make_cudaExtent(n,nproj,nz); 
+    texf_desc = CUDA_CREATE_CHANNEL_DESC();    
+    volumeSize = make_cudaExtent(n,nproj,nz); 
 	cudaMalloc3DArray(&ga, &texf_desc, volumeSize,cudaArrayLayered);
 	texg.addressMode[0] = cudaAddressModeWrap;
 	texg.addressMode[1] = cudaAddressModeWrap;
 	texg.filterMode = cudaFilterModeLinear;
 	texg.normalized = true;
-	cudaBindTextureToArray(texg, ga,texf_desc);
+    cudaBindTextureToArray(texg, ga,texf_desc);
+    
+    // // texture texg    
+    // texf_desc = cudaCreateChannelDesc<real>();	
+    // volumeSize = make_cudaExtent(n,nproj,nz);     
+    // cudaMalloc3DArray(&ga, &texf_desc, volumeSize,cudaArrayLayered);
+    
+    // cudaResourceDesc texgRes;
+    // memset(&texgRes,0,sizeof(cudaResourceDesc));
+    // texgRes.resType            = cudaResourceTypeArray;
+    // texgRes.res.array.array    = ga;
+    // cudaTextureDesc             texgDescr;    
+    // memset(&texgDescr,0,sizeof(cudaTextureDesc));
+    
+	// texgDescr.addressMode[0] = cudaAddressModeWrap;
+	// texgDescr.addressMode[1] = cudaAddressModeWrap;
+	// texgDescr.filterMode = cudaFilterModeLinear;
+    // texgDescr.normalizedCoords = true;
+    // texgDescr.readMode = cudaReadModeNormalizedFloat;
+    // cudaArrayLayered
+    // cudaCreateTextureObject(&texg, &texgRes, &texgDescr, NULL);
     
     is_free = false;    
 }
@@ -113,13 +134,13 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
 	transpose<<<dimGrid1,dimBlock, 0, stream>>>(gtmp, g,n, nproj,nz);
 	//compensate in samples for x direction
 	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid2(GS1,GS2,1);    	
-	SamplesToCoefficients2DY<<<dimGrid2, dimBlock, 0, stream>>>(gtmp,nproj*sizeof(float),nproj, n,nz);
-	//transpose back
+	SamplesToCoefficients2DY<<<dimGrid2, dimBlock, 0, stream>>>(gtmp,nproj*sizeof(real),nproj, n,nz);
+	// //transpose back
 	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(n/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid3(GS1,GS2,GS3);    	
 	transpose<<<dimGrid3,dimBlock, 0, stream>>>(g,gtmp,nproj, n,nz);
 	//compensate in samples for y direction
 	GS1 = (uint)ceil(n/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid4(GS1,GS2,1); 
-	SamplesToCoefficients2DY<<<dimGrid4, dimBlock, 0, stream>>>(g,n*sizeof(float),n,nproj,nz);
+	SamplesToCoefficients2DY<<<dimGrid4, dimBlock, 0, stream>>>(g,n*sizeof(real),n,nproj,nz);
 
     copy3DDeviceToArray(ga,g,make_cudaExtent(n, nproj, nz),stream);
 

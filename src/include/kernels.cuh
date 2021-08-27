@@ -1,66 +1,61 @@
 #include<cfunc.cuh>
-#include"math_operators.cuh"
-
 #define Pole static_cast<real>(-0.267949192431123f)
 
-texture<real, cudaTextureType2DLayered, cudaReadModeElementType> texg; //type 0
-texture<real, cudaTextureType2DLayered, cudaReadModeElementType> texfl; //type 1
+texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texg; //type 0
+texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texfl; //type 1
 
 //CODE adapted from https://github.com/nikitinvv/lprec/blob/master/src/include/main_kernels.cuh
 
 //compute weigts for the cubic B spline
-__host__ __device__ void bspline_weights(complex fraction, complex& w0, complex& w1, complex& w2, complex& w3)
+__device__ void bspline_weights(real fraction, real* w)
 {
-	const complex one_frac = static_cast<real>(1.0f) - fraction;
-	const complex squared = fraction * fraction;
-	const complex one_sqd = one_frac * one_frac;
+	const real one_frac = static_cast<real>(1.0f) - fraction;
+	const real squared = fraction * fraction;
+	const real one_sqd = one_frac * one_frac;
 
-	w0 = static_cast<real>(1.0f/6.0f) * one_sqd * one_frac;
-	w1 = static_cast<real>(2.0f/3.0f) - static_cast<real>(0.5f) * squared * (static_cast<real>(2.0f)-fraction);
-	w2 = static_cast<real>(2.0f/3.0f) - static_cast<real>(0.5f) * one_sqd * (static_cast<real>(2.0f)-one_frac);
-	w3 = static_cast<real>(1.0f/6.0f) * squared * fraction;
+	w[0] = static_cast<real>(1.0f/6.0f) * one_sqd * one_frac;
+	w[1] = static_cast<real>(2.0f/3.0f) - static_cast<real>(0.5f) * squared * (static_cast<real>(2.0f)-fraction);
+	w[2] = static_cast<real>(2.0f/3.0f) - static_cast<real>(0.5f) * one_sqd * (static_cast<real>(2.0f)-one_frac);
+	w[3] = static_cast<real>(1.0f/6.0f) * squared * fraction;
 }
 
-__device__ real linearTex2D(texture<real, cudaTextureType2DLayered, cudaReadModeElementType> tex, real x, real y, real z, int n0,int n1)
+__device__ real linearTex2D(texture<float, cudaTextureType2DLayered, cudaReadModeElementType> tex, float x, float y, float z, int n0,int n1)
 {
-	complex t0;
-	t0.x = x/(real)n0;
-	t0.y = y/(real)n1;
-	return tex2DLayered(tex, t0.x, t0.y, z);
+	return TEX2D_L(tex, (x+0.5f)/float(n0), (y+0.5f)/float(n1), z);
 }
 
 //cubic interpolation via two linear interpolations for several slices, texture is not normalized
-__device__ real cubicTex2D(texture<real, cudaTextureType2DLayered, cudaReadModeElementType> tex, real x, real y, real z, int n0,int n1)
+__device__ real cubicTex2D(texture<float, cudaTextureType2DLayered, cudaReadModeElementType> tex, float x, float y, float z, int n0,int n1)
 {
 	// transform the coordinate from [0,extent] to [-0.5, extent-0.5]
-	const complex coord_grid = make_complex(x - static_cast<real>(0.5f), y - static_cast<real>(0.5f));
-	const complex index = floor(coord_grid);
-	const complex fraction = coord_grid - index;
-	complex w0, w1, w2, w3;
-	bspline_weights(fraction, w0, w1, w2, w3);
+	real w[4] = {};
+	const float indexx = floor(x);
+	const real fractionx = real(x - indexx); //big-big number
+	bspline_weights(fractionx, w);
+	const real g0x = (w[0] + w[1]);
+	const real g1x = (w[2] + w[3]);
+	const float h0x = (float(w[1] / g0x - static_cast<real>(0.5f))+float(indexx))/float(n0);  //big+small number
+	const float h1x = (float(w[3] / g1x + static_cast<real>(1.5f))+float(indexx))/float(n0);  
+	
+	
+	const float indexy = floor(y);
+	const real fractiony = real(y - indexy);
+	bspline_weights(fractiony, w);
+	const real g0y = w[0] + w[1];
+	const real g1y = w[2] + w[3];
+	const float h0y = (float(w[1] / g0y - static_cast<real>(0.5f))+float(indexy))/float(n1);  
+	const float h1y = (float(w[3] / g1y + static_cast<real>(1.5f))+float(indexy))/float(n1);  
+	
 
-	const complex g0 = w0 + w1;
-	const complex g1 = w2 + w3;
-	const complex h0 = (w1 / g0) - make_complex(static_cast<real>(0.5f)) + index;  //h0 = w1/g0 - 1, move from [-0.5, extent-0.5] to [0, extent]
-	const complex h1 = (w3 / g1) + make_complex(static_cast<real>(1.5f)) + index;  //h1 = w3/g1 + 1, move from [-0.5, extent-0.5] to [0, extent]
+	real tex00 = TEX2D_L(tex, h0x, h0y, z);
+	real tex10 = TEX2D_L(tex, h1x, h0y, z);
+	real tex01 = TEX2D_L(tex, h0x, h1y, z);
+	real tex11 = TEX2D_L(tex, h1x, h1y, z);
 
-	complex t0,t1;
-	t0.x = h0.x/(real)n0;
-	t1.x = h1.x/(real)n0;
-	t0.y = h0.y/(real)n1;
-	t1.y = h1.y/(real)n1;
-	real tex00 = tex2DLayered(tex, t0.x, t0.y, z);
-	real tex10 = tex2DLayered(tex, t1.x, t0.y, z);
-	real tex01 = tex2DLayered(tex, t0.x, t1.y, z);
-	real tex11 = tex2DLayered(tex, t1.x, t1.y, z);
-
-
-	// weigh along the y-direction
-	tex00 = g0.y * tex00 + g1.y * tex01;
-	tex10 = g0.y * tex10 + g1.y * tex11;
-
-	// weigh along the x-direction
-	return (g0.x * tex00 + g1.x * tex10);
+	tex00 = g0y * tex00 + g1y * tex01;
+	tex10 = g0y * tex10 + g1y * tex11;
+	
+	return g0x * tex00 + g1x * tex10;
 }
 
 __global__ void interp(int interp_id, real *f, float* x, float* y, int w, int np,int n1,int n2, int nz, int* cids, int step2d)
@@ -70,19 +65,18 @@ __global__ void interp(int interp_id, real *f, float* x, float* y, int w, int np
 	uint tz = blockIdx.z*blockDim.z + threadIdx.z;
 	uint tid = ty*w+tx;
 	if(tid>=np||tz>=nz) return;
-	real u = real(x[tid]+static_cast<real>(0.5f));
-	real v = real(y[tid]+static_cast<real>(0.5f));
+	
 	switch(interp_id)//no overhead, all threads have the same way
 	{ 		
-		case 0: f[tz*step2d+cids[tid]] += linearTex2D(texg, u, v, tz,n1,n2);break;   
-		case 1: f[tz*step2d+cids[tid]] += linearTex2D(texfl, u, v, tz,n1,n2);break;   
-		case 2: f[tz*step2d+cids[tid]] += cubicTex2D(texg, u, v, tz,n1,n2);break;   
-		case 3: f[tz*step2d+cids[tid]] += cubicTex2D(texfl, u, v, tz,n1,n2);break;  
+		case 0: f[tz*step2d+cids[tid]] += linearTex2D(texg, x[tid], y[tid], tz,n1,n2);break;   
+		case 1: f[tz*step2d+cids[tid]] += linearTex2D(texfl, x[tid], y[tid], tz,n1,n2);break;   
+		case 2: f[tz*step2d+cids[tid]] += cubicTex2D(texg, x[tid], y[tid], tz,n1,n2);break;   
+		case 3: f[tz*step2d+cids[tid]] += cubicTex2D(texfl, x[tid], y[tid], tz,n1,n2);break;  
 	}	
 }
 
 //casual cofficients for prefilter
-__host__ __device__ real InitialCausalCoefficient(real* c, uint DataLength,int step)
+__device__ real InitialCausalCoefficient(real* c, uint DataLength,int step)
 {
 	const uint Horizon = 12<DataLength?12:DataLength;
 
@@ -99,14 +93,14 @@ __host__ __device__ real InitialCausalCoefficient(real* c, uint DataLength,int s
 }
 
 //anticasual coffeicients for prefilter
-__host__ __device__ real InitialAntiCausalCoefficient(real* c,uint DataLength,int step)
+__device__ real InitialAntiCausalCoefficient(real* c,uint DataLength,int step)
 {
 	// this initialization corresponds to clamping boundaries
 	return((Pole / (Pole - static_cast<real>(1.0f))) * *c);
 }
 
 //compute coefficients from samples c
-__host__ __device__ void ConvertToInterpolationCoefficients(real* coeffs,uint DataLength,int step)
+__device__ void ConvertToInterpolationCoefficients(real* coeffs,uint DataLength,int step)
 {
 	// compute the overall gain
 	const real Lambda = (static_cast<real>(1.0f) - Pole) * (static_cast<real>(1.0f) - static_cast<real>(1.0f) / Pole);
