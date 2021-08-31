@@ -14,7 +14,7 @@ pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 # 'float32'- c++ code needs to be recompiled with changed directives in cfunc.cuh
-mtype = 'float16'
+mtype = 'float32'
 
 
 class LpRec(cfunc):
@@ -58,12 +58,14 @@ class LpRec(cfunc):
 
     def fbp_filter_center(self, data, center):
         """FBP filtering of projections"""
-        t = cp.fft.rfftfreq(self.n).astype(mtype)        
+        ne = 3*self.n//2
+        t = cp.fft.rfftfreq(ne).astype(mtype)        
         w = t * (1 - t * 2)**3  # parzen
         w = w*cp.exp(2*cp.pi*1j*t*(center-self.n/2)) # center fix       
-        w = cp.tile(w, [data.shape[1], 1])
+        data = cp.pad(data,((0,0),(0,0),(ne//2-self.n//2,ne//2-self.n//2)),mode='edge')
         data = irfft(
-            w*rfft(data, overwrite_x=True, axis=2), overwrite_x=True, axis=2).astype(mtype)  # note: filter works with complex64, however, it doesnt take much time
+            w*rfft(data, axis=2), axis=2).astype(mtype)  # note: filter works with complex64, however, it doesnt take much time
+        data = data[:,:,ne//2-self.n//2:ne//2+self.n//2]
         return data
 
     def darkflat_correction(self, data, dark, flat):
@@ -81,8 +83,8 @@ class LpRec(cfunc):
     def recon(self, obj, data, dark, flat, center):
         """Full reconstruction pipeline for a data chunk"""
         data = self.darkflat_correction(data, dark, flat)
-        data = self.minus_log(data)
-        data = self.fbp_filter_center(data, center)
+        data = self.minus_log(data)        
+        data = self.fbp_filter_center(data, center)        
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
         self.backprojection(obj.data.ptr, data.data.ptr,
                             cp.cuda.get_current_stream().ptr)
@@ -99,7 +101,7 @@ class LpRec(cfunc):
         """Reading data from hard disk and putting it to a queue"""
         for k in range(nchunk):
             item = {}
-            item['data'] = data[:-1, k*self.nz:k*self.nz+lchunk[k]]  # temoriry -1
+            item['data'] = data[:self.nproj,  k*self.nz:k*self.nz+lchunk[k]]
             item['flat'] = flat[:,  k*self.nz:k*self.nz+lchunk[k]]
             item['dark'] = dark[:,  k*self.nz:k*self.nz+lchunk[k]]
             self.data_queue.put(item)    
@@ -111,7 +113,6 @@ class LpRec(cfunc):
         data = fid['exchange/data']
         dark = fid['exchange/data_dark']
         flat = fid['exchange/data_white']
-
         nchunk = int(np.ceil(data.shape[1]/self.nz))  # number of chunks
         lchunk = np.minimum(
             self.nz, data.shape[1]-np.arange(nchunk)*self.nz)  # chunk sizes
@@ -176,7 +177,7 @@ class LpRec(cfunc):
                 rec_pinned0 = rec_pinned[(k-2) % 2,:lchunk[k-2]].copy()
                 write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                       args=(rec_pinned0,),
-                                                      kwargs={'fname': '/local/ssd/lprec/r',
+                                                      kwargs={'fname': fname[:-3]+'_lprec/r',
                                                               'start': (k-2)*self.nz,
                                                               'overwrite': True})
                 write_threads.append(write_thread)
