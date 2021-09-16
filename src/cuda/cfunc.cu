@@ -60,6 +60,7 @@ nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
     cudaCreateTextureObject(&texg, &texRes, &texDescr, NULL);    
     texRes.res.array.array    = fla;
     cudaCreateTextureObject(&texfl, &texRes, &texDescr, NULL);
+
     is_free = false;    
 }
 
@@ -115,45 +116,45 @@ void cfunc::backprojection(size_t f_, size_t g_, size_t stream_)
     dim3 dimBlock(BS1,BS2,BS3);    
     uint GS1, GS2, GS3;    
     
+    // define all block and grid sizes
+    GS1 = (uint)ceil(n/(float)BS1); GS2 = (uint)ceil(nproj/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid01(GS1,GS2,GS3);    
+	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid02(GS1,GS2,1);    	
+	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(n/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid03(GS1,GS2,GS3);    	
+	GS1 = (uint)ceil(n/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid04(GS1,GS2,1); 
+	GS1 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid1(GS1,GS2,GS3);int step2d1 = BS1*GS1;  
+    GS1 = (uint)ceil(ceil(sqrt(nwids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nwids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid2(GS1,GS2,GS3);int step2d2 = BS1*GS1;      
+    GS1 = (uint)ceil((ntheta/2+1)/(float)BS1); GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid3(GS1,GS2,GS3);int step2d3 = BS1*GS1;      
+    GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid4(GS1,GS2,GS3);int step2d4 = BS1*GS1;  	
+
     ////// Prefilter for cubic interpolation in polar coordinates //////
 	//transpose for optimal cache usage
-	GS1 = (uint)ceil(n/(float)BS1); GS2 = (uint)ceil(nproj/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid1(GS1,GS2,GS3);    
-	transpose<<<dimGrid1,dimBlock, 0, stream>>>(gtmp, g,n, nproj,nz);
+	transpose<<<dimGrid01,dimBlock, 0, stream>>>(gtmp, g,n, nproj,nz);
 	//compensate in samples for x direction
-	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid2(GS1,GS2,1);    	
-	SamplesToCoefficients2DY<<<dimGrid2, dimBlock, 0, stream>>>(gtmp,nproj*sizeof(real),nproj, n,nz);
+	SamplesToCoefficients2DY<<<dimGrid02, dimBlock, 0, stream>>>(gtmp,nproj*sizeof(real),nproj, n,nz);
 	// //transpose back
-	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(n/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid3(GS1,GS2,GS3);    	
-	transpose<<<dimGrid3,dimBlock, 0, stream>>>(g,gtmp,nproj, n,nz);
+	transpose<<<dimGrid03,dimBlock, 0, stream>>>(g,gtmp,nproj, n,nz);
 	//compensate in samples for y direction
-	GS1 = (uint)ceil(n/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid4(GS1,GS2,1); 
-	SamplesToCoefficients2DY<<<dimGrid4, dimBlock, 0, stream>>>(g,n*sizeof(real),n,nproj,nz);
-    
+	SamplesToCoefficients2DY<<<dimGrid04, dimBlock, 0, stream>>>(g,n*sizeof(real),n,nproj,nz);    
     //copy to the array associated with texture memory
     copy3DDeviceToArray(ga,g,make_cudaExtent(n, nproj, nz),stream);
     
-    //////// Iterations over log-polar angular spans ///////
+    //////// Iterations over log-polar angular spans ///////    	        
     for(int k=0; k<3;k++)
     {
         cudaMemsetAsync(fl, 0, nz*ntheta*nrho*sizeof(real),stream); 
 		//interp from polar to log-polar grid
-        GS1 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid1(GS1,GS2,GS3);    
-        interp<<<dimGrid1, dimBlock, 0, stream>>>(texg, fl,&lp2p2[k*nlpids],&lp2p1[k*nlpids],BS1*GS1,nlpids,n,nproj,nz,lpids,ntheta*nrho);
+        interp<<<dimGrid1, dimBlock, 0, stream>>>(texg, fl,&lp2p2[k*nlpids],&lp2p1[k*nlpids],step2d1,nlpids,n,nproj,nz,lpids,ntheta*nrho);
 		//interp from polar to log-polar grid additional points
-        GS1 = (uint)ceil(ceil(sqrt(nwids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nwids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid2(GS1,GS2,GS3);    
-        interp<<<dimGrid2, dimBlock, 0, stream>>>(texg, fl,&lp2p2w[k*nwids],&lp2p1w[k*nwids],BS1*GS1,nwids,n,nproj,nz,wids,ntheta*nrho);
+        interp<<<dimGrid2, dimBlock, 0, stream>>>(texg, fl,&lp2p2w[k*nwids],&lp2p1w[k*nwids],step2d2,nwids,n,nproj,nz,wids,ntheta*nrho);
         //Forward FFT
         cufftXtExec(plan_forward, fl,flc,CUFFT_FORWARD);        
 		//multiplication by adjoint transfer function and division by FFT of the cubic spline in log-polar coordinates (fz:=:fz/fB3)
-        GS1 = (uint)ceil((ntheta/2+1)/(float)BS1); GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid3(GS1,GS2,GS3);    
         mul<<<dimGrid3, dimBlock, 0, stream>>>(flc,fz,ntheta/2+1,nrho,nz);
 		//Inverse FFT
         cufftXtExec(plan_inverse,flc,fl,CUFFT_INVERSE);        
         //copy to binded texture 
         copy3DDeviceToArray(fla,fl,make_cudaExtent(ntheta, nrho, nz),stream);
         //interp from log-polar to Cartesian grid
-        GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid4(GS1,GS2,GS3);
-		interp<<<dimGrid4, dimBlock, 0, stream>>>(texfl, f,&C2lp1[k*ncids],&C2lp2[k*ncids],BS1*GS1,ncids,ntheta,nrho,nz,cids,n*n);                    
+        interp<<<dimGrid4, dimBlock, 0, stream>>>(texfl, f,&C2lp1[k*ncids],&C2lp2[k*ncids],step2d4,ncids,ntheta,nrho,nz,cids,n*n);                    
     }
 }
-

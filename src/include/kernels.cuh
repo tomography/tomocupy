@@ -1,10 +1,6 @@
-#include<cfunc.cuh>
-#define Pole static_cast<real>(-0.267949192431123f)
+#include "defs.cuh"
 
-// texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texg; //type 0
-// texture<float, cudaTextureType2DLayered, cudaReadModeElementType> texfl; //type 1
-
-//CODE adapted from https://github.com/nikitinvv/lprec/blob/master/src/include/main_kernels.cuh
+// Efficient cubic texture filtering (adapted from https://developer.nvidia.com/gpugems/gpugems2/part-iii-high-quality-rendering/chapter-20-fast-third-order-texture-filtering) 
 
 //compute weigts for the cubic B spline
 __device__ void bspline_weights(real fraction, real* w)
@@ -19,32 +15,30 @@ __device__ void bspline_weights(real fraction, real* w)
 	w[3] = static_cast<real>(1.0f/6.0f) * squared * fraction;
 }
 
-__device__ real linearTex2D(cudaTextureObject_t tex, float x, float y, float z, int n0,int n1)
-{
-	return TEX2D_L(tex, (x+0.5f)/float(n0), (y+0.5f)/float(n1), z);
-}
-
 //cubic interpolation via two linear interpolations for several slices, texture is not normalized
 __device__ real cubicTex2D(cudaTextureObject_t tex, float x, float y, float z, int n0,int n1)
-{
-	// transform the coordinate from [0,extent] to [-0.5, extent-0.5]
-	real w[4] = {};
+{		
+	//compute weigths and texture coordinates in x direction
 	const float indexx = floor(x);
 	const real fractionx = real(x - indexx); //big - big -> compute in floats
-	bspline_weights(fractionx, w);
-	const real g0x = (w[0] + w[1]);
-	const real g1x = (w[2] + w[3]);
-	const float h0x = (float(w[1] / g0x - static_cast<real>(0.5f))+float(indexx))/float(n0);  //big + small -> compute in floats
-	const float h1x = (float(w[3] / g1x + static_cast<real>(1.5f))+float(indexx))/float(n0);  
-		
+	real wx[4] = {};
+	bspline_weights(fractionx, wx);
+	const real g0x = (wx[0] + wx[1]);
+	const real g1x = (wx[2] + wx[3]);
+	const float h0x = (float(wx[1] / g0x - static_cast<real>(0.5f)) + indexx)/float(n0);  //big + small -> compute in floats
+	const float h1x = (float(wx[3] / g1x + static_cast<real>(1.5f)) + indexx)/float(n0);  
+	
+	//compute weigths and texture coordinates in y direction
 	const float indexy = floor(y);
 	const real fractiony = real(y - indexy);
-	bspline_weights(fractiony, w);
-	const real g0y = w[0] + w[1];
-	const real g1y = w[2] + w[3];
-	const float h0y = (float(w[1] / g0y - static_cast<real>(0.5f))+float(indexy))/float(n1);  
-	const float h1y = (float(w[3] / g1y + static_cast<real>(1.5f))+float(indexy))/float(n1);  
+	real wy[4] = {};
+	bspline_weights(fractiony, wy);
+	const real g0y = wy[0] + wy[1];
+	const real g1y = wy[2] + wy[3];
+	const float h0y = (float(wy[1] / g0y - static_cast<real>(0.5f)) + indexy)/float(n1);  
+	const float h1y = (float(wy[3] / g1y + static_cast<real>(1.5f)) + indexy)/float(n1);  
 	
+	// read from texture
 	real tex00 = TEX2D_L(tex, h0x, h0y, z);
 	real tex10 = TEX2D_L(tex, h1x, h0y, z);
 	real tex01 = TEX2D_L(tex, h0x, h1y, z);
@@ -56,6 +50,7 @@ __device__ real cubicTex2D(cudaTextureObject_t tex, float x, float y, float z, i
 	return g0x * tex00 + g1x * tex10;
 }
 
+// interpolation to irregular grid
 __global__ void interp(cudaTextureObject_t tex, real *f, float* x, float* y, int w, int np,int n1,int n2, int nz, int* cids, int step2d)
 {
 	uint tx = blockIdx.x*blockDim.x + threadIdx.x;
@@ -157,6 +152,7 @@ __global__ void SamplesToCoefficients2DY(real* image,uint pitch,uint width,uint 
 	ConvertToInterpolationCoefficients(line, height, pitch);
 }
 
+// complex multiplication
 __global__ void mul(complex* y,complex* x,int n1,int n2, int nz)
 {
 	uint tx = blockIdx.x*blockDim.x + threadIdx.x;

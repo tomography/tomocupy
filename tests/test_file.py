@@ -1,6 +1,4 @@
 import lprec
-import h5py
-import dxchange
 
 # sizes
 [nz, nproj, n] = [8, 1500, 2448]  # 16 max for RTX4000 float32

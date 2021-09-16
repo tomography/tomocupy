@@ -9,14 +9,14 @@ import dxchange
 import threading
 import queue
 import h5py
+import os
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 # 'float32'- c++ code needs to be recompiled with changed directives in cfunc.cuh
-mtype = 'float32'
-
-
+mtype = 'float16'
+    
 class LpRec(cfunc):
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
         # precompute parameters for the lp method
@@ -152,6 +152,7 @@ class LpRec(cfunc):
         stream3 = cp.cuda.Stream(non_blocking=False)
 
         # Conveyor for data cpu-gpu copy and reconstruction
+        #nchunk=3
         tic()
         for k in range(nchunk+2):
             if(k > 0 and k < nchunk+1):
@@ -174,7 +175,8 @@ class LpRec(cfunc):
             stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done) 
-                rec_pinned0 = rec_pinned[(k-2) % 2,:lchunk[k-2]].copy()
+                rec_pinned0 = rec_pinned[(k-2) % 2,:lchunk[k-2],::-1].copy()#.astype('float32')#::-1 is to adapt for tomopy
+                #print(np.linalg.norm(rec_pinned0))
                 write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                       args=(rec_pinned0,),
                                                       kwargs={'fname': fname[:-3]+'_lprec/r',
