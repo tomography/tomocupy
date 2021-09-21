@@ -23,5 +23,5 @@ set_target_properties(cfunc PROPERTIES CUDA_ARCHITECTURES "60;72")
 
 #add_definitions(-DHALF)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc.py" DESTINATION lprec)
-install(TARGETS cfunc LIBRARY DESTINATION lprec)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc.py" DESTINATION h5lprec)
+install(TARGETS cfunc LIBRARY DESTINATION h5lprec)

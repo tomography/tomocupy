@@ -1,4 +1,4 @@
-import lprec
+import h5lprec
 
 # sizes
 [nz, nproj, n] = [8, 1500, 2448]  # 16 max for RTX4000 float32
@@ -8,5 +8,5 @@ center = 1230.5
 data_type = 'uint8'
 
 fname = '/local/ssd/tmp/286_2_spfp_019.h5'
-clpthandle = lprec.LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
+clpthandle = h5lprec.H5LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
 clpthandle.recon_all(fname,center)

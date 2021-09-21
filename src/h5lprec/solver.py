@@ -1,8 +1,8 @@
-from lprec import initsgl
-from lprec import initsadj
-from lprec import initsadj
-from lprec.cfunc import cfunc
-from lprec.utils import *
+from h5lprec import initsgl
+from h5lprec import initsadj
+from h5lprec import initsadj
+from h5lprec.cfunc import cfunc
+from h5lprec.utils import *
 from cupyx.scipy.fft import rfft, irfft, rfft2, irfft2
 import cupy as cp
 import dxchange
@@ -11,6 +11,7 @@ import queue
 import h5py
 import os
 import torch
+import signal
 from pytorch_wavelets import DWTForward, DWTInverse # (or import DWT, IDWT)
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
@@ -19,8 +20,11 @@ cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 # 'float32'- c++ code needs to be recompiled with commented add_definitions(-DHALF) in CMakeLists
 mtype = 'float32'
     
-class LpRec(cfunc):
+class H5LpRec(cfunc):
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
+        # Set ^C interrupt to abort and deallocate memory on GPU
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTSTP, self.signal_handler)
         # precompute parameters for the lp method
         self.Pgl = initsgl.create_gl(n, nproj, ntheta, nrho)
         self.Padj = initsadj.create_adj(self.Pgl)
@@ -58,7 +62,12 @@ class LpRec(cfunc):
         self.data_queue = queue.Queue()
         
         self.running = True
-
+    
+    def signal_handler(self, sig, frame):
+        """Calls abort_scan when ^C or ^Z is typed"""
+        print('Abort')
+        exit(0)   
+            
     def fbp_filter_center(self, data, center):
         """FBP filtering of projections"""
         ne = 3*self.n//2
@@ -199,9 +208,8 @@ class LpRec(cfunc):
         stream3 = cp.cuda.Stream(non_blocking=False)
 
         # Conveyor for data cpu-gpu copy and reconstruction
-        #nchunk=3
-        tic()
         for k in range(nchunk+2):
+            printProgressBar(k, nchunk+1,length = 40)#, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r")
             # print(k)
             if(k > 0 and k < nchunk+1):
                 with stream2:  # reconstruction
@@ -238,5 +246,3 @@ class LpRec(cfunc):
         # wait until reconstructions are written to hard disk        
         for thread in write_threads:
             thread.join()
-
-        print(f'Reconstruction time:{toc():.3f}s')

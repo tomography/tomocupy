@@ -1,7 +1,6 @@
 from pkg_resources import get_distribution, DistributionNotFound
 
-from lprec.solver import LpRec
-
+from h5lprec.solver import H5LpRec
 try:
     __version__ = get_distribution(__name__).version
 except DistributionNotFound:

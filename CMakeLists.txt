@@ -1,7 +1,7 @@
 # 3.11.0 is from scikit-build documentation
 cmake_minimum_required(VERSION 3.11.0)
 
-project(tomocg LANGUAGES CXX)
+project(h5lprec LANGUAGES CXX)
 
 # ---- DEFINE BUILD OPTIONS HERE ---- #
 set(EXTENSION_WRAPPER swig

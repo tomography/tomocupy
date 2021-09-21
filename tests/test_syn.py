@@ -1,4 +1,4 @@
-import lprec
+import h5lprec
 import h5py
 def create_h5():
     fid = h5py.File(fname,"w")
@@ -23,6 +23,8 @@ data_type = 'uint16'
 proj_shape = [nproj,1024,n]
 
 fname = '/local/ssd/tmp/t.h5'
-# create_h5() # create if not exist
-clpthandle = lprec.LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
+print(f'creating a fake h5 file {fname}, {proj_shape=}' )
+create_h5() # create if not exist
+print('Start reconstruction')
+clpthandle = h5lprec.H5LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
 clpthandle.recon_all(fname,center)
