@@ -1,7 +1,7 @@
 # h5lprec
 
 ## Installation necessary packages
-conda create -n h5lprec -c conda-forge python=3.9 dxchange cupy scikit-build cupy pywavelets
+conda create -n h5lprec -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets
 
 conda activate h5lprec
 
