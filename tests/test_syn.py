@@ -15,14 +15,14 @@ def create_h5():
     fid.close()
 
 # sizes
-[nz, nproj, n] = [16, 1500, 2048]  # 16 max for RTX4000 float32
+[nz, nproj, n] = [8, 1500, 2048]  # 16 max for RTX4000 float32
 [ndark, nflat] = [1, 1]
 center = 1024
 [ntheta, nrho] = [2048, 4096] 
 data_type = 'uint16'
-proj_shape = [nproj,2048,n]
+proj_shape = [nproj,1024,n]
 
 fname = '/local/ssd/tmp/t.h5'
-create_h5() # create if not exist
+# create_h5() # create if not exist
 clpthandle = lprec.LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
 clpthandle.recon_all(fname,center)

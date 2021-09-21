@@ -10,12 +10,14 @@ import threading
 import queue
 import h5py
 import os
+import torch
+from pytorch_wavelets import DWTForward, DWTInverse # (or import DWT, IDWT)
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 # 'float32'- c++ code needs to be recompiled with commented add_definitions(-DHALF) in CMakeLists
-mtype = 'float16'
+mtype = 'float32'
     
 class LpRec(cfunc):
     def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
@@ -54,6 +56,7 @@ class LpRec(cfunc):
         self.data_type = data_type
 
         self.data_queue = queue.Queue()
+        
         self.running = True
 
     def fbp_filter_center(self, data, center):
@@ -74,15 +77,59 @@ class LpRec(cfunc):
         flat0 = cp.mean(flat, axis=0).astype(mtype)
         data = (data.astype(mtype)-dark0)/cp.maximum(flat0-dark0, 1e-6)
         return data
-
+    
     def minus_log(self, data):
         """Taking negative logarithm"""
         data = -cp.log(cp.maximum(data, 1e-6))
         return data
+    
+    def remove_stripe_fw_gpu(self, tomo):
+        
+        level = 7#int(np.ceil(np.log2(max(tomo.shape))))
+        wname = 'sym16'
+        sigma = 1
+        pad = True
+                
+        dx, dy, dz = tomo.shape
+        nx = dx
+        if pad:
+            nx = dx + dx // 8
+        xshift = int((nx - dx) // 2)
 
+        xfm = DWTForward(J=1, mode='symmetric', wave=wname).cuda()  # Accepts all wave types available to PyWavelets
+        ifm = DWTInverse(mode='symmetric', wave=wname).cuda()    
+            
+        # Wavelet decomposition.
+        cc = []
+        sli = torch.zeros([dy,1,nx,dz], device='cuda')
+        sli[:,0,xshift:dx + xshift] = torch.as_tensor(tomo.swapaxes(0,1), device='cuda')
+        for n in range(level):
+            sli, c = xfm(sli)
+            cc.append(c)        
+            # FFT
+            fcV = torch.fft.fft(cc[n][0][:,0,1],axis=1)
+            _, my, mx = fcV.shape
+            #Damping of ring artifact information.
+            y_hat = torch.fft.ifftshift((torch.arange(-my, my, 2).cuda() + 1) / 2)
+            damp = -torch.expm1(-y_hat**2 / (2 * sigma**2))
+            fcV *= torch.transpose(torch.tile(damp, (mx, 1)),0,1)
+            # Inverse FFT.        
+            cc[n][0][:,0,1] = torch.fft.ifft(
+                fcV, my, axis=1).real
+            
+        # Wavelet reconstruction.
+        for n in range(level)[::-1]:
+            shape0 = cc[n][0][0,0,1].shape
+            sli = sli[:,:,0:shape0[0], 0:shape0[1]]
+            sli = ifm((sli, cc[n]))
+            
+        tomo = cp.asarray(sli[:,0,xshift:dx + xshift, 0:dz]).swapaxes(0,1)
+        return tomo
+        
     def recon(self, obj, data, dark, flat, center):
         """Full reconstruction pipeline for a data chunk"""
         data = self.darkflat_correction(data, dark, flat)
+        data = self.remove_stripe_fw_gpu(data)        
         data = self.minus_log(data)        
         data = self.fbp_filter_center(data, center)        
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
@@ -133,15 +180,15 @@ class LpRec(cfunc):
 
         # gpu memory for data item
         item_gpu = {}
-        item_gpu['data'] = cp.empty_like(item_pinned['data'])
-        item_gpu['dark'] = cp.empty_like(item_pinned['dark'])
-        item_gpu['flat'] = cp.empty_like(item_pinned['flat'])
+        item_gpu['data'] = cp.zeros([2, self.nproj, self.nz, self.n], dtype=self.data_type)
+        item_gpu['dark'] = cp.zeros([2, self.ndark, self.nz, self.n], dtype=self.data_type)
+        item_gpu['flat'] = cp.ones([2, self.nflat, self.nz, self.n], dtype=self.data_type)
 
         # pinned memory for reconstrution
         rec_pinned = self.pinned_array(
             np.zeros([2, self.nz, self.n, self.n], dtype=mtype))
         # gpu memory for reconstrution
-        rec = cp.empty_like(rec_pinned)
+        rec = cp.zeros([2, self.nz, self.n, self.n], dtype=mtype)
 
         # list of threads for parallel writing to hard disk
         write_threads = []
@@ -155,6 +202,7 @@ class LpRec(cfunc):
         #nchunk=3
         tic()
         for k in range(nchunk+2):
+            # print(k)
             if(k > 0 and k < nchunk+1):
                 with stream2:  # reconstruction
                     self.recon(rec[(k-1) % 2], item_gpu['data'][(k-1) % 2],
