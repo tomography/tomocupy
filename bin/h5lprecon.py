@@ -8,6 +8,7 @@ def main():
     fname = sys.argv[1]
     rotation_axis = float(sys.argv[2])
     nzc = int(sys.argv[3])
+    double_fov = sys.argv[4]=='True'
     with h5py.File(fname) as fid:
         [nproj,nz,n] = fid['/exchange/data'].shape
         ndark = fid['/exchange/data_dark'].shape[0]
@@ -28,12 +29,13 @@ def main():
     print(f'{ntheta=}')
     print(f'{nrho=}')
     print(f'{nzc=}')
+    print(f'{double_fov=}')
 
     print('Create reconstruction class')
-    clpthandle = h5lprec.H5LpRec(n, nproj, nzc, ntheta, nrho, ndark, nflat, data_type)
+    clpthandle = h5lprec.H5LpRec(n, nproj, nzc, ntheta, nrho, ndark, nflat, data_type,rotation_axis,double_fov)
     print('Reconstruction')
     t = time.time()
-    clpthandle.recon_all(fname, rotation_axis)
+    clpthandle.recon_all(fname)
     print('')
     print(f'Time {time.time()-t}s')
 

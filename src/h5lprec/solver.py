@@ -21,10 +21,15 @@ cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 mtype = 'float32'
     
 class H5LpRec(cfunc):
-    def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type):
+    def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type, center, double_fov):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTSTP, self.signal_handler)
+        if(double_fov==True):
+            n = int(2*n-2*(2*center//2))
+            nproj//=2
+            ntheta//=2
+            nrho*=2
         # precompute parameters for the lp method
         self.Pgl = initsgl.create_gl(n, nproj, ntheta, nrho)
         self.Padj = initsadj.create_adj(self.Pgl)
@@ -58,6 +63,8 @@ class H5LpRec(cfunc):
         self.ndark = ndark
         self.nflat = nflat
         self.data_type = data_type
+        self.double_fov = double_fov
+        self.center = center
 
         self.data_queue = queue.Queue()
         
@@ -65,11 +72,13 @@ class H5LpRec(cfunc):
     
     def signal_handler(self, sig, frame):
         """Calls abort_scan when ^C or ^Z is typed"""
+
         print('Abort')
         exit(0)   
             
     def fbp_filter_center(self, data, center):
         """FBP filtering of projections"""
+
         ne = 3*self.n//2
         t = cp.fft.rfftfreq(ne).astype(mtype)        
         w = t * (1 - t * 2)**3  # parzen
@@ -82,6 +91,7 @@ class H5LpRec(cfunc):
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
+
         dark0 = cp.mean(dark, axis=0).astype(mtype)
         flat0 = cp.mean(flat, axis=0).astype(mtype)
         data = (data.astype(mtype)-dark0)/cp.maximum(flat0-dark0, 1e-6)
@@ -92,52 +102,70 @@ class H5LpRec(cfunc):
         data = -cp.log(cp.maximum(data, 1e-6))
         return data
     
-    def remove_stripe_fw_gpu(self, tomo):
-        
-        level = 7#int(np.ceil(np.log2(max(tomo.shape))))
+    def remove_stripe_fw_gpu(self, data):
+        """Remove stripes with wavelet filtering"""       
+
+        level = 7#int(np.ceil(np.log2(max(data.shape))))
         wname = 'sym16'
-        sigma = 1
+        sigma = 2
         pad = True
                 
-        dx, dy, dz = tomo.shape
-        nx = dx
+        nproj, nz, n = data.shape
+        nproj_pad = nproj
         if pad:
-            nx = dx + dx // 8
-        xshift = int((nx - dx) // 2)
+            nproj_pad = nproj + nproj // 8
+        xshift = int((nproj_pad - nproj) // 2)
 
         xfm = DWTForward(J=1, mode='symmetric', wave=wname).cuda()  # Accepts all wave types available to PyWavelets
         ifm = DWTInverse(mode='symmetric', wave=wname).cuda()    
             
         # Wavelet decomposition.
         cc = []
-        sli = torch.zeros([dy,1,nx,dz], device='cuda')
-        sli[:,0,xshift:dx + xshift] = torch.as_tensor(tomo.swapaxes(0,1), device='cuda')
-        for n in range(level):
+        sli = torch.zeros([nz,1,nproj_pad,n], device='cuda')
+        sli[:,0,(nproj_pad - nproj)//2:(nproj_pad + nproj)//2] = torch.as_tensor(data.swapaxes(0,1), device='cuda')
+        for k in range(level):
             sli, c = xfm(sli)
             cc.append(c)        
             # FFT
-            fcV = torch.fft.fft(cc[n][0][:,0,1],axis=1)
+            fcV = torch.fft.fft(cc[k][0][:,0,1],axis=1)
             _, my, mx = fcV.shape
             #Damping of ring artifact information.
             y_hat = torch.fft.ifftshift((torch.arange(-my, my, 2).cuda() + 1) / 2)
             damp = -torch.expm1(-y_hat**2 / (2 * sigma**2))
             fcV *= torch.transpose(torch.tile(damp, (mx, 1)),0,1)
             # Inverse FFT.        
-            cc[n][0][:,0,1] = torch.fft.ifft(
-                fcV, my, axis=1).real
+            cc[k][0][:,0,1] = torch.fft.ifft(fcV, my, axis=1).real
             
         # Wavelet reconstruction.
-        for n in range(level)[::-1]:
-            shape0 = cc[n][0][0,0,1].shape
-            sli = sli[:,:,0:shape0[0], 0:shape0[1]]
-            sli = ifm((sli, cc[n]))
+        for k in range(level)[::-1]:
+            shape0 = cc[k][0][0,0,1].shape
+            sli = sli[:,:,:shape0[0], :shape0[1]]
+            sli = ifm((sli, cc[k]))
             
-        tomo = cp.asarray(sli[:,0,xshift:dx + xshift, 0:dz]).swapaxes(0,1)
-        return tomo
+        data = cp.asarray(sli[:,0,(nproj_pad - nproj)//2:(nproj_pad + nproj)//2, :n]).swapaxes(0,1)
+        return data
+    
+    def flip_stitch(self, data):
+        """Flip and stitch for processing 360degree data with rotation axis on the left border"""
+
+        data_new = cp.zeros([self.nproj,self.nz,self.n],dtype=mtype)
+        ni = data.shape[2]
+        v = cp.linspace(0,1, int(2*self.center),endpoint=False)        
+        v = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)     
+        data[:self.nproj,:,:2*self.center]*=v        
+        data_new[:,:,-ni:] = data[:self.nproj]
+        data_new[:,:,:ni] = data[self.nproj:,:,::-1]      
+        return data_new
         
-    def recon(self, obj, data, dark, flat, center):
+    def recon(self, obj, data, dark, flat):
         """Full reconstruction pipeline for a data chunk"""
+
         data = self.darkflat_correction(data, dark, flat)
+        if(self.double_fov==True):
+            data = self.flip_stitch(data)
+            center = int(data.shape[2]//2)
+        else:
+            center = self.center
         data = self.remove_stripe_fw_gpu(data)        
         data = self.minus_log(data)        
         data = self.fbp_filter_center(data, center)        
@@ -147,6 +175,7 @@ class H5LpRec(cfunc):
 
     def pinned_array(self, array):
         """Allocate pinned memory and associate it with numpy array"""
+
         mem = cp.cuda.alloc_pinned_memory(array.nbytes)
         src = np.frombuffer(
             mem, array.dtype, array.size).reshape(array.shape)
@@ -155,20 +184,25 @@ class H5LpRec(cfunc):
 
     def read_data(self, data, dark, flat, nchunk, lchunk):
         """Reading data from hard disk and putting it to a queue"""
+
         for k in range(nchunk):
             item = {}
-            item['data'] = data[:self.nproj,  k*self.nz:k*self.nz+lchunk[k]]
+            item['data'] = data[:,  k*self.nz:k*self.nz+lchunk[k]]
             item['flat'] = flat[:,  k*self.nz:k*self.nz+lchunk[k]]
             item['dark'] = dark[:,  k*self.nz:k*self.nz+lchunk[k]]
             self.data_queue.put(item)    
 
-    def recon_all(self, fname, center, pchunk=16):
+    def recon_all(self, fname, pchunk=16):
         """GPU reconstruction of data from an h5file by splitting into chunks"""
+
         # take links to datasets
         fid = h5py.File(fname, 'r')
         data = fid['exchange/data']
         dark = fid['exchange/data_dark']
         flat = fid['exchange/data_white']
+        nproji = data.shape[0]
+        ni = data.shape[2]
+
         nchunk = int(np.ceil(data.shape[1]/self.nz))  # number of chunks
         lchunk = np.minimum(
             self.nz, data.shape[1]-np.arange(nchunk)*self.nz)  # chunk sizes
@@ -181,17 +215,17 @@ class H5LpRec(cfunc):
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = self.pinned_array(
-            np.zeros([2, self.nproj, self.nz, self.n], dtype=self.data_type))
+            np.zeros([2, nproji, self.nz, ni], dtype=self.data_type))
         item_pinned['dark'] = self.pinned_array(
-            np.zeros([2, self.ndark, self.nz, self.n], dtype=self.data_type))
+            np.zeros([2, self.ndark, self.nz, ni], dtype=self.data_type))
         item_pinned['flat'] = self.pinned_array(
-            np.ones([2, self.nflat, self.nz, self.n], dtype=self.data_type))
+            np.ones([2, self.nflat, self.nz, ni], dtype=self.data_type))
 
         # gpu memory for data item
         item_gpu = {}
-        item_gpu['data'] = cp.zeros([2, self.nproj, self.nz, self.n], dtype=self.data_type)
-        item_gpu['dark'] = cp.zeros([2, self.ndark, self.nz, self.n], dtype=self.data_type)
-        item_gpu['flat'] = cp.ones([2, self.nflat, self.nz, self.n], dtype=self.data_type)
+        item_gpu['data'] = cp.zeros([2, nproji, self.nz, ni], dtype=self.data_type)
+        item_gpu['dark'] = cp.zeros([2, self.ndark, self.nz, ni], dtype=self.data_type)
+        item_gpu['flat'] = cp.ones([2, self.nflat, self.nz, ni], dtype=self.data_type)
 
         # pinned memory for reconstrution
         rec_pinned = self.pinned_array(
@@ -214,7 +248,7 @@ class H5LpRec(cfunc):
             if(k > 0 and k < nchunk+1):
                 with stream2:  # reconstruction
                     self.recon(rec[(k-1) % 2], item_gpu['data'][(k-1) % 2],
-                               item_gpu['dark'][(k-1) % 2], item_gpu['flat'][(k-1) % 2], center)
+                               item_gpu['dark'][(k-1) % 2], item_gpu['flat'][(k-1) % 2])
             if(k > 1):
                 with stream3:  # gpu->cpu copy
                     rec[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])

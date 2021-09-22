@@ -7,5 +7,5 @@ import h5lprec
 data_type = 'uint16'
 center = 1024
 fname = '/local/ssd/data/tmp/tomo_00001.h5'
-clpthandle = h5lprec.H5LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type)
-clpthandle.recon_all(fname, center)
+clpthandle = h5lprec.H5LpRec(n, nproj, nz, ntheta, nrho, ndark, nflat, data_type,center,False)
+clpthandle.recon_all(fname)
