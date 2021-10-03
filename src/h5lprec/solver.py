@@ -12,6 +12,7 @@ import h5py
 import os
 import torch
 import signal
+import sys
 from pytorch_wavelets import DWTForward, DWTInverse # (or import DWT, IDWT)
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
@@ -74,7 +75,7 @@ class H5LpRec(cfunc):
         """Calls abort_scan when ^C or ^Z is typed"""
 
         print('Abort')
-        exit(0)   
+        os.system('kill -9 $PPID')
             
     def fbp_filter_center(self, data, center):
         """FBP filtering of projections"""
@@ -191,7 +192,7 @@ class H5LpRec(cfunc):
             item['flat'] = flat[:,  k*self.nz:k*self.nz+lchunk[k]]
             item['dark'] = dark[:,  k*self.nz:k*self.nz+lchunk[k]]
             self.data_queue.put(item)    
-
+            
     def recon_all(self, fname, pchunk=16):
         """GPU reconstruction of data from an h5file by splitting into chunks"""
 
@@ -243,7 +244,8 @@ class H5LpRec(cfunc):
 
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
-            printProgressBar(k, nchunk+1,length = 40)#, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r")
+            printProgressBar(k,nchunk+1,self.data_queue.qsize(), length = 40)#, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r")
+            
             # print(k)
             if(k > 0 and k < nchunk+1):
                 with stream2:  # reconstruction

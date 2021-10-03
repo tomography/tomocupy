@@ -6,6 +6,7 @@ import time
 
 def main():
     fname = sys.argv[1]
+    print(fname)
     rotation_axis = float(sys.argv[2])
     nzc = int(sys.argv[3])
     double_fov = sys.argv[4]=='True'
