@@ -1,6 +1,5 @@
-#include "cfunc.cuh"
-#include "kernels.cuh"
-#include <stdio.h>
+#include "cfunc_lprec.cuh"
+#include "kernels_lprec.cuh"
 
 cudaError_t copy3DDeviceToArray(cudaArray* dfa, real* df, cudaExtent ext, cudaStream_t stream)
 {
@@ -12,7 +11,7 @@ cudaError_t copy3DDeviceToArray(cudaArray* dfa, real* df, cudaExtent ext, cudaSt
 	return cudaMemcpy3DAsync(&param,stream);
 }
 
-cfunc::cfunc(int nproj, int nz, int n, int ntheta, int nrho):
+cfunc_lprec::cfunc_lprec(int nproj, int nz, int n, int ntheta, int nrho):
 nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
 
     // Create FFT plans for Fourier Transform in log-polar coordinates
@@ -65,9 +64,9 @@ nproj(nproj), nz(nz), n(n), ntheta(ntheta), nrho(nrho) {
 }
 
 // destructor, memory deallocation
-cfunc::~cfunc() { free(); }
+cfunc_lprec::~cfunc_lprec() { free(); }
 
-void cfunc::free() {
+void cfunc_lprec::free() {
     if (!is_free) {
         cufftDestroy(plan_forward);
         cufftDestroy(plan_inverse);    
@@ -83,7 +82,7 @@ void cfunc::free() {
     }
 }
 
-void cfunc::setgrids(size_t fz_, size_t lp2p1_, size_t lp2p2_, size_t lp2p1w_, size_t lp2p2w_, 
+void cfunc_lprec::setgrids(size_t fz_, size_t lp2p1_, size_t lp2p2_, size_t lp2p1w_, size_t lp2p2w_, 
     size_t C2lp1_, size_t C2lp2_, size_t lpids_, size_t wids_, size_t cids_, 
     size_t nlpids_, size_t nwids_, size_t ncids_){
         
@@ -102,7 +101,7 @@ void cfunc::setgrids(size_t fz_, size_t lp2p1_, size_t lp2p2_, size_t lp2p1w_, s
     ncids = ncids_;        
 }
 
-void cfunc::backprojection(size_t f_, size_t g_, size_t stream_) 
+void cfunc_lprec::backprojection(size_t f_, size_t g_, size_t stream_) 
 {
     real* f = (real*)f_;
     real* g = (real*)g_;

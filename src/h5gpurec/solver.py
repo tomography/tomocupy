@@ -1,8 +1,6 @@
-from h5lprec import initsgl
-from h5lprec import initsadj
-from h5lprec import initsadj
-from h5lprec.cfunc import cfunc
-from h5lprec.utils import *
+from h5gpurec.lprec import lprec
+from h5gpurec.fourierrec import fourierrec
+from h5gpurec.utils import *
 from cupyx.scipy.fft import rfft, irfft, rfft2, irfft2
 import cupy as cp
 import dxchange
@@ -21,54 +19,30 @@ cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 # 'float32'- c++ code needs to be recompiled with commented add_definitions(-DHALF) in CMakeLists
 mtype = 'float32'
     
-class H5LpRec(cfunc):
-    def __init__(self, n, nproj, nz, ntheta, nrho, ndark, nflat, data_type, center, double_fov):
+class H5GPURec():
+    def __init__(self, n, nproj, nz, ndark, nflat, data_type, center, double_fov, method, theta):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTSTP, self.signal_handler)
+        
         if(double_fov==True):
             n = int(2*n-2*(2*center//2))
-            nproj//=2
-            ntheta//=2
-            nrho*=2
-        # precompute parameters for the lp method
-        self.Pgl = initsgl.create_gl(n, nproj, ntheta, nrho)
-        self.Padj = initsadj.create_adj(self.Pgl)
-        lp2p1 = self.Padj.lp2p1.data.ptr
-        lp2p2 = self.Padj.lp2p2.data.ptr
-        lp2p1w = self.Padj.lp2p1w.data.ptr
-        lp2p2w = self.Padj.lp2p2w.data.ptr
-        C2lp1 = self.Padj.C2lp1.data.ptr
-        C2lp2 = self.Padj.C2lp2.data.ptr
-
-        # conevrt fZ from complex to float.. coudl be improved..
-        fZn = cp.zeros(
-            [self.Padj.fZ.shape[0], self.Padj.fZ.shape[1]*2], dtype=mtype)
-        fZn[:, ::2] = self.Padj.fZ.real
-        fZn[:, 1::2] = self.Padj.fZ.imag
-        self.fZn = fZn  # keep in class, otherwise collector will remove it
-        fZnptr = cp.ascontiguousarray(self.fZn).data.ptr
-
-        lpids = self.Padj.lpids.data.ptr
-        wids = self.Padj.wids.data.ptr
-        cids = self.Padj.cids.data.ptr
-        nlpids = len(self.Padj.lpids)
-        nwids = len(self.Padj.wids)
-        ncids = len(self.Padj.cids)
-
-        super().__init__(nproj, nz, n, ntheta, nrho)
-        super().setgrids(fZnptr, lp2p1, lp2p2, lp2p1w, lp2p2w,
-                         C2lp1, C2lp2, lpids, wids, cids,
-                         nlpids, nwids, ncids)
-
+            nproj//=2        
+        
+        theta = cp.ascontiguousarray(cp.array(theta.astype('float32'))/180*np.pi)
+        # choose reconstruction method
+        if method == 'lprec' :                    
+            self.cl_rec = lprec.LpRec(n, nproj, nz)   
+        if method == 'fourierrec':
+            self.cl_rec = fourierrec.FourierRec(n, nproj, nz, theta)   
+    
+        self.nz = nz
         self.ndark = ndark
         self.nflat = nflat
         self.data_type = data_type
         self.double_fov = double_fov
         self.center = center
-
-        self.data_queue = queue.Queue()
-        
+        self.data_queue = queue.Queue()        
         self.running = True
     
     def signal_handler(self, sig, frame):
@@ -80,14 +54,15 @@ class H5LpRec(cfunc):
     def fbp_filter_center(self, data, center):
         """FBP filtering of projections"""
 
-        ne = 3*self.n//2
+        n = data.shape[2]
+        ne = 3*n//2
         t = cp.fft.rfftfreq(ne).astype(mtype)        
         w = t * (1 - t * 2)**3  # parzen
-        w = w*cp.exp(2*cp.pi*1j*t*(center-self.n/2)) # center fix       
-        data = cp.pad(data,((0,0),(0,0),(ne//2-self.n//2,ne//2-self.n//2)),mode='edge')
+        w = w*cp.exp(2*cp.pi*1j*t*(center-n/2)) # center fix       
+        data = cp.pad(data,((0,0),(0,0),(ne//2-n//2,ne//2-n//2)),mode='edge')
         data = irfft(
             w*rfft(data, axis=2), axis=2).astype(mtype)  # note: filter works with complex64, however, it doesnt take much time
-        data = data[:,:,ne//2-self.n//2:ne//2+self.n//2]
+        data = data[:,:,ne//2-n//2:ne//2+n//2]
         return data
 
     def darkflat_correction(self, data, dark, flat):
@@ -149,13 +124,14 @@ class H5LpRec(cfunc):
     def flip_stitch(self, data):
         """Flip and stitch for processing 360degree data with rotation axis on the left border"""
 
-        data_new = cp.zeros([self.nproj,self.nz,self.n],dtype=mtype)
+        [nproj, nz, n] = data.shape
+        data_new = cp.zeros([nproj,nz,n],dtype=mtype)
         ni = data.shape[2]
         v = cp.linspace(0,1, int(2*self.center),endpoint=False)        
         v = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)     
-        data[:self.nproj,:,:2*self.center]*=v        
-        data_new[:,:,-ni:] = data[:self.nproj]
-        data_new[:,:,:ni] = data[self.nproj:,:,::-1]      
+        data[:nproj,:,:2*center]*=v        
+        data_new[:,:,-ni:] = data[:nproj]
+        data_new[:,:,:ni] = data[nproj:,:,::-1]      
         return data_new
         
     def recon(self, obj, data, dark, flat):
@@ -171,8 +147,7 @@ class H5LpRec(cfunc):
         data = self.minus_log(data)        
         data = self.fbp_filter_center(data, center)        
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
-        self.backprojection(obj.data.ptr, data.data.ptr,
-                            cp.cuda.get_current_stream().ptr)
+        self.cl_rec.backprojection(obj, data, cp.cuda.get_current_stream())
 
     def pinned_array(self, array):
         """Allocate pinned memory and associate it with numpy array"""
@@ -229,10 +204,15 @@ class H5LpRec(cfunc):
         item_gpu['flat'] = cp.ones([2, self.nflat, self.nz, ni], dtype=self.data_type)
 
         # pinned memory for reconstrution
+        if(self.double_fov):
+            n = 2*ni
+        else:
+            n = ni
+
         rec_pinned = self.pinned_array(
-            np.zeros([2, self.nz, self.n, self.n], dtype=mtype))
+            np.zeros([2, self.nz, n, n], dtype=mtype))
         # gpu memory for reconstrution
-        rec = cp.zeros([2, self.nz, self.n, self.n], dtype=mtype)
+        rec = cp.zeros([2, self.nz, n, n], dtype=mtype)
 
         # list of threads for parallel writing to hard disk
         write_threads = []

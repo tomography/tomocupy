@@ -1,4 +1,4 @@
-#include<cfunc.cuh>
+#include<cfunc_lprec.cuh>
 inline __device__ __host__ complex make_complex(real a, real b)
 {
     complex r;

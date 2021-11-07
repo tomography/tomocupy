@@ -1,12 +1,12 @@
-#ifndef CFUNC_CUH
-#define CFUNC_CUH
+#ifndef CFUNC_LPREC_CUH
+#define CFUNC_LPREC_CUH
 
 #include <cufft.h>
 #include <cufftXt.h>
 #include <cuda_fp16.h>
 #include "defs.cuh"
 
-class cfunc
+class cfunc_lprec
 {
     bool is_free;
 	real* fl;
@@ -39,8 +39,8 @@ public:
     int nrho; 
     int nz;  
     
-    cfunc(int nproj, int nz, int n, int ntheta, int nrho);
-	~cfunc();      
+    cfunc_lprec(int nproj, int nz, int n, int ntheta, int nrho);
+	~cfunc_lprec();      
     void free();
     void setgrids(size_t fz, size_t lp2p1, size_t lp2p2, size_t lp2p1w, size_t lp2p2w, 
         size_t C2lp1, size_t C2lp2, size_t lpids, size_t wids, size_t cids, 
