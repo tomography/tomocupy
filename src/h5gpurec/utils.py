@@ -1,5 +1,6 @@
 from itertools import islice
 import numpy as np
+import argparse
 
 #timing functions
 def tic():
@@ -33,3 +34,18 @@ def printProgressBar (iteration, total, qsize, prefix = '', suffix = '', decimal
     # Print New Line on Complete
     if iteration == total: 
         print()
+
+def positive_int(value):
+    """Convert *value* to an integer and make sure it is positive."""
+    result = int(value)
+    if result < 0:
+        raise argparse.ArgumentTypeError('Only positive integers are allowed')
+    return result
+
+
+def restricted_float(x):
+
+    x = float(x)
+    if x < 0.0 or x > 1.0:
+        raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]"%(x,))
+    return x

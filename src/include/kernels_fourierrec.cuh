@@ -18,7 +18,7 @@ void __global__ divphi(float2 *g, float2 *f, float mu, int N, int Nz, int m, dir
   );
   int g_ind = (
     + (tx + N / 2 + m)
-    + (N - 1 - ty + N / 2 + m) * (2 * N + 2 * m)// N - 1 - ty  ---consistency with tomopy
+    + (ty + N / 2 + m) * (2 * N + 2 * m)
     + tz * (2 * N + 2 * m) * (2 * N + 2 * m)
   );  
   f[f_ind].x = g[g_ind].x / phi / (4 * N * N);
