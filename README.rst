@@ -8,11 +8,11 @@ H5GPURec
 Example of 'full' reconstruction for double field of view:
 
 .. image:: full.png
-    :width: 90%
+    :width: 70%
     :align: center
 
 .. image:: rec.png
-    :width: 90%
+    :width: 70%
     :align: center
 
 
