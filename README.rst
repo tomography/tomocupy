@@ -26,7 +26,8 @@ Installation
 ================
 ::
 
-  conda create -n h5gpurec -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets
+  conda create -n 
+  -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets
   conda activate h5gpurec
   pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
 
@@ -51,7 +52,7 @@ Installation
 ================
 ::
 
-  h5gpurec -h
+  h5gpurecon -h
 
 5. Example
 ================
