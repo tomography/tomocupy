@@ -2,7 +2,7 @@
 H5GPURec
 ================
 
-**h5gpurec** is a command-line interface for reconstruction tomographic hdf5 files on GPU.
+**h5gpurec** is a command-line interface for GPU reconstruction of tomographic data stored in hdf5 files. All preprocessing operations are implemented on GPU with using cupy library. Two backprojection methods: Fourier-based (fourierrec) and Log-polar-based (lprec) are implemented with CUDA C++ and python wrappers. lprec works only with equally-spaced angles in the interval [0,180), fourierrec supoorts arbitrary angles.
 
     
 Example of 'full' reconstruction for double field of view:
