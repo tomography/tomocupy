@@ -113,7 +113,7 @@ class H5GPURec():
 
         level = 7#int(np.ceil(np.log2(max(data.shape))))
         wname = 'sym16'
-        sigma = 2
+        sigma = 1
         pad = True
                 
         nproj_pad = self.nproj
