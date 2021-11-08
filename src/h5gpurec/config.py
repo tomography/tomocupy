@@ -119,10 +119,10 @@ SECTIONS['remove-stripe'] = {
 
 SECTIONS['reconstruction'] = {
     'reconstruction-type': {
-        'default': 'full',
+        'default': 'try',
         'type': str,
         'help': "Reconstruct full data set. ",
-        'choices': ['full']},
+        'choices': ['full','try']},
     'reconstruction-algorithm': {
         'default': 'fourierrec',
         'type': str,
@@ -132,6 +132,18 @@ SECTIONS['reconstruction'] = {
         'default': -1.0,
         'type': float,
         'help': "Location of rotation axis"},
+    'center-search-width': {
+        'type': float,
+        'default': 10.0,
+        'help': "+/- center search width (pixel). "},
+    'center-search-step': {
+        'type': float,
+        'default': 0.5,
+        'help': "+/- center search step (pixel). "},
+    'nsino': {
+        'default': 0.5,
+        'type': float,
+        'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'}
     }
 
 

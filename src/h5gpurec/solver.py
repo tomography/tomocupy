@@ -33,6 +33,8 @@ class H5GPURec():
             theta = fid['/exchange/theta'][:]        
         # define chunk size for processing            
         nz = args.nsino_per_chunk        
+        if(args.reconstruction_type=='try'):
+            nz = 2
         # take center
         centeri = args.rotation_axis
         if centeri == -1:
@@ -78,13 +80,13 @@ class H5GPURec():
         print('Abort')
         os.system('kill -9 $PPID')
             
-    def fbp_filter_center(self, data):
+    def fbp_filter_center(self, data, sh = 0):
         """FBP filtering of projections"""
 
         ne = 3*self.n//2
         t = cp.fft.rfftfreq(ne).astype(mtype)        
         w = t * (1 - t * 2)**3  # parzen
-        w = w*cp.exp(2*cp.pi*1j*t*(self.center-self.n/2)) # center fix       
+        w = w*cp.exp(2*cp.pi*1j*t*(self.center+sh-self.n/2)) # center fix       
         data = cp.pad(data,((0,0),(0,0),(ne//2-self.n//2,ne//2-self.n//2)),mode='edge')
         
         data = irfft(
@@ -256,7 +258,7 @@ class H5GPURec():
         stream2 = cp.cuda.Stream(non_blocking=False)
         stream3 = cp.cuda.Stream(non_blocking=False)
         fnameout = os.path.dirname(self.args.file_name)+'_recgpu/'+os.path.basename(self.args.file_name)[:-3]+'_rec/r'
-        print('Reconstruction')
+        print('Reconstruction Full')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
             printProgressBar(k,nchunk+1,self.data_queue.qsize(), length = 40)#, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r")            
@@ -292,6 +294,72 @@ class H5GPURec():
             stream1.synchronize()
             stream2.synchronize()
         print('wait until all tiffs are saved')
+        print(f'{fnameout}')
         # wait until reconstructions are written to hard disk        
         for thread in write_threads:
             thread.join()
+
+
+
+    def recon_try(self, obj, data, dark, flat,shift_array):
+        """Full reconstruction pipeline for 1 slice with different centers"""
+
+        data = self.darkflat_correction(data, dark, flat)
+        
+        if(self.args.remove_stripe_method=='fw'):
+            data = self.remove_stripe_fw_gpu(data)        
+        data = self.minus_log(data)        
+        if(self.args.file_type=='double_fov'):
+            data = self.pad360(data)                    
+        rec_cpu_list=[]
+        data0 = data.copy()
+        for k in range(len(shift_array)):                    
+            printProgressBar(k,len(shift_array)-1,0, length = 40)#, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r")            
+            data = self.fbp_filter_center(data0, shift_array[k])                        
+            data = cp.ascontiguousarray(data.swapaxes(0, 1))        
+            self.cl_rec.backprojection(obj, data, cp.cuda.get_current_stream())            
+            rec_cpu_list.append(obj[0].get())
+        return rec_cpu_list 
+        
+
+    def recon_all_try(self):
+        """GPU reconstruction of 1 slice from an h5file"""
+        print('Reconstruction Try')
+        # take links to datasets
+        fid = h5py.File(self.args.file_name, 'r')
+        data = fid['exchange/data']
+        dark = fid['exchange/data_dark']
+        flat = fid['exchange/data_white']
+        idslice = int(self.args.nsino*(data.shape[1]-1))
+        data = cp.ascontiguousarray(cp.array(data[:,idslice:idslice+2**self.args.binning].astype('float32')))       
+        dark = cp.ascontiguousarray(cp.array(dark[:,idslice:idslice+2**self.args.binning].astype('float32')))
+        flat = cp.ascontiguousarray(cp.array(flat[:,idslice:idslice+2**self.args.binning].astype('float32')))
+        for k in range(self.args.binning):
+            data = data[:,:,::2]+data[:,:,1::2]
+            dark = dark[:,:,::2]+dark[:,:,1::2]
+            flat = flat[:,:,::2]+flat[:,:,1::2]
+        for k in range(self.args.binning):
+            data = data[:,::2]+data[:,1::2]
+            dark = dark[:,::2]+dark[:,1::2]
+            flat = flat[:,::2]+flat[:,1::2]
+        rec = cp.zeros([self.nz, self.n, self.n], dtype=mtype)
+        shift_array = np.arange(-self.args.center_search_width,self.args.center_search_width,self.args.center_search_step).astype('float32')
+        
+        with cp.cuda.Stream(non_blocking=False):
+            rec_cpu_list = self.recon_try(rec,data,dark,flat,shift_array)        
+        
+        print('wait until all tiffs are saved to')
+        fnameout = os.path.dirname(self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'        
+        print(f'{fnameout}')
+        write_threads=[]
+        dxchange.write_tiff(rec_cpu_list[0], f'{fnameout}{(self.centeri-shift_array[0]):08.2f}', overwrite=True)#avoid simultaneous directory creation
+        for k in range(1,len(shift_array)):
+            write_thread = threading.Thread(target=dxchange.write_tiff,
+                                                      args=(rec_cpu_list[k],),
+                                                      kwargs={'fname': f'{fnameout}{(self.centeri-shift_array[k]):08.2f}',                                                              
+                                                              'overwrite': True})
+            write_threads.append(write_thread)
+            write_thread.start()
+        for thread in write_threads:
+            thread.join()
+

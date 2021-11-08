@@ -150,3 +150,17 @@ void __global__ fftshiftc(float2 *f, int N, int Nz) {
   f[tx + ty * N + tz * N * N].y *= g;
 }
 
+
+void __global__ circ(float2 *f, float r, int N, int Nz) {
+  int tx = blockDim.x * blockIdx.x + threadIdx.x;
+  int ty = blockDim.y * blockIdx.y + threadIdx.y;
+  int tz = blockDim.z * blockIdx.z + threadIdx.z;
+  if (tx >= N || ty >= N || tz >= Nz)
+    return;
+  int id0 = tx + ty * N + tz * N * N;
+  float x = (tx - N / 2) / float(N);
+  float y = (ty - N / 2) / float(N);
+  int lam = (4 * x * x + 4 * y * y) < 1 - r;
+  f[id0].x *= lam;
+  f[id0].y *= lam;
+}

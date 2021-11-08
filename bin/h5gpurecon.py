@@ -28,10 +28,14 @@ def run_rec(args):
     if file_name.is_file():        
         t = time.time()
         clpthandle = H5GPURec(args)        
-        clpthandle.recon_all()
+        if(args.reconstruction_type=='full'):
+            clpthandle.recon_all()
+        if(args.reconstruction_type=='try'):
+            clpthandle.recon_all_try()
         print(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
+
 
 def main():
     parser = argparse.ArgumentParser()
