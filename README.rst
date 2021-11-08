@@ -5,9 +5,15 @@ H5GPURec
 **h5gpurec** is a command-line interface for reconstruction tomographic hdf5 files on GPU.
 
 
-Example of reconstruction:
+Example of 'try' reconstruction:
 
-.. image:: cmd.png
+.. image:: try.png
+    :width: 90%
+    :align: center
+    
+Example of 'full' reconstruction for double field of view:
+
+.. image:: full.png
     :width: 90%
     :align: center
 
