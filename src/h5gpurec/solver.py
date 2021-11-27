@@ -86,7 +86,7 @@ class H5GPURec():
         ne = 3*self.n//2
         t = cp.fft.rfftfreq(ne).astype(mtype)        
         w = t * (1 - t * 2)**3  # parzen
-        w = w*cp.exp(2*cp.pi*1j*t*(self.center+sh-self.n/2)) # center fix       
+        w = w*cp.exp(2*cp.pi*1j*t*(-self.center+sh+self.n/2)) # center fix       
         data = cp.pad(data,((0,0),(0,0),(ne//2-self.n//2,ne//2-self.n//2)),mode='edge')
         
         data = irfft(
@@ -100,12 +100,14 @@ class H5GPURec():
 
         dark0 = cp.mean(dark, axis=0).astype(mtype)
         flat0 = cp.mean(flat, axis=0).astype(mtype)
-        data = (data.astype(mtype)-dark0)/cp.maximum(flat0-dark0, 1e-6)
+        data = (data.astype(mtype)-dark0)/(flat0-dark0)
         return data
     
     def minus_log(self, data):
         """Taking negative logarithm"""
-        data = -cp.log(cp.maximum(data, 1e-6))
+        data = -cp.log(data)
+        data[cp.isnan(data)] = 6.0
+        data[cp.isinf(data)] = 0
         return data
     
     def remove_stripe_fw_gpu(self, data):
