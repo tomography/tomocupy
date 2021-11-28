@@ -86,7 +86,7 @@ class H5GPURec():
         ne = 3*self.n//2
         t = cp.fft.rfftfreq(ne).astype(mtype)        
         w = t * (1 - t * 2)**3  # parzen
-        w = w*cp.exp(2*cp.pi*1j*t*(-self.center+sh+self.n/2)) # center fix       
+        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2)) # center fix       
         data = cp.pad(data,((0,0),(0,0),(ne//2-self.n//2,ne//2-self.n//2)),mode='edge')
         
         data = irfft(
@@ -155,6 +155,7 @@ class H5GPURec():
     def pad360(self, data):
         """Pad data with 0 to handle 360 degrees scan"""
 
+        print("pad")
         if(self.centeri<self.ni//2):
             #if rotation center is on the left side of the ROI
             data[:] = data[:,:,::-1]            
@@ -358,7 +359,7 @@ class H5GPURec():
         for k in range(1,len(shift_array)):
             write_thread = threading.Thread(target=dxchange.write_tiff,
                                                       args=(rec_cpu_list[k],),
-                                                      kwargs={'fname': f'{fnameout}{(self.centeri-shift_array[k]):08.2f}',                                                              
+                                                      kwargs={'fname': f'{fnameout}{(self.centeri*2**self.args.binning-shift_array[k]):08.2f}',                                                              
                                                               'overwrite': True})
             write_threads.append(write_thread)
             write_thread.start()
