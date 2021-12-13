@@ -143,11 +143,25 @@ SECTIONS['reconstruction'] = {
     'nsino': {
         'default': 0.5,
         'type': float,
-        'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'}
+        'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
+    'blocked-views': {
+        'default': False,
+        'help': 'When set, the blocked-views options are used',
+        'action': 'store_true'},    
     }
 
+SECTIONS['blocked-views'] = {
+    'blocked-views-start': {
+        'type': float,
+        'default': 0,
+        'help': "Angle of the first blocked view"},
+    'blocked-views-end': {
+        'type': float,
+        'default': 1,
+        'help': "Angle of the last blocked view"},
+        }
 
-RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction')
+RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe', 'Reconstruction')
 

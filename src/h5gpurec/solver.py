@@ -53,7 +53,17 @@ class H5GPURec():
         else:
             n = ni            
             center = centeri
-        theta = cp.ascontiguousarray(cp.array(theta.astype('float32'))/180*np.pi)
+        theta = theta.astype('float32')/180*np.pi
+        
+        self.ids_proj = np.arange(len(theta))
+        if args.blocked_views:
+            st = args.blocked_views_start
+            end = args.blocked_views_end
+            ids = np.where(((theta)%np.pi<st) + ((theta-st)%np.pi>end-st))[0]            
+            theta = theta[ids]
+            self.ids_proj = ids
+        nproj = len(theta)
+        theta = cp.ascontiguousarray(cp.array(theta))
         # choose reconstruction method
         if args.reconstruction_algorithm == 'lprec' :                    
             self.cl_rec = lprec.LpRec(n, nproj, nz)   
@@ -154,8 +164,7 @@ class H5GPURec():
     
     def pad360(self, data):
         """Pad data with 0 to handle 360 degrees scan"""
-
-        print("pad")
+        
         if(self.centeri<self.ni//2):
             #if rotation center is on the left side of the ROI
             data[:] = data[:,:,::-1]            
@@ -203,16 +212,27 @@ class H5GPURec():
             data = ne.evaluate('x + y')                        
         return data
 
+    def blocked_view(self, proj, theta):
+        if self.args.blocked_views:
+            st = self.args.blocked_views_start
+            end = self.args.blocked_views_end
+            ids = np.where(((theta)%np.pi<st) + ((theta-st)%np.pi>end-st))[0]
+            proj = proj[ids]
+            theta = theta[ids]
+        return proj, theta
+    
     def read_data(self, data, dark, flat, nchunk, lchunk):
         """Reading data from hard disk and putting it to a queue"""
 
         for k in range(nchunk):
             item = {}
             st =  k*self.nz*2**self.args.binning
-            end = (k*self.nz+lchunk[k])*2**self.args.binning
-            item['data'] = self.downsample(data[:,  st:end])
+            end = (k*self.nz+lchunk[k])*2**self.args.binning            
+                        
+            item['data'] = self.downsample(data[:,  st:end])[self.ids_proj]
             item['flat'] = self.downsample(flat[:,  st:end])
             item['dark'] = self.downsample(dark[:,  st:end])
+            
             self.data_queue.put(item)    
             
     def recon_all(self):
@@ -355,11 +375,11 @@ class H5GPURec():
         fnameout = os.path.dirname(self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'        
         print(f'{fnameout}')
         write_threads=[]
-        dxchange.write_tiff(rec_cpu_list[0], f'{fnameout}{(self.centeri-shift_array[0]):08.2f}', overwrite=True)#avoid simultaneous directory creation
+        dxchange.write_tiff(rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)#avoid simultaneous directory creation
         for k in range(1,len(shift_array)):
             write_thread = threading.Thread(target=dxchange.write_tiff,
                                                       args=(rec_cpu_list[k],),
-                                                      kwargs={'fname': f'{fnameout}{(self.centeri*2**self.args.binning-shift_array[k]):08.2f}',                                                              
+                                                      kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',                                                              
                                                               'overwrite': True})
             write_threads.append(write_thread)
             write_thread.start()
