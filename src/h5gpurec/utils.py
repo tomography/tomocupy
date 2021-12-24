@@ -1,5 +1,5 @@
-from itertools import islice
 import numpy as np
+import cupy as cp
 import argparse
 
 #timing functions
@@ -49,3 +49,19 @@ def restricted_float(x):
     if x < 0.0 or x > 1.0:
         raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]"%(x,))
     return x
+
+def pinned_array(array):
+    """Allocate pinned memory and associate it with numpy array"""
+
+    mem = cp.cuda.alloc_pinned_memory(array.nbytes)
+    src = np.frombuffer(
+        mem, array.dtype, array.size).reshape(array.shape)
+    src[...] = array
+    return src
+
+
+def signal_handler(sig, frame):
+    """Calls abort_scan when ^C or ^Z is typed"""
+
+    print('Abort')
+    os.system('kill -9 $PPID')

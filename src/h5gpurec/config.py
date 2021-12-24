@@ -93,6 +93,11 @@ SECTIONS['file-reading'] = {
         'type': Path,
         'help': "Name of the last used hdf file or directory containing multiple hdf files",
         'metavar': 'PATH'},
+    'out-path-name': {
+        'default': None,
+        'type': Path,
+        'help': "Name of the last used hdf file or directory containing multiple hdf files",
+        'metavar': 'PATH'},
     'file-type': {
         'default': 'standard',
         'type': str,
@@ -116,6 +121,36 @@ SECTIONS['remove-stripe'] = {
         'help': "Remove stripe method: none, fourier-wavelet",
         'choices': ['none', 'fw']},
         }
+
+# pixel_size=(params.pixel_size*1e-4),dist=(params.propagation_distance/10.0),energy=params.energy, alpha=params.retrieve_phase_alpha,pad=True
+SECTIONS['retrieve-phase'] = {
+    'retrieve-phase-method': {
+        'default': 'none',
+        'type': str,
+        'help': "Retrieve phase method: none, paganin. 'dist' and 'pixel_size' in centimeters, 'energy' in keV, 'alpha' for regularization.",
+        'choices': ['none', 'paganin']},
+    'dist' :{
+        'default' : 100.0,
+        'type' : float,
+        'help' : ''},
+    'pixel-size' :{
+        'default' : 1.0e-4,
+        'type' : float,
+        'help' : ''},
+    'energy' :{
+        'default' : 25.5,
+        'type' : float,
+        'help' : ''},
+    'alpha' :{
+        'default' : 1.0e-3,
+        'type' : float,
+        'help' : ''},
+    'pad': {
+        'default': True,
+        'help': '',
+        'action': 'store_true'}, #CHECK - what is store_true? is there store_false?#
+        }
+
 
 SECTIONS['reconstruction'] = {
     'reconstruction-type': {
@@ -148,6 +183,22 @@ SECTIONS['reconstruction'] = {
         'default': False,
         'help': 'When set, the blocked-views options are used',
         'action': 'store_true'},    
+    'start-row': {
+        'type': int,
+        'default': 0,
+        'help': "Start slice"},
+    'end-row': {
+        'type': int,
+        'default': -1,
+        'help': "End slice"},
+    'start-proj': {
+        'type': int,
+        'default': 0,
+        'help': "Start projection"},
+    'end-proj': {
+        'type': int,
+        'default': -1,
+        'help': "End projection"},
     }
 
 SECTIONS['blocked-views'] = {
@@ -161,7 +212,7 @@ SECTIONS['blocked-views'] = {
         'help': "Angle of the last blocked view"},
         }
 
-RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views')
+RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'retrieve-phase')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe', 'Reconstruction')
 

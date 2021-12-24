@@ -1,7 +1,6 @@
 #include "cfunc_fourierrec.cuh"
 #include "kernels_fourierrec.cuh"
 #include "defs.cuh"
-#include<stdio.h>
 cfunc_fourierrec::cfunc_fourierrec(size_t ntheta, size_t pnz, size_t n, size_t theta_)
     : ntheta(ntheta), pnz(pnz), n(n) {
     float eps = 1e-2;
@@ -13,7 +12,7 @@ cfunc_fourierrec::cfunc_fourierrec(size_t ntheta, size_t pnz, size_t n, size_t t
     cudaMalloc((void **)&y, n * ntheta * sizeof(float));
     
     long long ffts[] = {2*n,2*n};
-	long long idist = (2 * n + 2 * m) * (2 * n + 2 * m);long long odist = (2 * n + 2 * m) * (2 * n + 2 * m);
+	  long long idist = (2 * n + 2 * m) * (2 * n + 2 * m);long long odist = (2 * n + 2 * m) * (2 * n + 2 * m);
     long long inembed[] = {2 * n + 2 * m, 2 * n + 2 * m};long long onembed[] = {2 * n + 2 * m, 2 * n + 2 * m};
     size_t workSize = 0;
 
