@@ -1,6 +1,7 @@
 import numpy as np
 import cupy as cp
 import argparse
+import os
 
 #timing functions
 def tic():
@@ -30,7 +31,7 @@ def printProgressBar (iteration, total, qsize, prefix = '', suffix = '', decimal
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filledLength = int(length * iteration // total)
     bar = fill * filledLength + '-' * (length - filledLength)
-    print(f'\rbuffer {qsize:03d} | {prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    print(f'\rqueue size {qsize:03d} | {prefix} |{bar}| {percent}% {suffix}', end = printEnd)
     # Print New Line on Complete
     if iteration == total: 
         print()

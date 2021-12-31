@@ -14,7 +14,7 @@ import inspect
 import h5py
 import numpy as np
 
-from h5gpurec import utils
+from tomocupy_cli import utils
 
 
 log = logging.getLogger(__name__)
@@ -58,7 +58,7 @@ def default_parameter(func, param):
 
 
 LOGS_HOME = Path.home()/'logs'
-CONFIG_FILE_NAME = Path.home()/'h5gpurecon.conf'
+CONFIG_FILE_NAME = Path.home()/'tomocupyon.conf'
 
 SECTIONS = OrderedDict()
 
@@ -84,9 +84,6 @@ SECTIONS['general'] = {
         'action': 'store_true'},
         }
 
-
-
-
 SECTIONS['file-reading'] = {
     'file-name': {
         'default': '.',
@@ -96,24 +93,36 @@ SECTIONS['file-reading'] = {
     'out-path-name': {
         'default': None,
         'type': Path,
-        'help': "Name of the last used hdf file or directory containing multiple hdf files",
+        'help': "Path for output files",
         'metavar': 'PATH'},
     'file-type': {
         'default': 'standard',
         'type': str,
         'help': "Input file type",
         'choices': ['standard', 'double_fov']},        
-    'nsino-per-chunk': {     
-        'type': int,
-        'default': 8,
-        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.",},
     'binning': {
         'type': utils.positive_int,
         'default': 0,
         'help': "Reconstruction binning factor as power(2, choice)",
         'choices': [0, 1, 2, 3]},
-       }
+    'blocked-views': {
+        'default': False,
+        'help': 'When set, the blocked-views options are used',
+        'action': 'store_true'},    
+    }
 
+
+SECTIONS['blocked-views'] = {
+    'blocked-views-start': {
+        'type': float,
+        'default': 0,
+        'help': "Angle of the first blocked view"},
+    'blocked-views-end': {
+        'type': float,
+        'default': 1,
+        'help': "Angle of the last blocked view"},
+        }
+        
 SECTIONS['remove-stripe'] = {
     'remove-stripe-method': {
         'default': 'none',
@@ -122,33 +131,53 @@ SECTIONS['remove-stripe'] = {
         'choices': ['none', 'fw']},
         }
 
-# pixel_size=(params.pixel_size*1e-4),dist=(params.propagation_distance/10.0),energy=params.energy, alpha=params.retrieve_phase_alpha,pad=True
+
+SECTIONS['fw'] = {
+    'fw-sigma': {
+        'default': 1,
+        'type': float,
+        'help': "Fourier-Wavelet remove stripe damping parameter"},
+    'fw-filter': {
+        'default': 'sym16',
+        'type': str,
+        'help': "Fourier-Wavelet remove stripe filter",
+        'choices': ['haar', 'db5', 'sym5', 'sym16']},
+    'fw-level': {
+        'type': utils.positive_int,
+        'default': 7,
+        'help': "Fourier-Wavelet remove stripe level parameter"},
+    'fw-pad': {
+        'default': True,
+        'help': "When set, Fourier-Wavelet remove stripe extend the size of the sinogram by padding with zeros",
+        'action': 'store_true'},
+    }
+
 SECTIONS['retrieve-phase'] = {
     'retrieve-phase-method': {
         'default': 'none',
         'type': str,
-        'help': "Retrieve phase method: none, paganin. 'dist' and 'pixel_size' in centimeters, 'energy' in keV, 'alpha' for regularization.",
+        'help': "Phase retrieval correction method",
         'choices': ['none', 'paganin']},
-    'dist' :{
-        'default' : 100.0,
-        'type' : float,
-        'help' : ''},
-    'pixel-size' :{
-        'default' : 1.0e-4,
-        'type' : float,
-        'help' : ''},
-    'energy' :{
-        'default' : 25.5,
-        'type' : float,
-        'help' : ''},
-    'alpha' :{
-        'default' : 1.0e-3,
-        'type' : float,
-        'help' : ''},
-    'pad': {
-        'default': True,
-        'help': '',
-        'action': 'store_true'}, #CHECK - what is store_true? is there store_false?#
+    'energy': {
+        'default': 20,
+        'type': float,
+        'help': "X-ray energy [keV]"},
+    'propagation-distance': {
+        'default': 60,
+        'type': float,
+        'help': "Sample detector distance [mm]"},
+    'pixel-size': {
+        'default': 1.17,
+        'type': float,
+        'help': "Pixel size [microns]"},
+    'retrieve-phase-alpha': {
+        'default': 0.001,
+        'type': float,
+        'help': "Regularization parameter"},
+    'retrieve-phase-pad': {
+        'type': utils.positive_int,
+        'default': 8,
+        'help': "Padding with extra slices in z for phase-retrieval filtering"},
         }
 
 
@@ -179,10 +208,10 @@ SECTIONS['reconstruction'] = {
         'default': 0.5,
         'type': float,
         'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
-    'blocked-views': {
-        'default': False,
-        'help': 'When set, the blocked-views options are used',
-        'action': 'store_true'},    
+    'nsino-per-chunk': {     
+        'type': int,
+        'default': 8,
+        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.",},    
     'start-row': {
         'type': int,
         'default': 0,
@@ -199,22 +228,16 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': -1,
         'help': "End projection"},
+    'nproj-per-chunk': {     
+        'type': int,
+        'default': 8,
+        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.",},            
     }
 
-SECTIONS['blocked-views'] = {
-    'blocked-views-start': {
-        'type': float,
-        'default': 0,
-        'help': "Angle of the first blocked view"},
-    'blocked-views-end': {
-        'type': float,
-        'default': 1,
-        'help': "Angle of the last blocked view"},
-        }
 
-RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'retrieve-phase')
+RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'retrieve-phase', 'fw')
 
-NICE_NAMES = ('General', 'File reading', 'Remove stripe', 'Reconstruction')
+NICE_NAMES = ('General', 'File reading', 'Remove stripe', 'Remove stripe FW', 'Retrieve phase', 'Blocked views', 'Reconstruction')
 
 def get_config_name():
     """Get the command line --config option."""
@@ -335,7 +358,7 @@ def show_config(args):
     """
     args = args.__dict__
 
-    log.warning('h5gpurec status start')
+    log.warning('tomocupy status start')
     for section, name in zip(SECTIONS, NICE_NAMES):
         entries = sorted((k for k in args.keys() if k.replace('_', '-') in SECTIONS[section]))
         if entries:
@@ -343,7 +366,7 @@ def show_config(args):
                 value = args[entry] if args[entry] != None else "-"
                 log.info("  {:<16} {}".format(entry, value))
 
-    log.warning('h5gpurec status end')
+    log.warning('tomocupy status end')
 
 def log_values(args):
     """Log all values set in the args namespace.
@@ -352,7 +375,7 @@ def log_values(args):
     """
     args = args.__dict__
 
-    log.warning('h5gpurecon status start')
+    log.warning('tomocupyon status start')
     for section, name in zip(SECTIONS, NICE_NAMES):
         entries = sorted((k for k in args.keys() if k.replace('_', '-') in SECTIONS[section]))
 
@@ -369,5 +392,5 @@ def log_values(args):
                 elif (value is False):
                     log.warning("  {:<16} {}".format(entry, value))
 
-    log.warning('h5gpurecon status end')
+    log.warning('tomocupyon status end')
 

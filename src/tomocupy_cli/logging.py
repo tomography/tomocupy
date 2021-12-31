@@ -1,10 +1,10 @@
-'''Customized logging for the h5gpurecon library.
+'''Customized logging for the tomocupy library.
 
-Logging in h5gpurecon is built upon the standard logging functionality
+Logging in tomocupy is built upon the standard logging functionality
 in python. This module provides the standard ``getLogger`` function
 that can be used to get a logger object with the usual *debug*,
 *info*, etc., methods. If ``setup_custom_logger`` is called, all
-``h5gpurecon.*`` loggers will use color terminal logging and/or a
+``tomocupy.*`` loggers will use color terminal logging and/or a
 logfile.
 
 '''
@@ -41,8 +41,8 @@ def log_exception(logger, err, fmt="%s"):
 def setup_custom_logger(lfname: str=None, stream_to_console: bool=True, level=logging.DEBUG):
     """Prepare the logging system with custom formatting.
     
-    This adds handlers to the *h5gpurecon* parent logger. Any logger
-    inside h5gpurecon will produce output based on this functions
+    This adds handlers to the *tomocupy* parent logger. Any logger
+    inside tomocupy will produce output based on this functions
     customization parameters. The file given in *lfname* will receive
     all log message levels, while the console will receive messages
     based on *level*.
@@ -61,7 +61,7 @@ def setup_custom_logger(lfname: str=None, stream_to_console: bool=True, level=lo
       actual level defined in the python logging framework.
 
     """
-    parent_name = __name__.split('.')[0]  # Nominally "h5gpurecon"
+    parent_name = __name__.split('.')[0]  # Nominally "tomocupy"
     parent_logger = logging.getLogger(parent_name)
     parent_logger.setLevel(logging.DEBUG)
     # Set up normal output to a file

@@ -1,31 +1,38 @@
-from h5gpurec import lprec, fourierrec
-from h5gpurec import retrieve_phase, remove_stripe
-from h5gpurec.utils import *
+from tomocupy_cli import lprec, fourierrec
+from tomocupy_cli import retrieve_phase, remove_stripe
+from tomocupy_cli import utils
+from tomocupy_cli import logging
+from cupyx.scipy.fft import rfft, irfft
 import cupy as cp
+import numpy as np
+import numexpr as ne
 import dxchange
 import threading
 import queue
 import h5py
 import os
 import signal
-from cupyx.scipy.fft import rfft, irfft
-import numexpr as ne
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
-
-class H5GPURec():
+log = logging.getLogger(__name__)
+class GPURec():
     def __init__(self, args):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTSTP, utils.signal_handler)
 
         with h5py.File(args.file_name) as fid:
+            # determine sizes
             ni = fid['/exchange/data'].shape[2]
             ndark = fid['/exchange/data_dark'].shape[0]
             nflat = fid['/exchange/data_white'].shape[0]
-            theta = fid['/exchange/theta'][args.start_proj:args.end_proj]
+            theta = fid['/exchange/theta'][:].astype('float32')/180*np.pi
+            if (args.end_row==-1):
+                args.end_row = fid['/exchange/data'].shape[1]
+            if (args.end_proj==-1):
+                args.end_proj = fid['/exchange/data'].shape[0]
         # define chunk size for processing
         nz = args.nsino_per_chunk
         if(args.reconstruction_type == 'try'):
@@ -49,59 +56,65 @@ class H5GPURec():
         else:
             n = ni
             center = centeri
-        
-        # convert angles to radians
-        theta = theta.astype('float32')/180*np.pi
-
+                
         # blocked views fix
-        self.ids_proj = np.arange(len(theta))
+        ids_proj = np.arange(len(theta))[args.start_proj:args.end_proj]
+        theta = theta[ids_proj]
+
         if args.blocked_views:
             st = args.blocked_views_start
             end = args.blocked_views_end
             ids = np.where(((theta) % np.pi < st) +
                            ((theta-st) % np.pi > end-st))[0]
             theta = theta[ids]
-            self.ids_proj = ids
-
+            ids_proj = ids_proj[ids]
+        
         nproj = len(theta)
         theta = cp.ascontiguousarray(cp.array(theta))
 
+        # padded chunk size for phase retrieval
+        if args.retrieve_phase_method=='paganin':
+            zpad = args.retrieve_phase_pad
+            args.start_row += zpad*2**args.binning
+            args.end_row -= zpad*2**args.binning
+            log.warning(f'Number of slices will be decreased by {2*zpad} due to the unpadding operation for Paganin filter ')
+        else:
+            zpad = 0
+        
         # choose reconstruction method
         if args.reconstruction_algorithm == 'lprec':
             self.cl_rec = lprec.LpRec(n, nproj, nz)
         if args.reconstruction_algorithm == 'fourierrec':
             self.cl_rec = fourierrec.FourierRec(n, nproj, nz, theta)
 
-        self.nz = nz
+        
         self.n = n
+        self.nz = nz
+        self.zpad = zpad
         self.nproj = nproj
         self.center = center
         self.ni = ni
         self.centeri = centeri
-
         self.ndark = ndark
         self.nflat = nflat
+        self.ids_proj = ids_proj        
         self.args = args
 
         # queue for streaming projections
         self.data_queue = queue.Queue()
 
-        self.running = True
+    def downsample(self, data):
+        """Downsample data"""
 
-    def fbp_filter_center(self, data, sh=0):
-        """FBP filtering of projections"""
-
-        ne = 3*self.n//2
-        t = cp.fft.rfftfreq(ne).astype('float32')
-        w = t * (1 - t * 2)**3  # parzen
-        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
-        data = cp.pad(
-            data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
-
-        data = irfft(
-            w*rfft(data, axis=2), axis=2).astype('float32')  # note: filter works with complex64, however, it doesnt take much time
-        data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]
-
+        data = data.astype('float32')
+        for j in range(self.args.binning):
+            x = data[:, :, ::2]
+            y = data[:, :, 1::2]
+            data = ne.evaluate('x + y')  # should use multithreading
+        for k in range(self.args.binning):
+            x = data[:, ::2]
+            y = data[:, 1::2]
+            data = ne.evaluate('x + y')
         return data
 
     def darkflat_correction(self, data, dark, flat):
@@ -119,6 +132,22 @@ class H5GPURec():
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0
         return data
+    
+    def fbp_filter_center(self, data, sh=0):
+        """FBP filtering of projections"""
+
+        ne = 3*self.n//2
+        t = cp.fft.rfftfreq(ne).astype('float32')
+        w = t * (1 - t * 2)**3  # parzen
+        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
+        data = cp.pad(
+            data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
+
+        data = irfft(
+            w*rfft(data, axis=2), axis=2).astype('float32')  # note: filter works with complex64, however, it doesnt take much time
+        data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]
+
+        return data
 
     def pad360(self, data):
         """Pad data with 0 to handle 360 degrees scan"""
@@ -135,44 +164,6 @@ class H5GPURec():
         data = cp.pad(data, ((0, 0), (0, 0), (0, data.shape[-1])), 'constant')
         return data
 
-    def recon(self, obj, data, dark, flat):
-        """Full reconstruction pipeline for a data chunk"""
-
-        # dark-flat field correction
-        data = self.darkflat_correction(data, dark, flat)
-        # remove stripes
-        if(self.args.remove_stripe_method == 'fw'):
-            data = remove_stripe.remove_stripe_fw(data)
-        # retrieve phase
-        if(self.args.retrieve_phase_method == 'paganin'):
-            data = retrieve_phase.retrieve_phase_paganin(
-                data,  self.args.pixel_size, self.args.dist, self.args.energy, self.args.alpha)
-        # minus log
-        data = self.minus_log(data)
-        # padding for 360 deg recon
-        if(self.args.file_type == 'double_fov'):
-            data = self.pad360(data)
-        # fbp filter and compensatio for the center
-        data = self.fbp_filter_center(data)
-        # reshape to sinograms
-        data = cp.ascontiguousarray(data.swapaxes(0, 1))
-        # backprojection
-        self.cl_rec.backprojection(obj, data, cp.cuda.get_current_stream())
-
-    def downsample(self, data):
-        """Downsample data"""
-
-        data = data.astype('float32')
-        for j in range(self.args.binning):
-            x = data[:, :, ::2]
-            y = data[:, :, 1::2]
-            data = ne.evaluate('x + y')  # should use multithreading
-        for k in range(self.args.binning):
-            x = data[:, ::2]
-            y = data[:, 1::2]
-            data = ne.evaluate('x + y')
-        return data
-
     def blocked_view(self, proj, theta):
         """Removing projections for blocked views"""
 
@@ -185,20 +176,51 @@ class H5GPURec():
             theta = theta[ids]
         return proj, theta
 
+    def recon(self, obj, data, dark, flat):
+        """Full reconstruction pipeline for a data chunk"""
+
+        # dark-flat field correction
+        data = self.darkflat_correction(data, dark, flat)
+        # remove stripes
+        if(self.args.remove_stripe_method == 'fw'):
+            data = remove_stripe.remove_stripe_fw(data, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
+        
+        # retrieve phase
+        if(self.args.retrieve_phase_method == 'paganin'):
+            # v = cp.linspace(1, 0, self.zpad, endpoint=False)
+            # v = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)
+            # v = v.reshape(1,self.zpad,1)
+            # print(v)
+            # data[:,:self.zpad]*=(1-v)
+            # data[:,-self.zpad:]*=(v)
+            data = retrieve_phase.paganin_filter(
+                data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, self.args.retrieve_phase_alpha)
+        # unpad after phase retrival
+        data = data[:,self.zpad:data.shape[1]-self.zpad]
+        # minus log
+        data = self.minus_log(data)
+        
+        # padding for 360 deg recon
+        if(self.args.file_type == 'double_fov'):
+            data = self.pad360(data)
+        # fbp filter and compensatio for the center
+        data = self.fbp_filter_center(data)
+        # reshape to sinograms
+        data = cp.ascontiguousarray(data.swapaxes(0, 1))
+        # backprojection
+        self.cl_rec.backprojection(obj, data, cp.cuda.get_current_stream())
+
     def read_data(self, data, dark, flat, nchunk, lchunk):
         """Reading data from hard disk and putting it to a queue"""
 
         st_row = self.args.start_row
         end_row = self.args.end_row
-        st_proj = self.args.start_proj
-        end_proj = self.args.end_proj
-
+        
         for k in range(nchunk):
             item = {}
-            st = st_row+k*self.nz*2**self.args.binning
-            end = (k*self.nz+lchunk[k])*2**self.args.binning
-
-            item['data'] = self.downsample(data[st_proj:end_proj,  st:end])[self.ids_proj]
+            st = st_row+(k*self.nz-self.zpad)*2**self.args.binning
+            end = st_row+(k*self.nz+lchunk[k]+self.zpad)*2**self.args.binning
+            item['data'] = self.downsample(data[self.ids_proj,  st:end])
             item['flat'] = self.downsample(flat[:,  st:end])
             item['dark'] = self.downsample(dark[:,  st:end])
 
@@ -210,11 +232,6 @@ class H5GPURec():
         # take links to datasets
         fid = h5py.File(self.args.file_name, 'r')
 
-        #BLAH#
-        if 0:  # (self.args.retrieve_phase_method=='paganin'):
-            st = max(self.args.start_row - 4, 0)
-            end = min(self.args.end_row + 4, fid['exchange/data'].shape[1])            
-        
         # init references to data, no reading at this point
         data = fid['exchange/data']
         dark = fid['exchange/data_dark']
@@ -235,24 +252,24 @@ class H5GPURec():
 
         # pinned memory for data item
         item_pinned = {}
-        item_pinned['data'] = pinned_array(
-            np.zeros([2, self.nproj, self.nz, self.ni], dtype='float32'))
-        item_pinned['dark'] = pinned_array(
-            np.zeros([2, self.ndark, self.nz, self.ni], dtype='float32'))
-        item_pinned['flat'] = pinned_array(
-            np.ones([2, self.nflat, self.nz, self.ni], dtype='float32'))
+        item_pinned['data'] = utils.pinned_array(
+            np.zeros([2, self.nproj, self.nz+2*self.zpad, self.ni], dtype='float32'))
+        item_pinned['dark'] = utils.pinned_array(
+            np.zeros([2, self.ndark, self.nz+2*self.zpad, self.ni], dtype='float32'))
+        item_pinned['flat'] = utils.pinned_array(
+            np.ones([2, self.nflat, self.nz+2*self.zpad, self.ni], dtype='float32'))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.nproj, self.nz, self.ni], dtype='float32')
+            [2, self.nproj, self.nz+2*self.zpad, self.ni], dtype='float32')
         item_gpu['dark'] = cp.zeros(
-            [2, self.ndark, self.nz, self.ni], dtype='float32')
+            [2, self.ndark, self.nz+2*self.zpad, self.ni], dtype='float32')
         item_gpu['flat'] = cp.ones(
-            [2, self.nflat, self.nz, self.ni], dtype='float32')
+            [2, self.nflat, self.nz+2*self.zpad, self.ni], dtype='float32')
 
         # pinned memory for reconstrution
-        rec_pinned = pinned_array(
+        rec_pinned = utils.pinned_array(
             np.zeros([2, self.nz, self.n, self.n], dtype='float32'))
         # gpu memory for reconstrution
         rec = cp.zeros([2, self.nz, self.n, self.n], dtype='float32')
@@ -270,11 +287,10 @@ class H5GPURec():
         else:
             fnameout = str(self.args.out_path_name)+'/r'
 
-        print('Reconstruction Full')
+        log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
-            # , prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r")
-            printProgressBar(k, nchunk+1, self.data_queue.qsize(), length=40)
+            utils.printProgressBar(k, nchunk+1, self.data_queue.qsize(), length=40)
             if(k > 0 and k < nchunk+1):
                 with stream2:  # reconstruction
                     self.recon(rec[(k-1) % 2], item_gpu['data'][(k-1) % 2],
@@ -285,9 +301,9 @@ class H5GPURec():
             if(k < nchunk):
                 # copy to pinned memory
                 item = self.data_queue.get()
-                item_pinned['data'][k % 2, :, :lchunk[k]] = item['data']
-                item_pinned['dark'][k % 2, :, :lchunk[k]] = item['dark']
-                item_pinned['flat'][k % 2, :, :lchunk[k]] = item['flat']
+                item_pinned['data'][k % 2, :, :lchunk[k]+2*self.zpad] = item['data']
+                item_pinned['dark'][k % 2, :, :lchunk[k]+2*self.zpad] = item['dark']
+                item_pinned['flat'][k % 2, :, :lchunk[k]+2*self.zpad] = item['flat']
                 with stream1:  # cpu->gpu copy
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
@@ -297,23 +313,16 @@ class H5GPURec():
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2], ::-1].copy()
                 
-                #BLAH#
-                if 0:  # (self.args.retrieve_phase_method=='paganin'):
-                    _start_id = (k-2)*self.nz
-                else:
-                    _start_id = (k-2)*self.nz
-
                 write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                 args=(rec_pinned0,),
                                                 kwargs={'fname': fnameout,
-                                                        'start': _start_id,
+                                                        'start':  (k-2)*self.nz,
                                                         'overwrite': True})
                 write_threads.append(write_thread)
                 write_thread.start()
             stream1.synchronize()
             stream2.synchronize()
-        print('wait until all tiffs are saved')
-        print(f'{fnameout}')
+        log.info(f'Output: {fnameout}')
         # wait until reconstructions are written to hard disk
         for thread in write_threads:
             thread.join()
@@ -324,14 +333,14 @@ class H5GPURec():
         data = self.darkflat_correction(data, dark, flat)
 
         if(self.args.remove_stripe_method == 'fw'):
-            data = remove_stripe.remove_stripe_fw(data)
+            data = remove_stripe.remove_stripe_fw(data, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
         data = self.minus_log(data)
         if(self.args.file_type == 'double_fov'):
             data = self.pad360(data)
         rec_cpu_list = []
         data0 = data.copy()
         for k in range(len(shift_array)):
-            printProgressBar(k, len(shift_array)-1, 0, length=40)
+            utils.printProgressBar(k, len(shift_array)-1, 0, length=40)
             data = self.fbp_filter_center(data0, shift_array[k])
             data = cp.ascontiguousarray(data.swapaxes(0, 1))
             self.cl_rec.backprojection(obj, data, cp.cuda.get_current_stream())
@@ -341,32 +350,33 @@ class H5GPURec():
     def recon_all_try(self):
         """GPU reconstruction of 1 slice from an h5file"""
         
-        print('Reconstruction Try')
+        
         # take links to datasets
         fid = h5py.File(self.args.file_name, 'r')
         data = fid['exchange/data']
         dark = fid['exchange/data_dark']
         flat = fid['exchange/data_white']
         idslice = int(self.args.nsino*(data.shape[1]-1))
-        data = cp.ascontiguousarray(cp.array(
-            data[self.args.start_proj:self.args.end_proj, idslice:idslice+2*2**self.args.binning].astype('float32')))
-        dark = cp.ascontiguousarray(
-            cp.array(dark[:, idslice:idslice+2*2**self.args.binning].astype('float32')))
-        flat = cp.ascontiguousarray(
-            cp.array(flat[:, idslice:idslice+2*2**self.args.binning].astype('float32')))
+        log.info(f'Try rotation center reconstruction for slice {idslice}')
+        data = data[self.args.start_proj:self.args.end_proj, idslice:idslice+2*2**self.args.binning]
+        dark = dark[:, idslice:idslice+2*2**self.args.binning].astype('float32')
+        flat = flat[:, idslice:idslice+2*2**self.args.binning].astype('float32')
         data = self.downsample(data)
         flat = self.downsample(flat)
         dark = self.downsample(dark)
+        data = cp.ascontiguousarray(cp.array(data))
+        dark = cp.ascontiguousarray(cp.array(dark))
+        flat = cp.ascontiguousarray(cp.array(flat))
+
         rec = cp.zeros([self.nz, self.n, self.n], dtype='float32')
         shift_array = np.arange(-self.args.center_search_width,
                                 self.args.center_search_width, self.args.center_search_step).astype('float32')
 
         with cp.cuda.Stream(non_blocking=False):
-            rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array)
-        print('wait until all tiffs are saved to')
+            rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array)        
         fnameout = os.path.dirname(
             self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'
-        print(f'{fnameout}')
+        log.info(f'Output: {fnameout}')
         write_threads = []
         # avoid simultaneous directory creation
         dxchange.write_tiff(

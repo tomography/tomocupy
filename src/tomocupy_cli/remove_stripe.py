@@ -3,17 +3,12 @@ import cupy as cp
 import torch
 from pytorch_wavelets import DWTForward, DWTInverse # (or import DWT, IDWT)
 
-def remove_stripe_fw(data):
+def remove_stripe_fw(data,sigma, wname, level):
     """Remove stripes with wavelet filtering"""       
+    
     [nproj,nz,ni] = data.shape
-    level = 7#int(np.ceil(np.log2(max(data.shape))))
-    wname = 'sym16'
-    sigma = 1
-    pad = True
             
-    nproj_pad = nproj
-    if pad:
-        nproj_pad = nproj + nproj // 8
+    nproj_pad = nproj + nproj // 8
     xshift = int((nproj_pad - nproj) // 2)
 
     xfm = DWTForward(J=1, mode='symmetric', wave=wname).cuda()  # Accepts all wave types available to PyWavelets
@@ -22,6 +17,7 @@ def remove_stripe_fw(data):
     # Wavelet decomposition.
     cc = []
     sli = torch.zeros([nz,1,nproj_pad,ni], device='cuda')
+    
     sli[:,0,(nproj_pad - nproj)//2:(nproj_pad + nproj)//2] = torch.as_tensor(data.swapaxes(0,1), device='cuda')
     for k in range(level):
         sli, c = xfm(sli)
@@ -42,5 +38,7 @@ def remove_stripe_fw(data):
         sli = sli[:,:,:shape0[0], :shape0[1]]
         sli = ifm((sli, cc[k]))
         
-    data = cp.asarray(sli[:,0,(nproj_pad - nproj)//2:(nproj_pad + nproj)//2, :ni]).swapaxes(0,1)
+    data = cp.asarray(sli[:,0,(nproj_pad - nproj)//2:(nproj_pad + nproj)//2, :ni])
+    data = data.swapaxes(0,1)
+    
     return data

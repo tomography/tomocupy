@@ -6,11 +6,12 @@ import argparse
 import os
 from pathlib import Path
 from datetime import datetime
-from h5gpurec import H5GPURec
-from h5gpurec import logging
-from h5gpurec import config
 
-log = logging.getLogger('h5gpurec.bin.h5gpurecon')
+from tomocupy_cli import logging
+from tomocupy_cli import config
+from tomocupy_cli import GPURec
+
+log = logging.getLogger(__name__)
 
 
 def init(args):
@@ -23,24 +24,24 @@ def run_status(args):
     config.log_values(args)
 
 def run_rec(args):
-    config.show_config(args)
+    #config.show_config(args)
     file_name = Path(args.file_name)    
     if file_name.is_file():        
         t = time.time()
-        clpthandle = H5GPURec(args)        
+        clpthandle = GPURec(args)        
         if(args.reconstruction_type=='full'):
             clpthandle.recon_all()
         if(args.reconstruction_type=='try'):
             clpthandle.recon_all_try()
-        print(f'Reconstruction time {(time.time()-t):.01f}s')
+        log.info(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
-
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', **config.SECTIONS['general']['config'])    
     tomo_params = config.RECON_PARAMS
+    #
     
     cmd_parsers = [
         ('init',        init,            (),                             "Create configuration file"),
@@ -64,10 +65,10 @@ def main():
     if not os.path.exists(logs_home):
         os.makedirs(logs_home)
 
-    lfname = os.path.join(logs_home, 'h5gpurecon_' + datetime.strftime(datetime.now(), "%Y-%m-%d_%H_%M_%S") + '.log')
+    lfname = os.path.join(logs_home, 'tomocupyon_' + datetime.strftime(datetime.now(), "%Y-%m-%d_%H_%M_%S") + '.log')
     log_level = 'DEBUG' if args.verbose else "INFO"
     logging.setup_custom_logger(lfname, level=log_level)
-    log.debug("Started h5gpurecon")
+    log.debug("Started tomocupyon")
     log.info("Saving log at %s" % lfname)
 
     try:

@@ -1,4 +1,4 @@
-"""This is the main entry point for building h5gpurec.
+"""This is the main entry point for building tomocupy.
 The setup process for ptychocg is very much like any python module except
 that the compilation of the the extension module(s) is driven by CMake through
 scikit-build. Scikit-build defines a custom Extension class which calls CMake
@@ -14,12 +14,12 @@ from skbuild import setup
 from setuptools import find_packages
 
 setup(
-    name='h5gpurec',
+    name='tomocupy-cli',
     author='Viktor Nikitin',
     version='0.3.0',
     package_dir={"": "src"},
-    scripts=['bin/h5gpurecon.py'],  
-    entry_points={'console_scripts':['h5gpurecon = h5gpurecon:main'],},
+    scripts=['bin/tomocupycli.py'],  
+    entry_points={'console_scripts':['tomocupy = tomocupycli:main'],},
     packages=find_packages('src'),
     zip_safe=False,
 )

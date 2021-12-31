@@ -1,8 +1,6 @@
 ''' Paganin phase retrieval implementation 
+copied from tomopy
 '''
-
-from __future__ import (absolute_import, division, print_function,
-                        unicode_literals)
 
 import numpy as np
 import cupy as cp
@@ -19,7 +17,7 @@ def _wavelength(energy):
 
 
 def paganin_filter(
-    data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, pad=True):
+        data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, pad=True):
     """
     Perform single-step phase retrieval from phase-contrast measurements
     :cite:`Paganin:02`.
@@ -44,9 +42,9 @@ def paganin_filter(
     ndarray
         Approximated 3D tomographic phase data.
     """
+    
     # New dimensions and pad value after padding.
     py, pz, val = _calc_pad(data, pixel_size, dist, energy, pad)
-
 
     # Compute the reciprocal grid.
     dx, dy, dz = data.shape
@@ -57,28 +55,29 @@ def paganin_filter(
         _paganin_filter_factor(energy, dist, alpha, w2))
 
     prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype='float32')
-    
+
     _retrieve_phase(data, phase_filter, py, pz, prj, pad)
+    # data=data[:,npad:-npad]
     return data
+
 
 def _retrieve_phase(data, phase_filter, px, py, prj, pad):
     dx, dy, dz = data.shape
     num_jobs = data.shape[0]
     normalized_phase_filter = phase_filter / phase_filter.max()
+
     for m in range(num_jobs):
         prj[px:dy + px, py:dz + py] = data[m]
         prj[:px] = prj[px]
         prj[-px:] = prj[-px-1]
         prj[:, :py] = prj[:, py][:, cp.newaxis]
         prj[:, -py:] = prj[:, -py-1][:, cp.newaxis]
-        fproj = fft2(prj) 
+        fproj = fft2(prj)
         fproj *= normalized_phase_filter
         proj = cp.real(ifft2(fproj))
         if pad:
             proj = proj[px:dy + px, py:dz + py]
         data[m] = proj
-    
-
 
 
 def _calc_pad(data, pixel_size, dist, energy, pad):
@@ -114,6 +113,7 @@ def _calc_pad(data, pixel_size, dist, energy, pad):
         val = _calc_pad_val(data)
         py = _calc_pad_width(dy, pixel_size, wavelength, dist)
         pz = _calc_pad_width(dz, pixel_size, wavelength, dist)
+
     return py, pz, val
 
 
@@ -151,8 +151,9 @@ def _reciprocal_grid(pixel_size, nx, ny):
     indy = _reciprocal_coord(pixel_size, ny)
     np.square(indx, out=indx)
     np.square(indy, out=indy)
-    
-    return cp.array(np.add.outer(indx, indy)) # there is no substitute for np.add.outer using cupy.
+
+    # there is no substitute for np.add.outer using cupy.
+    return cp.array(np.add.outer(indx, indy))
 
 
 def _reciprocal_coord(pixel_size, num_grid):
@@ -173,7 +174,6 @@ def _reciprocal_coord(pixel_size, num_grid):
         Grid coordinates.
     """
     n = num_grid - 1
-    rc = np.arange(-n, num_grid, 2, dtype = cp.float32)
+    rc = np.arange(-n, num_grid, 2, dtype=cp.float32)
     rc *= 0.5 / (n * pixel_size)
-    return  rc
-    
+    return rc
