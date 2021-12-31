@@ -28,13 +28,13 @@ Installation
   pip install .
   cd -
 
-3. Install tomocupy
+3. Set path to the nvcc profiler (e.g. /local/cuda-11.4/bin/nvcc ) and install tomocupy
 ================
 ::
-
+  export CUDACXX=/local/cuda-11.4/bin/nvcc 
   git clone https://github.com/nikitinvv/tomocupy-cli
   cd tomocupy-cli
-  python setup.py install
+  python setup.py install 
 
 4. Usage with real data, see
 ================
