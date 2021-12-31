@@ -1,6 +1,6 @@
-from h5gpurec import lprec, fourierrec
-from h5gpurec import utils
-from h5gpurec import remove_stripe
+from tomocupy import lprec, fourierrec
+from tomocupy import utils
+from tomocupy import remove_stripe
 from cupyx.scipy.fft import rfft, irfft
 import cupy as cp
 import numpy as np

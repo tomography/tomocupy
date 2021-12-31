@@ -1,7 +1,7 @@
-from h5gpurec.lprec import initsgl
-from h5gpurec.lprec import initsadj
-from h5gpurec.lprec import initsadj
-from h5gpurec.cfunc_lprec import cfunc_lprec
+from tomocupy_cli.lprec import initsgl
+from tomocupy_cli.lprec import initsadj
+from tomocupy_cli.lprec import initsadj
+from tomocupy_cli.cfunc_lprec import cfunc_lprec
 import cupy as cp
 
 class LpRec(cfunc_lprec):

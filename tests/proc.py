@@ -1,6 +1,6 @@
-from h5gpurec import lprec, fourierrec
-from h5gpurec import retrieve_phase, remove_stripe
-from h5gpurec import utils
+from tomocupy import lprec, fourierrec
+from tomocupy import retrieve_phase, remove_stripe
+from tomocupy import utils
 from cupyx.scipy.fft import rfft, irfft
 import cupy as cp
 import numpy as np

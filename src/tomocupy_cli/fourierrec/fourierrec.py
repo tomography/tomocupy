@@ -1,4 +1,4 @@
-from h5gpurec.cfunc_fourierrec import cfunc_fourierrec
+from tomocupy_cli.cfunc_fourierrec import cfunc_fourierrec
 import cupy as cp
 
 class FourierRec(cfunc_fourierrec):

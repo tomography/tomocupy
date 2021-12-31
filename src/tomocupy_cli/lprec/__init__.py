@@ -1,6 +1,6 @@
 from pkg_resources import get_distribution, DistributionNotFound
 
-from h5gpurec.lprec.lprec import LpRec
+from tomocupy_cli.lprec.lprec import LpRec
 try:
     __version__ = get_distribution(__name__).version
 except DistributionNotFound:
