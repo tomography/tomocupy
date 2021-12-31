@@ -16,7 +16,7 @@ from setuptools import find_packages
 setup(
     name='tomocupy-cli',
     author='Viktor Nikitin',
-    version='0.3.0',
+    version='0.4.0',
     package_dir={"": "src"},
     scripts=['bin/tomocupycli.py'],  
     entry_points={'console_scripts':['tomocupy = tomocupycli:main'],},
