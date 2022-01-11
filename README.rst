@@ -15,7 +15,7 @@ Installation
 ================
 ::
 
-  conda create -n tomocupy -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets numexpr astropy olefile
+  conda create -n tomocupy -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets numexpr astropy olefile opencv
   conda activate tomocupy
   pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
 
@@ -48,3 +48,10 @@ Installation
 ::
  
   tomocupy recon --file-name /data/2021-11/Banerjee/ROM_R_3474_072.h5 --rotation-axis 339 --reconstruction-type full --file-type double_fov --remove-stripe-method fw --binning 0 --nsino-per-chunk 8
+
+
+6. Extra functionality for reconstruction with phase retrieval. Data splitting is done by steps involving splitting by slices and projections + automatic center search with using SIFT for projection pairs. Example
+================
+::
+ 
+  tomocupy reconstep --file-name /data/2021-12/Duchkov/exp4_ho_130_vertical_0_2018.h5 --remove-stripe-method fw --nproj-per-chunk 32 --nsino-per-chunk 32 --retrieve-phase-alpha 0.001 --retrieve-phase-method none  --binning 0 --reconstruction-type full --rotation-axis 1198 --rotation-axis-pairs [0,1200,599,1799,300,1500] --rotation-axis-auto auto --start-row 400 --end-row 1800

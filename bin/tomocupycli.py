@@ -10,6 +10,7 @@ from datetime import datetime
 from tomocupy_cli import logging
 from tomocupy_cli import config
 from tomocupy_cli import GPURec
+from tomocupy_cli import GPURecSteps
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +34,18 @@ def run_rec(args):
             clpthandle.recon_all()
         if(args.reconstruction_type=='try'):
             clpthandle.recon_all_try()
-        log.info(f'Reconstruction time {(time.time()-t):.01f}s')
+        log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
+    else:
+        log.error("File Name does not exist: %s" % args.file_name)
+
+def run_recstep(args):
+    #config.show_config(args)
+    file_name = Path(args.file_name)    
+    if file_name.is_file():        
+        t = time.time()
+        clpthandle = GPURecSteps(args)        
+        clpthandle.recon_steps()
+        log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
 
@@ -45,7 +57,8 @@ def main():
     
     cmd_parsers = [
         ('init',        init,            (),                             "Create configuration file"),
-        ('recon',       run_rec,         tomo_params,                    "Run tomographic reconstruction"),
+        ('recon',       run_rec,         tomo_params,                    "Run tomographic reconstruction by splitting data into chunks in z "),
+        ('reconstep',   run_recstep,     tomo_params,                    "Run tomographic reconstruction by splitting by chunks in z and angles (step-wise)"),
         ('status',      run_status,      tomo_params,                    "Show the tomographic reconstruction status"),        
     ]
 
@@ -76,10 +89,6 @@ def main():
     except RuntimeError as e:
         log.error(str(e))
         sys.exit(1)
-
-
-if __name__ == '__main__':
-    main()
 
 
 

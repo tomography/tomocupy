@@ -211,7 +211,11 @@ SECTIONS['reconstruction'] = {
     'nsino-per-chunk': {     
         'type': int,
         'default': 8,
-        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.",},    
+        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory. ",},    
+    'nproj-per-chunk': {     
+        'type': int,
+        'default': 8,
+        'help': "Number of projections per chunk. Use larger numbers with computers with larger memory.  ",},    
     'start-row': {
         'type': int,
         'default': 0,
@@ -232,6 +236,15 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 8,
         'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.",},            
+    'rotation-axis-auto': {
+        'default': 'read_auto',
+        'type': str,
+        'help': "How to get rotation axis auto calculate ('auto'), or manually ('manual')",
+        'choices': ['manual', 'auto',]},
+    'rotation-axis-pairs': {
+        'default': '[0,1499]',
+        'type': str,
+        'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.",},        
     }
 
 

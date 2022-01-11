@@ -17,6 +17,7 @@ pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 log = logging.getLogger(__name__)
+
 class GPURec():
     def __init__(self, args):
         # Set ^C interrupt to abort and deallocate memory on GPU
@@ -164,18 +165,6 @@ class GPURec():
         data = cp.pad(data, ((0, 0), (0, 0), (0, data.shape[-1])), 'constant')
         return data
 
-    def blocked_view(self, proj, theta):
-        """Removing projections for blocked views"""
-
-        if self.args.blocked_views:
-            st = self.args.blocked_views_start
-            end = self.args.blocked_views_end
-            ids = np.where(((theta) % np.pi < st) +
-                           ((theta-st) % np.pi > end-st))[0]
-            proj = proj[ids]
-            theta = theta[ids]
-        return proj, theta
-
     def recon(self, obj, data, dark, flat):
         """Full reconstruction pipeline for a data chunk"""
 
@@ -187,12 +176,6 @@ class GPURec():
         
         # retrieve phase
         if(self.args.retrieve_phase_method == 'paganin'):
-            # v = cp.linspace(1, 0, self.zpad, endpoint=False)
-            # v = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)
-            # v = v.reshape(1,self.zpad,1)
-            # print(v)
-            # data[:,:self.zpad]*=(1-v)
-            # data[:,-self.zpad:]*=(v)
             data = retrieve_phase.paganin_filter(
                 data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, self.args.retrieve_phase_alpha)
         # unpad after phase retrival
