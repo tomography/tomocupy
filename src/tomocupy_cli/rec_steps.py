@@ -235,7 +235,6 @@ class GPURecSteps():
 
         # Extra block to find centers
         if self.args.rotation_axis_auto=='auto':
-            self.center = find_center()
             from ast import literal_eval 
             pairs = literal_eval(self.args.rotation_axis_pairs)
             shifts = find_rotation.register_shift_sift(data[pairs[::2]],data[pairs[1::2],:,::-1])
