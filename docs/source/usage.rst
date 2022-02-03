@@ -15,7 +15,7 @@ Example
   tomocupy recon --file-name /data/2021-11/Banerjee/ROM_R_3474_072.h5 --rotation-axis 339 --reconstruction-type full --file-type double_fov --remove-stripe-method fw --binning 0 --nsino-per-chunk 8
 
 
-6. Extra functionality for reconstruction with phase retrieval. Data splitting is done by steps involving splitting by slices and projections + automatic center search with using SIFT for projection pairs. Example
+Extra functionality for reconstruction with phase retrieval. Data splitting is done by steps involving splitting by slices and projections + automatic center search with using SIFT for projection pairs. Example
 
 ::
  
