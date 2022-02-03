@@ -40,7 +40,4 @@ Update
     $ python setup.py install
 
 
-Dependencies
-============
-
 .....
