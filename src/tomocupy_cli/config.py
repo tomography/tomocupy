@@ -248,7 +248,8 @@ SECTIONS['reconstruction'] = {
     }
 
 
-RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'retrieve-phase', 'fw')
+RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw')
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'retrieve-phase', 'fw')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe', 'Remove stripe FW', 'Retrieve phase', 'Blocked views', 'Reconstruction')
 

@@ -4,6 +4,7 @@ import numpy as np
 import time
 import argparse
 import os
+import subprocess
 from pathlib import Path
 from datetime import datetime
 
@@ -49,17 +50,35 @@ def run_recstep(args):
     else:
         log.error("File Name does not exist: %s" % args.file_name)
 
+def run_recmulti(args):
+    line = ' '.join(sys.argv[2:])
+    if(args.end_row==-1):
+        with h5py.File(args.file_name,'r') as fid:
+           args.end_row = fid['/exchange/data/'].shape[0]
+    
+    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\'\""
+    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'\""
+    print(f'Tomo1: {cmd1}')
+    print(f'Tomo2: {cmd2}')
+    p1 = subprocess.Popen(cmd1, shell=True)
+    p2 = subprocess.Popen(cmd2,shell=True)
+    p1.wait()
+    p2.wait()        
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', **config.SECTIONS['general']['config'])    
     tomo_params = config.RECON_PARAMS
+    tomo_steps_params = config.RECON_STEPS_PARAMS
     #
     
     cmd_parsers = [
         ('init',        init,            (),                             "Create configuration file"),
         ('recon',       run_rec,         tomo_params,                    "Run tomographic reconstruction by splitting data into chunks in z "),
-        ('reconstep',   run_recstep,     tomo_params,                    "Run tomographic reconstruction by splitting by chunks in z and angles (step-wise)"),
-        ('status',      run_status,      tomo_params,                    "Show the tomographic reconstruction status"),        
+        ('reconstep',   run_recstep,     tomo_steps_params,                    "Run tomographic reconstruction by splitting by chunks in z and angles (step-wise)"),
+        ('reconmulti',  run_recmulti,    tomo_params,                                   "Run reconstruction on several nodes"),        
+        ('status',      run_status,      tomo_steps_params,                    "Show the tomographic reconstruction status"),        
     ]
 
     subparsers = parser.add_subparsers(title="Commands", metavar='')

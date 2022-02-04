@@ -1,5 +1,5 @@
 from tomocupy_cli import lprec, fourierrec
-from tomocupy_cli import retrieve_phase, remove_stripe
+from tomocupy_cli import remove_stripe
 from tomocupy_cli import utils
 from tomocupy_cli import logging
 from cupyx.scipy.fft import rfft, irfft
@@ -71,17 +71,8 @@ class GPURec():
             ids_proj = ids_proj[ids]
         
         nproj = len(theta)
-        theta = cp.ascontiguousarray(cp.array(theta))
+        theta = cp.array(theta)
 
-        # padded chunk size for phase retrieval
-        if args.retrieve_phase_method=='paganin':
-            zpad = args.retrieve_phase_pad
-            args.start_row += zpad*2**args.binning
-            args.end_row -= zpad*2**args.binning
-            log.warning(f'Number of slices will be decreased by {2*zpad} due to the unpadding operation for Paganin filter ')
-        else:
-            zpad = 0
-        
         # choose reconstruction method
         if args.reconstruction_algorithm == 'lprec':
             self.cl_rec = lprec.LpRec(n, nproj, nz)
@@ -91,7 +82,6 @@ class GPURec():
         
         self.n = n
         self.nz = nz
-        self.zpad = zpad
         self.nproj = nproj
         self.center = center
         self.ni = ni
@@ -173,13 +163,7 @@ class GPURec():
         # remove stripes
         if(self.args.remove_stripe_method == 'fw'):
             data = remove_stripe.remove_stripe_fw(data, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
-        
-        # retrieve phase
-        if(self.args.retrieve_phase_method == 'paganin'):
-            data = retrieve_phase.paganin_filter(
-                data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, self.args.retrieve_phase_alpha)
-        # unpad after phase retrival
-        data = data[:,self.zpad:data.shape[1]-self.zpad]
+                
         # minus log
         data = self.minus_log(data)
         
@@ -197,12 +181,11 @@ class GPURec():
         """Reading data from hard disk and putting it to a queue"""
 
         st_row = self.args.start_row
-        end_row = self.args.end_row
         
         for k in range(nchunk):
             item = {}
-            st = st_row+(k*self.nz-self.zpad)*2**self.args.binning
-            end = st_row+(k*self.nz+lchunk[k]+self.zpad)*2**self.args.binning
+            st = st_row+k*self.nz*2**self.args.binning
+            end = st_row+(k*self.nz+lchunk[k])*2**self.args.binning
             item['data'] = self.downsample(data[self.ids_proj,  st:end])
             item['flat'] = self.downsample(flat[:,  st:end])
             item['dark'] = self.downsample(dark[:,  st:end])
@@ -236,20 +219,20 @@ class GPURec():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.nproj, self.nz+2*self.zpad, self.ni], dtype='float32'))
+            np.zeros([2, self.nproj, self.nz, self.ni], dtype='float32'))
         item_pinned['dark'] = utils.pinned_array(
-            np.zeros([2, self.ndark, self.nz+2*self.zpad, self.ni], dtype='float32'))
+            np.zeros([2, self.ndark, self.nz, self.ni], dtype='float32'))
         item_pinned['flat'] = utils.pinned_array(
-            np.ones([2, self.nflat, self.nz+2*self.zpad, self.ni], dtype='float32'))
+            np.ones([2, self.nflat, self.nz, self.ni], dtype='float32'))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.nproj, self.nz+2*self.zpad, self.ni], dtype='float32')
+            [2, self.nproj, self.nz, self.ni], dtype='float32')
         item_gpu['dark'] = cp.zeros(
-            [2, self.ndark, self.nz+2*self.zpad, self.ni], dtype='float32')
+            [2, self.ndark, self.nz, self.ni], dtype='float32')
         item_gpu['flat'] = cp.ones(
-            [2, self.nflat, self.nz+2*self.zpad, self.ni], dtype='float32')
+            [2, self.nflat, self.nz, self.ni], dtype='float32')
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
@@ -284,9 +267,9 @@ class GPURec():
             if(k < nchunk):
                 # copy to pinned memory
                 item = self.data_queue.get()
-                item_pinned['data'][k % 2, :, :lchunk[k]+2*self.zpad] = item['data']
-                item_pinned['dark'][k % 2, :, :lchunk[k]+2*self.zpad] = item['dark']
-                item_pinned['flat'][k % 2, :, :lchunk[k]+2*self.zpad] = item['flat']
+                item_pinned['data'][k % 2, :, :lchunk[k]] = item['data']
+                item_pinned['dark'][k % 2, :, :lchunk[k]] = item['dark']
+                item_pinned['flat'][k % 2, :, :lchunk[k]] = item['flat']
                 with stream1:  # cpu->gpu copy
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
@@ -299,7 +282,7 @@ class GPURec():
                 write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                 args=(rec_pinned0,),
                                                 kwargs={'fname': fnameout,
-                                                        'start':  (k-2)*self.nz,
+                                                        'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
                                                         'overwrite': True})
                 write_threads.append(write_thread)
                 write_thread.start()
