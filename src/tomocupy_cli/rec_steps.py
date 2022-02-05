@@ -344,10 +344,7 @@ class GPURecSteps():
             np.zeros([2, self.ncproj, self.nz, self.n], dtype='float32'))
         # gpu memory for processed data
         rec = cp.zeros([2, self.ncproj, self.nz, self.n], dtype='float32')
-
-        # list of threads for parallel writing to hard disk
-        write_threads = []
-
+        
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
         stream2 = cp.cuda.Stream(non_blocking=False)
@@ -436,7 +433,7 @@ class GPURecSteps():
                 write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                 args=(rec_pinned0,),
                                                 kwargs={'fname': fnameout,
-                                                        'start':  (k-2)*self.ncz,
+                                                        'start':  (k-2)*self.ncz+self.args.start_row//2**self.args.binning,
                                                         'overwrite': True})
                 write_threads.append(write_thread)
                 write_thread.start()
