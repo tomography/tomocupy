@@ -19,7 +19,8 @@ import os
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert(0, os.path.abspath('..'))
+# sys.path.insert(0, os.path.abspath('..'))
+sys.path.insert(0, os.path.abspath('../src'))
 
 # -- General configuration ------------------------------------------------
 
@@ -306,14 +307,18 @@ texinfo_documents = [
 
 autodoc_mock_imports = [
     'argparse',
+    'builtins',
     'copy',
     'collections',
     'configparser',
+    'contextlib',
     'cv2',
     'cupy',
+    'cupyx',
     'dxchange',
     'h5py',
     'inspect',
+    'logging',
     'numexpr',
     'numpy',
     'os',
@@ -325,4 +330,7 @@ autodoc_mock_imports = [
     'sys',
     'threading',
     'torch',
+    'traceback',
+    'warnings'
 ]
+

@@ -5,7 +5,7 @@ API reference
 
 .. toctree::
 
-   api/tomocupy_cli.lprec.lprec
+   api/tomocupy_cli.rec
 
 
 .. automodule:: tomocupy_cli

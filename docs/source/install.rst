@@ -38,6 +38,3 @@ Update
     $ cd tomocupy-cli
     $ git pull
     $ python setup.py install
-
-
-.....
