@@ -5,7 +5,6 @@ API reference
 
 .. toctree::
 
-   api/tomocupy_cli.config
    api/tomocupy_cli.find_rotation
    api/tomocupy_cli.rec
    api/tomocupy_cli.rec_steps
