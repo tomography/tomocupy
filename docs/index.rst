@@ -35,5 +35,6 @@ Content
 
    source/install
    source/usage
+   source/performance
    source/api
    source/credits

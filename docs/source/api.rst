@@ -5,8 +5,11 @@ API reference
 
 .. toctree::
 
-   api/tomocupy_cli.lprec.lprec
-
+   api/tomocupy_cli.find_rotation
+   api/tomocupy_cli.rec
+   api/tomocupy_cli.rec_steps
+   api/tomocupy_cli.remove_stripe
+   api/tomocupy_cli.retrieve_phase
 
 .. automodule:: tomocupy_cli
    :members:
