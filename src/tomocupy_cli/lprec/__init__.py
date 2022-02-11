@@ -1,1 +1,1 @@
-##LP rec
+from tomocupy_cli.lprec.lprec import *
