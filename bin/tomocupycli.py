@@ -54,17 +54,19 @@ def run_recmulti(args):
     line = ' '.join(sys.argv[2:])
     if(args.end_row==-1):
         with h5py.File(args.file_name,'r') as fid:
-           args.end_row = fid['/exchange/data/'].shape[0]
+           args.end_row = fid['/exchange/data/'].shape[1]
     
-    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\'\""
-    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'\""
+    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\';\""
+    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'; \""
     print(f'Tomo1: {cmd1}')
+    p1 = subprocess.Popen(cmd1,shell=True)
     print(f'Tomo2: {cmd2}')
-    p1 = subprocess.Popen(cmd1, shell=True)
     p2 = subprocess.Popen(cmd2,shell=True)
     p1.wait()
-    p2.wait()        
-
+    p2.wait()  
+    # recover terminal
+    os.system('stty sane')
+    
 
 def main():
     parser = argparse.ArgumentParser()
