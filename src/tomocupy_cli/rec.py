@@ -133,7 +133,7 @@ class GPURec():
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
         data = cp.pad(
             data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
-
+        
         data = irfft(
             w*rfft(data, axis=2), axis=2).astype('float32')  # note: filter works with complex64, however, it doesnt take much time
         data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]
@@ -322,22 +322,23 @@ class GPURec():
         data = fid['exchange/data']
         dark = fid['exchange/data_dark']
         flat = fid['exchange/data_white']
-        idslice = int(self.args.nsino*(data.shape[1]-1))
+        idslice = int(self.args.nsino*(data.shape[1]-1)/2**self.args.binning)*2**self.args.binning
         log.info(f'Try rotation center reconstruction for slice {idslice}')
-        data = data[self.args.start_proj:self.args.end_proj, idslice:idslice+2*2**self.args.binning]
-        dark = dark[:, idslice:idslice+2*2**self.args.binning].astype('float32')
-        flat = flat[:, idslice:idslice+2*2**self.args.binning].astype('float32')
+        data = data[self.args.start_proj:self.args.end_proj, idslice:idslice+2**self.args.binning]
+        dark = dark[:, idslice:idslice+2**self.args.binning].astype('float32')
+        flat = flat[:, idslice:idslice+2**self.args.binning].astype('float32')
+        data = np.append(data,data,1)
+        dark = np.append(dark,dark,1)
+        flat = np.append(flat,flat,1)
         data = self.downsample(data)
         flat = self.downsample(flat)
         dark = self.downsample(dark)
         data = cp.ascontiguousarray(cp.array(data))
         dark = cp.ascontiguousarray(cp.array(dark))
         flat = cp.ascontiguousarray(cp.array(flat))
-
         rec = cp.zeros([self.nz, self.n, self.n], dtype='float32')
         shift_array = np.arange(-self.args.center_search_width,
-                                self.args.center_search_width, self.args.center_search_step).astype('float32')
-
+                                self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')
         with cp.cuda.Stream(non_blocking=False):
             rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array)        
         fnameout = os.path.dirname(
@@ -346,11 +347,11 @@ class GPURec():
         write_threads = []
         # avoid simultaneous directory creation
         dxchange.write_tiff(
-            rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
+            rec_cpu_list[0], f'{fnameout}{((self.centeri)*2**self.args.binning-shift_array[0]):08.2f}', overwrite=True)
         for k in range(1, len(shift_array)):
             write_thread = threading.Thread(target=dxchange.write_tiff,
                                             args=(rec_cpu_list[k],),
-                                            kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',
+                                            kwargs={'fname': f'{fnameout}{((self.centeri)*2**self.args.binning-shift_array[k]):08.2f}',
                                                     'overwrite': True})
             write_threads.append(write_thread)
             write_thread.start()

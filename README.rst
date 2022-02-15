@@ -17,7 +17,7 @@ Installation
 
   conda create -n tomocupy -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets numexpr astropy olefile opencv
   conda activate tomocupy
-  pip install torch==1.9.1+cu111 torchvision==0.10.1+cu111 torchaudio==0.9.1 -f https://download.pytorch.org/whl/torch_stable.html
+  pip3 install torch==1.10.2+cu113 torchvision==0.11.3+cu113 torchaudio==0.10.2+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
 
 2. Install the pytorch pywavelets package for ring removal
 ================
