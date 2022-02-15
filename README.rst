@@ -6,6 +6,13 @@ Tomocupy-cli
 
 The package supports two types of reconstructions: manual center search (option '--reconstruction-type try') and whole volume reconstruction (option '--reconstruction-type full'). It is also possible to reconstruct data from 360 degrees scans where the rotation axis is located at the border of the fields of view (option '--file-type double_fov').
 
+
+=============
+Documentation
+=============
+
+**Tomocupy-cli**  documentation is available `here <https://tomocupycli.readthedocs.io/en/latest/>`_
+
 ============
 Installation
 ============
