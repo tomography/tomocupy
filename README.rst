@@ -21,33 +21,33 @@ Installation
 =================================================
 ::
 
-  conda create -n tomocupy -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets numexpr astropy olefile opencv
-  conda activate tomocupy
-  pip3 install torch==1.10.2+cu113 torchvision==0.11.3+cu113 torchaudio==0.10.2+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
+    (base)$ conda create -n tomocupy -c conda-forge python=3.9 dxchange cupy scikit-build swig pywavelets numexpr astropy olefile opencv
+    (base)$ conda activate tomocupy
+    (tomocupy)$ pip3 install torch==1.10.2+cu113 torchvision==0.11.3+cu113 torchaudio==0.10.2+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
 
 2. Install the pytorch pywavelets package for ring removal
 ==========================================================
 ::
 
-  git clone https://github.com/fbcotter/pytorch_wavelets
-  cd pytorch_wavelets
-  pip install .
-  cd -
+    (tomocupy)$ git clone https://github.com/fbcotter/pytorch_wavelets
+    (tomocupy)$ cd pytorch_wavelets
+    (tomocupy)$ pip install .
+    (tomocupy)$ cd -
 
 3. Set path to the nvcc profiler (e.g. /local/cuda-11.4/bin/nvcc ) and install tomocupy
 =======================================================================================
 ::
 
-  export CUDACXX=/local/cuda-11.4/bin/nvcc 
-  git clone https://github.com/nikitinvv/tomocupy-cli
-  cd tomocupy-cli
-  python setup.py install 
+    (tomocupy)$ export CUDACXX=/local/cuda-11.4/bin/nvcc 
+    (tomocupy)$ git clone https://github.com/nikitinvv/tomocupy-cli
+    (tomocupy)$ cd tomocupy-cli
+    (tomocupy)$ python setup.py install 
 
 4. Example
 ==========
 ::
  
-  tomocupy recon --file-name /data/2021-11/Banerjee/ROM_R_3474_072.h5 --rotation-axis 339 --reconstruction-type full --file-type double_fov --remove-stripe-method fw --binning 0 --nsino-per-chunk 8
+    (tomocupy)$ tomocupy recon --file-name /data/2021-11/Banerjee/ROM_R_3474_072.h5 --rotation-axis 339 --reconstruction-type full --file-type double_fov --remove-stripe-method fw --binning 0 --nsino-per-chunk 8
 
 
 5. Extra functionality for reconstruction with phase retrieval 
@@ -57,11 +57,13 @@ Data splitting is done by steps involving splitting by slices and projections + 
 
 ::
  
-  tomocupy reconstep --file-name /data/2021-12/Duchkov/exp4_ho_130_vertical_0_2018.h5 --remove-stripe-method fw --nproj-per-chunk 32 --nsino-per-chunk 32 --retrieve-phase-alpha 0.001 --retrieve-phase-method none  --binning 0 --reconstruction-type full --rotation-axis 1198 --rotation-axis-pairs [0,1200,599,1799,300,1500] --rotation-axis-auto auto --start-row 400 --end-row 1800
+    (tomocupy)$ tomocupy reconstep --file-name /data/2021-12/Duchkov/exp4_ho_130_vertical_0_2018.h5 --remove-stripe-method fw --nproj-per-chunk 32 --nsino-per-chunk 32 --retrieve-phase-alpha 0.001 --retrieve-phase-method none  --binning 0 --reconstruction-type full --rotation-axis 1198 --rotation-axis-pairs [0,1200,599,1799,300,1500] --rotation-axis-auto auto --start-row 400 --end-row 1800
 
 
 6. More options
 ===============
 ::
 
-  tomocupy -h
+    (tomocupy)$ tomocupy -h
+    (tomocupy)$ tomocupy recon -h
+    (tomocupy)$ tomocupy reconstep -h
