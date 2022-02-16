@@ -338,20 +338,26 @@ class GPURec():
         flat = cp.ascontiguousarray(cp.array(flat))
         rec = cp.zeros([self.nz, self.n, self.n], dtype='float32')
         shift_array = np.arange(-self.args.center_search_width,
-                                self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')
+                                self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
+
+        # invert shifts for calculations if centeri<ni for double_fov
+        mul = 1
+        if (self.args.file_type == 'double_fov') and (self.centeri < self.ni//2):
+            mul = -1
+
         with cp.cuda.Stream(non_blocking=False):
-            rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array)        
+            rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array*mul)        
         fnameout = os.path.dirname(
             self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'
         log.info(f'Output: {fnameout}')
         write_threads = []
         # avoid simultaneous directory creation
         dxchange.write_tiff(
-            rec_cpu_list[0], f'{fnameout}{((self.centeri)*2**self.args.binning-shift_array[0]):08.2f}', overwrite=True)
+            rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
         for k in range(1, len(shift_array)):
             write_thread = threading.Thread(target=dxchange.write_tiff,
                                             args=(rec_cpu_list[k],),
-                                            kwargs={'fname': f'{fnameout}{((self.centeri)*2**self.args.binning-shift_array[k]):08.2f}',
+                                            kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',
                                                     'overwrite': True})
             write_threads.append(write_thread)
             write_thread.start()
