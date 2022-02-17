@@ -11,7 +11,7 @@ The package supports two types of reconstructions: manual center search (option 
 Documentation
 =============
 
-**Tomocupy-cli**  documentation is available `here <https://tomocupycli.readthedocs.io/en/latest/>`_
+**Tomocupy-cli**  documentation is available `here <https://tomocupy.readthedocs.io/en/latest/>`_
 
 ============
 Installation
