@@ -114,14 +114,8 @@ class GPURecSteps():
         dark0 = cp.mean(dark, axis=0).astype('float32')
         flat0 = cp.mean(flat, axis=0).astype('float32')
         data = (data.astype('float32')-dark0)/(flat0-dark0)
-        return data
-
-    def minus_log(self, data):
-        """Taking negative logarithm"""
-
-        data = -cp.log(data)
         data[cp.isnan(data)] = 6.0
-        data[cp.isinf(data)] = 0
+        data[cp.isinf(data)] = 0        
         return data
 
     def fbp_filter_center(self, data, sh=0):
@@ -230,13 +224,13 @@ class GPURecSteps():
 
         log.info('Step 1. Reading data.')
         data, dark, flat = self.read_data_parallel()
-
+        
         log.info('Step 2. Processing by chunks in z.')
         data = self.proc_sino_parallel(data, dark, flat)
 
         log.info('Step 3. Processing by chunks in angles.')
         data = self.proc_proj_parallel(data)
-
+        
         # Extra block to find centers
         if self.args.rotation_axis_auto == 'auto':
             from ast import literal_eval
