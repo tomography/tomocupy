@@ -186,7 +186,7 @@ class GPURec():
             item = {}
             st = st_row+k*self.nz*2**self.args.binning
             end = st_row+(k*self.nz+lchunk[k])*2**self.args.binning
-            item['data'] = self.downsample(data[self.ids_proj,  st:end])
+            item['data'] = self.downsample(data[:,  st:end])[self.ids_proj]
             item['flat'] = self.downsample(flat[:,  st:end])
             item['dark'] = self.downsample(dark[:,  st:end])
 
@@ -324,7 +324,7 @@ class GPURec():
         flat = fid['exchange/data_white']
         idslice = int(self.args.nsino*(data.shape[1]-1)/2**self.args.binning)*2**self.args.binning
         log.info(f'Try rotation center reconstruction for slice {idslice}')
-        data = data[self.args.start_proj:self.args.end_proj, idslice:idslice+2**self.args.binning]
+        data = data[self.ids_proj, idslice:idslice+2**self.args.binning]
         dark = dark[:, idslice:idslice+2**self.args.binning].astype('float32')
         flat = flat[:, idslice:idslice+2**self.args.binning].astype('float32')
         data = np.append(data,data,1)
