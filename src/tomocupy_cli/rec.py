@@ -36,7 +36,7 @@ class GPURec():
                 args.end_proj = fid['/exchange/data'].shape[0]
         # define chunk size for processing
         nz = args.nsino_per_chunk
-        if(args.reconstruction_type == 'try'):
+        if(args.reconstruction_type == 'try' or nz < 2):
             nz = 2
         # take center
         centeri = args.rotation_axis
@@ -160,6 +160,7 @@ class GPURec():
 
         # dark-flat field correction
         data = self.darkflat_correction(data, dark, flat)
+        
         # remove stripes
         if(self.args.remove_stripe_method == 'fw'):
             data = remove_stripe.remove_stripe_fw(data, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)

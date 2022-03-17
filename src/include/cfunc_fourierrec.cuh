@@ -3,10 +3,6 @@
 
 #include <cufft.h>
 #include <cufftXt.h>
-enum dir {
-  TOMO_FWD,
-  TOMO_ADJ
-};
 
 class cfunc_fourierrec {
   bool is_free = false;

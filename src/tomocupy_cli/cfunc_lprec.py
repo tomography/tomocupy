@@ -10,9 +10,9 @@ if _swig_python_version_info < (2, 7, 0):
 
 # Import the low-level C/C++ module
 if __package__ or "." in __name__:
-    from . import _cfunc_fourierrec
+    from . import _cfunc_lprec
 else:
-    import _cfunc_fourierrec
+    import _cfunc_lprec
 
 try:
     import builtins as __builtin__
@@ -61,22 +61,30 @@ class _SwigNonDynamicMeta(type):
     __setattr__ = _swig_setattr_nondynamic_class_variable(type.__setattr__)
 
 
-class cfunc_fourierrec(object):
+class cfunc_lprec(object):
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
     __repr__ = _swig_repr
-    n = property(_cfunc_fourierrec.cfunc_fourierrec_n_get)
-    ntheta = property(_cfunc_fourierrec.cfunc_fourierrec_ntheta_get)
-    pnz = property(_cfunc_fourierrec.cfunc_fourierrec_pnz_get)
+    n = property(_cfunc_lprec.cfunc_lprec_n_get)
+    nproj = property(_cfunc_lprec.cfunc_lprec_nproj_get)
+    ntheta = property(_cfunc_lprec.cfunc_lprec_ntheta_get)
+    nrho = property(_cfunc_lprec.cfunc_lprec_nrho_get)
+    nz = property(_cfunc_lprec.cfunc_lprec_nz_get)
 
-    def __init__(self, ntheta, pnz, n, theta_):
-        _cfunc_fourierrec.cfunc_fourierrec_swiginit(self, _cfunc_fourierrec.new_cfunc_fourierrec(ntheta, pnz, n, theta_))
-    __swig_destroy__ = _cfunc_fourierrec.delete_cfunc_fourierrec
+    def __init__(self, nproj, nz, n, ntheta, nrho):
+        _cfunc_lprec.cfunc_lprec_swiginit(self, _cfunc_lprec.new_cfunc_lprec(nproj, nz, n, ntheta, nrho))
+    __swig_destroy__ = _cfunc_lprec.delete_cfunc_lprec
+
+    def free(self):
+        return _cfunc_lprec.cfunc_lprec_free(self)
+
+    def setgrids(self, fz, lp2p1, lp2p2, lp2p1w, lp2p2w, C2lp1, C2lp2, lpids, wids, cids, nlpids, nwids, ncids):
+        return _cfunc_lprec.cfunc_lprec_setgrids(self, fz, lp2p1, lp2p2, lp2p1w, lp2p2w, C2lp1, C2lp2, lpids, wids, cids, nlpids, nwids, ncids)
 
     def backprojection(self, f, g, stream):
-        return _cfunc_fourierrec.cfunc_fourierrec_backprojection(self, f, g, stream)
+        return _cfunc_lprec.cfunc_lprec_backprojection(self, f, g, stream)
 
-# Register cfunc_fourierrec in _cfunc_fourierrec:
-_cfunc_fourierrec.cfunc_fourierrec_swigregister(cfunc_fourierrec)
+# Register cfunc_lprec in _cfunc_lprec:
+_cfunc_lprec.cfunc_lprec_swigregister(cfunc_lprec)
 
 
 

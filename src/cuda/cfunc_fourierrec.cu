@@ -78,16 +78,16 @@ void cfunc_fourierrec::backprojection(size_t f_, size_t g_, size_t stream_) {
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, ntheta, pnz);
     cufftXtExec(plan1d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, ntheta, pnz);
-    gather <<<GS3d3, dimBlock, 0, stream>>> (g, fdee, x, y, m, mu, n, ntheta, pnz, TOMO_ADJ);
+    gather <<<GS3d3, dimBlock, 0, stream>>> (g, fdee, x, y, m, mu, n, ntheta, pnz);
     
 
-    wrap <<<GS3d2, dimBlock, 0, stream>>> (fdee, n, pnz, m, TOMO_ADJ);
+    wrap <<<GS3d2, dimBlock, 0, stream>>> (fdee, n, pnz, m);
 
     fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fdee, 2 * n + 2 * m, pnz);
     cufftXtExec(plan2d, (cufftComplex *)&fdee[m + m * (2 * n + 2 * m)],
                 (cufftComplex *)&fdee[m + m * (2 * n + 2 * m)], CUFFT_INVERSE);
     fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fdee, 2 * n + 2 * m, pnz);
     
-    divphi <<<GS3d0, dimBlock, 0, stream>>> (fdee, f, mu, n, pnz, m, TOMO_ADJ);    
+    divphi <<<GS3d0, dimBlock, 0, stream>>> (fdee, f, mu, n, pnz, ntheta, m);    
     circ <<<GS3d0, dimBlock,0,stream>>> (f, 1.0f / n, n, pnz);
 }
