@@ -250,7 +250,7 @@ class GPURec():
         stream3 = cp.cuda.Stream(non_blocking=False)
         if(self.args.out_path_name is None):
             fnameout = os.path.dirname(
-                self.args.file_name)+'_recgpu/'+os.path.basename(self.args.file_name)[:-3]+'_rec/r'
+                self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
         else:
             fnameout = str(self.args.out_path_name)+'/r'
 
