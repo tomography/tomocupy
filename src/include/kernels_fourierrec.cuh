@@ -21,8 +21,8 @@ void __global__ divphi(float2 *g, float2 *f, float mu, int n, int nz, int ntheta
     + (ty + n / 2 + m) * (2 * n + 2 * m)
     + tz * (2 * n + 2 * m) * (2 * n + 2 * m)
   );  
-  f[f_ind].x = g[g_ind].x / phi / (n * n * ntheta);//change coeff for cinsistency woth tomopy, before it was / (4 * n * n)
-  f[f_ind].y = g[g_ind].y / phi / (n * n * ntheta);  
+  f[f_ind].x = g[g_ind].x / phi / (4 * n * n * ntheta);//added /ntheta
+  f[f_ind].y = g[g_ind].y / phi / (4 * n * n * ntheta);  
 }
 
 
