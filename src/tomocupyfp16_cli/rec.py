@@ -346,7 +346,7 @@ class GPURec():
         with cp.cuda.Stream(non_blocking=False):
             rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array*mul)        
         fnameout = os.path.dirname(
-            self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'
+            self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'
         log.info(f'Output: {fnameout}')
         write_threads = []
         # avoid simultaneous directory creation
