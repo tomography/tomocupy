@@ -126,5 +126,7 @@ void cfunc_fourierrec::filter(size_t g_, size_t w_, size_t stream_) {
     dim3 dimBlock(32,32,1);        
     dim3 GS3d1 = dim3(ceil(ne/32.0), ceil(ntheta / 32.0),2*pnz);
     dim3 GS3d2 = dim3(ceil((ne/2+1)/32.0), ceil(ntheta / 32.0),2*pnz);
+    cufftXtExec(plan_filter_fwd, g, ge, CUFFT_FORWARD);
     mulw <<<GS3d2, dimBlock, 0, stream>>> (ge, w, ne/2+1, ntheta, 2*pnz);
+    cufftXtExec(plan_filter_inv, ge, g, CUFFT_INVERSE);
 }
