@@ -108,7 +108,12 @@ SECTIONS['file-reading'] = {
     'blocked-views': {
         'default': False,
         'help': 'When set, the blocked-views options are used',
-        'action': 'store_true'},    
+        'action': 'store_true'},   
+    'save-format': {
+        'default': 'tiff',
+        'type': str,
+        'help': "Output format",
+        'choices': ['tiff', 'h5']},         
     }
 
 

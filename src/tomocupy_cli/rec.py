@@ -192,7 +192,11 @@ class GPURec():
             item['dark'] = self.downsample(dark[:,  st:end])
 
             self.data_queue.put(item)
-
+    
+    def write_h5(self,data,rec_dataset,start):
+        """Save reconstruction chunk to an hdf5"""
+        rec_dataset[start:start+data.shape[0]] = data
+        
     def recon_all(self):
         """GPU reconstruction of data from an h5file by splitting into chunks"""
 
@@ -209,6 +213,7 @@ class GPURec():
             nrow = data.shape[1]-self.args.start_row
         else:
             nrow = self.args.end_row-self.args.start_row
+        
         nchunk = int(np.ceil(nrow/2**self.args.binning/self.nz))
         lchunk = np.minimum(
             self.nz, np.int32(nrow/2**self.args.binning-np.arange(nchunk)*self.nz))  # chunk sizes
@@ -248,12 +253,29 @@ class GPURec():
         stream1 = cp.cuda.Stream(non_blocking=False)
         stream2 = cp.cuda.Stream(non_blocking=False)
         stream3 = cp.cuda.Stream(non_blocking=False)
-        if(self.args.out_path_name is None):
-            fnameout = os.path.dirname(
-                self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
-        else:
-            fnameout = str(self.args.out_path_name)+'/r'
 
+        if self.args.save_format=='tiff':
+            if(self.args.out_path_name is None):
+                fnameout = os.path.dirname(
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
+            else:
+                fnameout = str(self.args.out_path_name)+'/r'
+        elif self.args.save_format=='h5':
+            if(self.args.out_path_name is None):
+                fnameout = os.path.dirname(
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec.h5'
+            else:
+                fnameout = str(self.args.out_path_name)
+            fid_rec = h5py.File(fnameout,'a') 
+            sid =  '/exchange/recon'            
+            rec_dataset = fid_rec.get(sid)
+            if rec_dataset is not None: 
+                if (rec_dataset.shape[-1]!=self.n) or (rec_dataset.dtype!='float32'):
+                    del fid_rec[sid]
+                    rec_dataset = fid_rec.create_dataset(sid, (data.shape[1],self.n, self.n), chunks=(32,32,32),dtype='float32')
+            else:
+                rec_dataset = fid_rec.create_dataset(sid, (data.shape[1],self.n, self.n), chunks=(32,32,32),dtype='float16')
+        
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
@@ -279,14 +301,18 @@ class GPURec():
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2], ::-1].copy()
-                
-                write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                                args=(rec_pinned0,),
-                                                kwargs={'fname': fnameout,
-                                                        'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
-                                                        'overwrite': True})
+                if self.args.save_format=='tiff':
+                    write_thread = threading.Thread(target=dxchange.write_tiff_stack,
+                                                    args=(rec_pinned0,),
+                                                    kwargs={'fname': fnameout,
+                                                            'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
+                                                            'overwrite': True})
+                elif self.args.save_format=='h5':
+                    write_thread = threading.Thread(target=self.write_h5,
+                                    args=(rec_pinned0, rec_dataset, (k-2)*self.nz+self.args.start_row//2**self.args.binning))                    
                 write_threads.append(write_thread)
                 write_thread.start()
+                    
             stream1.synchronize()
             stream2.synchronize()
         log.info(f'Output: {fnameout}')
@@ -348,19 +374,38 @@ class GPURec():
 
         with cp.cuda.Stream(non_blocking=False):
             rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array*mul)        
-        fnameout = os.path.dirname(
-            self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'
-        log.info(f'Output: {fnameout}')
-        write_threads = []
-        # avoid simultaneous directory creation
-        dxchange.write_tiff(
-            rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
-        for k in range(1, len(shift_array)):
-            write_thread = threading.Thread(target=dxchange.write_tiff,
-                                            args=(rec_cpu_list[k],),
-                                            kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',
-                                                    'overwrite': True})
-            write_threads.append(write_thread)
-            write_thread.start()
-        for thread in write_threads:
-            thread.join()
+        
+        if self.args.save_format=='tiff':
+            fnameout = os.path.dirname(
+                self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'
+            log.info(f'Output: {fnameout}')
+            write_threads = []
+            # avoid simultaneous directory creation
+            dxchange.write_tiff(
+                rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
+            for k in range(1, len(shift_array)):
+                write_thread = threading.Thread(target=dxchange.write_tiff,
+                                                args=(rec_cpu_list[k],),
+                                                kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',
+                                                        'overwrite': True})
+                write_threads.append(write_thread)
+                write_thread.start()
+            for thread in write_threads:
+                thread.join()
+        elif self.args.save_format=='h5':        
+            if not os.path.exists(os.path.dirname(self.args.file_name)+'_rec/try_center'):
+                os.makedirs(os.path.dirname(self.args.file_name)+'_rec/try_center')
+            fnameout = os.path.dirname(self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]+'_try.h5'
+            fid_rec = h5py.File(fnameout,'a') 
+                
+            log.info(f'Output: {fnameout}')
+            for k in range(0, len(shift_array)):
+                sid  = f'/exchange/r_{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}'
+                ds = fid_rec.get(sid)
+                if ds is not None: 
+                    if (ds.shape[-1]!=rec_cpu_list[k].shape[-1]) or (ds.dtype!=rec_cpu_list[k].dtype):
+                        del fid_rec[sid]
+                        ds = fid_rec.create_dataset(sid, rec_cpu_list[k].shape, dtype=rec_cpu_list[k].dtype)                  
+                else:
+                    ds = fid_rec.create_dataset(sid, rec_cpu_list[k].shape, dtype=rec_cpu_list[k].dtype)  
+                ds[:] = rec_cpu_list[k]

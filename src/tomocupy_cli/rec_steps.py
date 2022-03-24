@@ -114,10 +114,16 @@ class GPURecSteps():
         dark0 = cp.mean(dark, axis=0).astype('float32')
         flat0 = cp.mean(flat, axis=0).astype('float32')
         data = (data.astype('float32')-dark0)/(flat0-dark0)
-        data[cp.isnan(data)] = 6.0
-        data[cp.isinf(data)] = 0        
         return data
+    
+    def minus_log(self, data):
+        """Taking negative logarithm"""
 
+        data = -cp.log(data)
+        data[cp.isnan(data)] = 6.0
+        data[cp.isinf(data)] = 0
+        return data
+    
     def fbp_filter_center(self, data, sh=0):
         """FBP filtering of projections"""
 
@@ -171,6 +177,10 @@ class GPURecSteps():
         data = self.minus_log(data)
         res[:] = data
 
+    def write_h5(self,data,rec_dataset,start):
+        """Save reconstruction chunk to an hdf5"""
+        rec_dataset[start:start+data.shape[0]] = data
+        
     def rec_sino(self, res, data):
         """Reconstruction of a sinogram data chunk"""
 
@@ -276,9 +286,9 @@ class GPURecSteps():
 
         # pinned memory for res
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.nproj, self.ncz, self.n], dtype='float32'))
+            np.zeros([2, self.nproj, self.ncz, self.ni], dtype='float32'))
         # gpu memory for res
-        rec = cp.zeros([2, self.nproj, self.ncz, self.n], dtype='float32')
+        rec = cp.zeros([2, self.nproj, self.ncz, self.ni], dtype='float32')
 
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
@@ -327,17 +337,17 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.n], dtype='float32'))
+            np.zeros([2, self.ncproj, self.nz, self.ni], dtype='float32'))
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.ncproj, self.nz, self.n], dtype='float32')
+            [2, self.ncproj, self.nz, self.ni], dtype='float32')
 
         # pinned memory for processed data
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.n], dtype='float32'))
+            np.zeros([2, self.ncproj, self.nz, self.ni], dtype='float32'))
         # gpu memory for processed data
-        rec = cp.zeros([2, self.ncproj, self.nz, self.n], dtype='float32')
+        rec = cp.zeros([2, self.ncproj, self.nz, self.ni], dtype='float32')
         
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
@@ -399,11 +409,27 @@ class GPURecSteps():
         stream1 = cp.cuda.Stream(non_blocking=False)
         stream2 = cp.cuda.Stream(non_blocking=False)
         stream3 = cp.cuda.Stream(non_blocking=False)
-        if(self.args.out_path_name is None):
-            fnameout = os.path.dirname(
-                self.args.file_name)+'_recgpu/'+os.path.basename(self.args.file_name)[:-3]+'_rec/r'
-        else:
-            fnameout = str(self.args.out_path_name)+'/r'
+        if self.args.save_format=='tiff':
+            if(self.args.out_path_name is None):
+                fnameout = os.path.dirname(
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
+            else:
+                fnameout = str(self.args.out_path_name)+'/r'
+        elif self.args.save_format=='h5':
+            if(self.args.out_path_name is None):
+                fnameout = os.path.dirname(
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec.h5'
+            else:
+                fnameout = str(self.args.out_path_name)
+            fid_rec = h5py.File(fnameout,'a') 
+            sid =  '/exchange/recon'            
+            rec_dataset = fid_rec.get(sid)
+            if rec_dataset is not None: 
+                if (rec_dataset.shape[-1]!=self.n) or (rec_dataset.dtype!='float32'):
+                    del fid_rec[sid]
+                    rec_dataset = fid_rec.create_dataset(sid, (data.shape[1],self.n, self.n), chunks=(32,32,32),dtype='float32')
+            else:
+                rec_dataset = fid_rec.create_dataset(sid, (data.shape[1],self.n, self.n), chunks=(32,32,32),dtype='float16')
 
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
@@ -423,14 +449,19 @@ class GPURecSteps():
             stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2]].copy()
-                write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                                args=(rec_pinned0,),
-                                                kwargs={'fname': fnameout,
-                                                        'start':  (k-2)*self.ncz+self.args.start_row//2**self.args.binning,
-                                                        'overwrite': True})
+                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2], ::-1].copy()
+                if self.args.save_format=='tiff':
+                    write_thread = threading.Thread(target=dxchange.write_tiff_stack,
+                                                    args=(rec_pinned0,),
+                                                    kwargs={'fname': fnameout,
+                                                            'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
+                                                            'overwrite': True})
+                elif self.args.save_format=='h5':
+                    write_thread = threading.Thread(target=self.write_h5,
+                                    args=(rec_pinned0, rec_dataset, (k-2)*self.nz+self.args.start_row//2**self.args.binning))                    
                 write_threads.append(write_thread)
                 write_thread.start()
+                    
             stream1.synchronize()
             stream2.synchronize()
         log.info(f'Output: {fnameout}')
