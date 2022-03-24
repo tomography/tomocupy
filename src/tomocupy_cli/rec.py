@@ -12,6 +12,7 @@ import queue
 import h5py
 import os
 import signal
+import sys
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
@@ -316,6 +317,12 @@ class GPURec():
             stream1.synchronize()
             stream2.synchronize()
         log.info(f'Output: {fnameout}')
+        
+        
+        fname_rec_line = os.path.dirname(fnameout)+'/rec_line.txt'
+        log.info(f'Saving log to {fname_rec_line}')
+        with open(fname_rec_line, 'w') as f:
+            f.write(' '.join(sys.argv))
         # wait until reconstructions are written to hard disk
         for thread in write_threads:
             thread.join()
