@@ -54,7 +54,7 @@ def paganin_filter(
     phase_filter = cp.fft.fftshift(
         _paganin_filter_factor(energy, dist, alpha, w2))
 
-    prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype='float16')
+    prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype=data.dtype)
 
     _retrieve_phase(data, phase_filter, py, pz, prj, pad)
     # data=data[:,npad:-npad]

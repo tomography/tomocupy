@@ -42,7 +42,7 @@ def remove_stripe_fw(data, sigma, wname, level):
         sli = ifm((sli, cc[k]))
 
     data = cp.asarray(sli[:, 0, (nproj_pad - nproj) //
-                      2:(nproj_pad + nproj)//2, :ni]).astype('float16') #modified
+                      2:(nproj_pad + nproj)//2, :ni]).astype(data.dtype) #modified
     data = data.swapaxes(0, 1)
 
     return data

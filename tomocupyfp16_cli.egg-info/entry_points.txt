@@ -1,0 +1,3 @@
+[console_scripts]
+tomocupyfp16 = tomocupyfp16cli:main
+

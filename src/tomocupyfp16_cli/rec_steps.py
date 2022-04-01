@@ -77,7 +77,7 @@ class GPURecSteps():
         if args.reconstruction_algorithm == 'lprec':
             self.cl_rec = lprec.LpRec(n, nproj, ncz)
         if args.reconstruction_algorithm == 'fourierrec':
-            self.cl_rec = fourierrec.FourierRec(n, nproj, ncz, theta)
+            self.cl_rec = fourierrec.FourierRec(n, nproj, ncz, theta, args.dtype)
 
         nz = (args.end_row-args.start_row)//2**args.binning
 
@@ -94,10 +94,11 @@ class GPURecSteps():
         self.ids_proj = ids_proj
         self.args = args
 
+
     def downsample(self, data):
         """Downsample data"""
 
-        data = data.astype('float32')
+        data = data.astype(self.args.dtype)
         for j in range(self.args.binning):
             x = data[:, :, ::2]
             y = data[:, :, 1::2]
@@ -111,11 +112,11 @@ class GPURecSteps():
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
 
-        dark0 = cp.mean(dark, axis=0).astype('float16')
-        flat0 = cp.mean(flat, axis=0).astype('float16')
-        data = (data.astype('float16')-dark0)/(flat0-dark0)
+        dark0 = cp.mean(dark.astype(self.args.dtype), axis=0)        
+        flat0 = cp.mean(flat.astype(self.args.dtype), axis=0)
+        data = (data.astype(self.args.dtype)-dark0)/(flat0-dark0)
         return data
-    
+
     def minus_log(self, data):
         """Taking negative logarithm"""
 
@@ -123,11 +124,13 @@ class GPURecSteps():
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0
         return data
-
+    
     def fbp_filter_center(self, data, sh=0):
         """FBP filtering of projections"""
-
-        ne = 2**int(np.ceil(np.log2(3*self.n//2)))
+        
+        ne = 3*self.n//2
+        if self.args.dtype=='float16':
+            ne = 2**int(np.ceil(np.log2(3*self.n//2)))# power of 2 for float16
         t = cp.fft.rfftfreq(ne).astype('float32')
         w = t * (1 - t * 2)**3  # parzen
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
@@ -135,8 +138,8 @@ class GPURecSteps():
         data = cp.pad(
             data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
         self.cl_rec.filter(data,w,cp.cuda.get_current_stream())
-        #data = irfft(
-            #w*rfft(data, axis=2), axis=2).astype('float16')  # note: filter works with complex64, however, it doesnt take much time
+        # data = irfft(
+            # w*rfft(data, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
         data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]            
 
         return data
@@ -205,9 +208,9 @@ class GPURecSteps():
 
         # read dark and flat, binning
         dark = fid['exchange/data_dark'][:,
-                                         self.args.start_row:self.args.end_row].astype('float16')
+                                         self.args.start_row:self.args.end_row].astype(self.args.dtype)
         flat = fid['exchange/data_white'][:,
-                                          self.args.start_row:self.args.end_row].astype('float16')
+                                          self.args.start_row:self.args.end_row].astype(self.args.dtype)
         flat = self.downsample(flat)
         dark = self.downsample(dark)
 
@@ -225,6 +228,10 @@ class GPURecSteps():
             thread.join()
 
         return data, dark, flat
+    
+    def write_h5(self,data,rec_dataset,start):
+        """Save reconstruction chunk to an hdf5"""
+        rec_dataset[start:start+data.shape[0]] = data
 
     def recon_steps(self):
         """GPU reconstruction by loading a full dataset in memory and processing by steps """
@@ -257,7 +264,7 @@ class GPURecSteps():
 
     def proc_sino_parallel(self, data, dark, flat):
 
-        res = np.zeros(data.shape, dtype='float16')
+        res = np.zeros(data.shape, dtype=self.args.dtype)
 
         nchunk = int(np.ceil(self.nz/self.ncz))
         lchunk = np.minimum(
@@ -266,26 +273,26 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.nproj, self.ncz, self.ni], dtype='float16'))
+            np.zeros([2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype))
         item_pinned['dark'] = utils.pinned_array(
-            np.zeros([2, self.ndark, self.ncz, self.ni], dtype='float16'))
+            np.zeros([2, self.ndark, self.ncz, self.ni], dtype=self.args.dtype))
         item_pinned['flat'] = utils.pinned_array(
-            np.ones([2, self.nflat, self.ncz, self.ni], dtype='float16'))
+            np.ones([2, self.nflat, self.ncz, self.ni], dtype=self.args.dtype))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.nproj, self.ncz, self.ni], dtype='float16')
+            [2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype)
         item_gpu['dark'] = cp.zeros(
-            [2, self.ndark, self.ncz, self.ni], dtype='float16')
+            [2, self.ndark, self.ncz, self.ni], dtype=self.args.dtype)
         item_gpu['flat'] = cp.ones(
-            [2, self.nflat, self.ncz, self.ni], dtype='float16')
+            [2, self.nflat, self.ncz, self.ni], dtype=self.args.dtype)
 
         # pinned memory for res
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.nproj, self.ncz, self.n], dtype='float16'))
+            np.zeros([2, self.nproj, self.ncz, self.n], dtype=self.args.dtype))
         # gpu memory for res
-        rec = cp.zeros([2, self.nproj, self.ncz, self.n], dtype='float16')
+        rec = cp.zeros([2, self.nproj, self.ncz, self.n], dtype=self.args.dtype)
 
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
@@ -325,7 +332,7 @@ class GPURecSteps():
 
     def proc_proj_parallel(self, data):
 
-        res = np.zeros(data.shape, dtype='float16')
+        res = np.zeros(data.shape, dtype=self.args.dtype)
 
         nchunk = int(np.ceil(self.nproj/self.ncproj))
         lchunk = np.minimum(
@@ -334,17 +341,17 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.n], dtype='float16'))
+            np.zeros([2, self.ncproj, self.nz, self.n], dtype=self.args.dtype))
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.ncproj, self.nz, self.n], dtype='float16')
+            [2, self.ncproj, self.nz, self.n], dtype=self.args.dtype)
 
         # pinned memory for processed data
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.n], dtype='float16'))
+            np.zeros([2, self.ncproj, self.nz, self.n], dtype=self.args.dtype))
         # gpu memory for processed data
-        rec = cp.zeros([2, self.ncproj, self.nz, self.n], dtype='float16')
+        rec = cp.zeros([2, self.ncproj, self.nz, self.n], dtype=self.args.dtype)
         
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
@@ -386,18 +393,18 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.nproj, self.ncz, self.ni], dtype='float16'))
+            np.zeros([2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.nproj, self.ncz, self.ni], dtype='float16')
+            [2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype)
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.ncz, self.n, self.n], dtype='float16'))
+            np.zeros([2, self.ncz, self.n, self.n], dtype=self.args.dtype))
         # gpu memory for reconstrution
-        rec = cp.zeros([2, self.ncz, self.n, self.n], dtype='float16')
+        rec = cp.zeros([2, self.ncz, self.n, self.n], dtype=self.args.dtype)
 
         # list of threads for parallel writing to hard disk
         write_threads = []
@@ -406,11 +413,36 @@ class GPURecSteps():
         stream1 = cp.cuda.Stream(non_blocking=False)
         stream2 = cp.cuda.Stream(non_blocking=False)
         stream3 = cp.cuda.Stream(non_blocking=False)
-        if(self.args.out_path_name is None):
-            fnameout = os.path.dirname(
-                self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
-        else:
-            fnameout = str(self.args.out_path_name)+'/r'
+        
+        if self.args.save_format=='tiff':
+            if(self.args.out_path_name is None):
+                fnameout = os.path.dirname(
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
+            else:
+                fnameout = str(self.args.out_path_name)+'/r'
+        elif self.args.save_format=='h5':
+            if not os.path.isdir(os.path.dirname(self.args.file_name)+'_rec'):
+                os.mkdir(os.path.dirname(self.args.file_name)+'_rec')
+            if(self.args.out_path_name is None):
+                fnameout = os.path.dirname(
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec.h5'
+            else:
+                fnameout = str(self.args.out_path_name)
+            # try:
+            #     fid_rec = h5py.File(fnameout,'a') 
+            # except:
+            #     log.warning('removing existing h5')
+            os.system(f'rm -rf {fnameout}')
+            fid_rec = h5py.File(fnameout,'w') 
+            sid =  '/exchange/recon'            
+            # rec_dataset = fid_rec.get(sid)
+            # if rec_dataset is not None: 
+                # if (rec_dataset.shape[-1]!=self.n) or (rec_dataset.dtype!=self.args.dtype):
+                    # del fid_rec[sid]
+                    # rec_dataset = fid_rec.create_dataset(sid, shape = (data.shape[1],self.n, self.n), chunks =(1,self.n, self.n),  dtype=self.args.dtype)
+            # else:
+            rec_dataset = fid_rec.create_dataset(sid, shape = (data.shape[1],self.n, self.n),chunks =(1,self.n, self.n), dtype=self.args.dtype)
+
 
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
@@ -431,11 +463,16 @@ class GPURecSteps():
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2]].copy()
-                write_thread = threading.Thread(target=dxchange.write_tiff_stack,
+                if self.args.save_format=='tiff':
+                    write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                 args=(rec_pinned0,),
                                                 kwargs={'fname': fnameout,
-                                                        'start':  (k-2)*self.ncz+self.args.start_row//2**self.args.binning,
+                                                        'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
                                                         'overwrite': True})
+                elif self.args.save_format=='h5':
+                    write_thread = threading.Thread(target=self.write_h5,
+                                    args=(rec_pinned0, rec_dataset, (k-2)*self.nz+self.args.start_row//2**self.args.binning))                    
+
                 write_threads.append(write_thread)
                 write_thread.start()
             stream1.synchronize()

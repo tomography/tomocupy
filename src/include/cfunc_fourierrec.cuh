@@ -4,6 +4,7 @@
 #include <cufft.h>
 #include <cufftXt.h>
 #include <cuda_fp16.h>
+#include "defs.cuh"
 
 
 class cfunc_fourierrec {
@@ -16,8 +17,8 @@ class cfunc_fourierrec {
   float *x;
   float *y;
   float* theta;
-  half2 *fde;
-  half2 *ge;
+  real2 *fde;
+  real2 *ge;
 
   cufftHandle plan2d;  
   cufftHandle plan1d;
@@ -26,10 +27,10 @@ class cfunc_fourierrec {
 
 public:
   size_t n;      // width of square slices
-  size_t ntheta; // number of angles
-  size_t pnz;    // number of slices
+  size_t nproj; // number of angles
+  size_t nz;    // number of slices
   size_t ne;
-  cfunc_fourierrec(size_t ntheta, size_t pnz, size_t n, size_t theta);
+  cfunc_fourierrec(size_t nproj, size_t nz, size_t n, size_t theta);
   ~cfunc_fourierrec();
   void backprojection(size_t f, size_t g, size_t stream);
   void filter(size_t g, size_t w, size_t stream);
