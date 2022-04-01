@@ -8,6 +8,8 @@ The package supports two types of reconstructions: manual center search (option 
 
 Compared to **Tomocupy-cli** package, this package works faster and uses twice lower amount of GPU memory. Reconstructions are save as tiff16 files and can be opened with BIOP plugin (ImageJ->Import->BioFormats).
 
+The package works **ONLY** with reconstrction sizes n x n x nz where **n is a power of 2**.
+
 =============
 Documentation
 =============
