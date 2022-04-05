@@ -12,6 +12,7 @@ import queue
 import h5py
 import os
 import signal
+import sys
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
@@ -127,7 +128,10 @@ class GPURec():
         if self.args.dtype=='float16':
             ne = 2**int(np.ceil(np.log2(3*self.n//2)))# power of 2 for float16
         t = cp.fft.rfftfreq(ne).astype('float32')
-        w = t * (1 - t * 2)**3  # parzen
+        if self.args.gridrec_filter == 'parzen':
+            w = t * (1 - t * 2)**3  
+        elif self.args.gridrec_filter == 'shepp':
+            w = t * cp.sinc(t)  
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
                 
         data = cp.pad(
@@ -320,6 +324,12 @@ class GPURec():
             stream1.synchronize()
             stream2.synchronize()
         log.info(f'Output: {fnameout}')
+        fname_rec_line = os.path.dirname(fnameout)+'/rec_line.txt'
+        log.info(f'Saving log to {fname_rec_line}')
+        reccmd = sys.argv
+        reccmd[0] = os.path.basename(reccmd[0])
+        with open(fname_rec_line, 'w') as f:
+            f.write(' '.join(reccmd))
         # wait until reconstructions are written to hard disk
         for thread in write_threads:
             thread.join()
@@ -389,7 +399,7 @@ class GPURec():
                 rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
             for k in range(1, len(shift_array)):
                 write_thread = threading.Thread(target=dxchange.write_tiff,
-                                                args=(rec_cpu_list[k],),
+                                                args=(rec_cpu_list[k][::-1],),
                                                 kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',
                                                         'overwrite': True})
                 write_threads.append(write_thread)
@@ -419,6 +429,6 @@ class GPURec():
                 tdata = (255-tdata[:,:,0]).astype(self.args.dtype)
                 tdata[tdata<128] = 0
                 tdata[tdata>128] = np.inf
-                ds[k] = rec_cpu_list[k]
+                ds[k] = rec_cpu_list[k][::-1]
                 ds[k,:tdata.shape[0],:tdata.shape[1]] = tdata            
             log.info(f'Output: {fnameout}')            
