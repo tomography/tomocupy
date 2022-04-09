@@ -1,5 +1,5 @@
-from tomocupyfp16_cli import cfunc_fourierrec
-from tomocupyfp16_cli import cfunc_fourierrecfp16
+from tomocupy_cli import cfunc_fourierrec
+from tomocupy_cli import cfunc_fourierrecfp16
 import cupy as cp
 
 class FourierRec():
@@ -26,7 +26,7 @@ class FourierRec():
     def filter(self, data, w, stream): 
         # reorganize data as a complex array, reuse data
         data = cp.ascontiguousarray(data)                
-        w = cp.ascontiguousarray((w/self.n).view('float32').astype(data.dtype))        
+        w = cp.ascontiguousarray(w.view('float32').astype(data.dtype))        
         
         self.fslv.filter(data.data.ptr, w.data.ptr,stream.ptr)        
     

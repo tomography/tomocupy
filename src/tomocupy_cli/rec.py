@@ -35,6 +35,8 @@ class GPURec():
                 args.end_row = fid['/exchange/data'].shape[1]
             if (args.end_proj==-1):
                 args.end_proj = fid['/exchange/data'].shape[0]
+        
+        
         # define chunk size for processing
         nz = args.nsino_per_chunk
         if(args.reconstruction_type == 'try' or nz < 2):
@@ -46,10 +48,12 @@ class GPURec():
         # update sizes wrt binning
         ni //= 2**args.binning
         centeri /= 2**args.binning
+        args.crop = int(args.crop/2**args.binning)
 
         # change sizes for 360 deg scans with rotation axis at the border
         if(args.file_type == 'double_fov'):
             n = 2*ni
+            
             if(centeri < ni//2):
                 # if rotation center is on the left side of the ROI
                 center = ni-centeri
@@ -58,6 +62,12 @@ class GPURec():
         else:
             n = ni
             center = centeri
+
+        #if args.dtype=='float16':                        
+        center += (2**int(np.log2(ni))-ni)/2
+        ni = 2**int(np.log2(ni))
+        n = 2**int(np.log2(n))
+        log.warning(f'Crop data to the power of 2 sizes to work with 16bit precision {ni}')
                 
         # blocked views fix
         ids_proj = np.arange(len(theta))[args.start_proj:args.end_proj]
@@ -164,12 +174,15 @@ class GPURec():
         # dark-flat field correction
         data = self.darkflat_correction(data, dark, flat)
         
+        
+        # minus log
+        data = self.minus_log(data)
+        
+        # dxchange.write_tiff_stack(data.get(),'/data/tmp_tomo/t/t',overwrite=True)
         # remove stripes
         if(self.args.remove_stripe_method == 'fw'):
             data = remove_stripe.remove_stripe_fw(data, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
                 
-        # minus log
-        data = self.minus_log(data)
         # padding for 360 deg recon
         if(self.args.file_type == 'double_fov'):
             data = self.pad360(data)
@@ -189,9 +202,11 @@ class GPURec():
             item = {}
             st = st_row+k*self.nz*2**self.args.binning
             end = st_row+(k*self.nz+lchunk[k])*2**self.args.binning
-            item['data'] = self.downsample(data[:,  st:end])[self.ids_proj]
-            item['flat'] = self.downsample(flat[:,  st:end])
-            item['dark'] = self.downsample(dark[:,  st:end])
+            stn = data.shape[2]//2-self.ni//2*2**self.args.binning
+            endn = data.shape[2]//2+self.ni//2*2**self.args.binning
+            item['data'] = self.downsample(data[:,  st:end,stn:endn])[self.ids_proj]
+            item['flat'] = self.downsample(flat[:,  st:end,stn:endn])
+            item['dark'] = self.downsample(dark[:,  st:end,stn:endn])
 
             self.data_queue.put(item)
     
@@ -310,6 +325,9 @@ class GPURec():
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2], ::-1].copy()#.astype('float32')
+                if self.args.crop>0:
+                    rec_pinned0 = rec_pinned0[:,self.args.crop:-self.args.crop,self.args.crop:-self.args.crop]
+
                 if self.args.save_format=='tiff':
                     write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                 args=(rec_pinned0,),
@@ -395,11 +413,17 @@ class GPURec():
             log.info(f'Output: {fnameout}')
             write_threads = []
             # avoid simultaneous directory creation
+            rec_pinned0 = rec_cpu_list[0][::-1]
+            if self.args.crop>0:
+                rec_pinned0 = rec_pinned0[:,self.args.crop:-self.args.crop,self.args.crop:-self.args.crop]
             dxchange.write_tiff(
-                rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
+                rec_pinned0, f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
             for k in range(1, len(shift_array)):
+                rec_pinned0 = rec_cpu_list[k][::-1]
+                if self.args.crop>0:
+                    rec_pinned0 = rec_pinned0[:,self.args.crop:-self.args.crop,self.args.crop:-self.args.crop]
                 write_thread = threading.Thread(target=dxchange.write_tiff,
-                                                args=(rec_cpu_list[k][::-1],),
+                                                args=(rec_pinned0,),
                                                 kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',
                                                         'overwrite': True})
                 write_threads.append(write_thread)

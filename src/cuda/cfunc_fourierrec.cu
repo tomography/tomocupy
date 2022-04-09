@@ -103,12 +103,13 @@ void cfunc_fourierrec::backprojection(size_t f_, size_t g_, size_t stream_) {
     cudaMemsetAsync(fde, 0, (2 * n + 2 * m) * (2 * n + 2 * m) * nz * sizeof(real2),stream);
     
     takexy <<<GS2d0, dimBlock, 0, stream>>> (x, y, theta, n, nproj);        
-    mulc <<<GS3d3, dimBlock, 0, stream>>> (g, 1/(float)n, n, nproj, nz);
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);
     cufftXtExec(plan1d, g, g, CUFFT_FORWARD);
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);    
+    mulc <<<GS3d3, dimBlock, 0, stream>>> (g, 1/(float)n, n, nproj, nz);
     
     gather <<<GS3d3, dimBlock, 0, stream>>> (g, fde, x, y, m, mu, n, nproj, nz);    
+    
     wrap <<<GS3d2, dimBlock, 0, stream>>> (fde, n, nz, m);
     
     fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fde, 2 * n + 2 * m, nz);
@@ -131,4 +132,5 @@ void cfunc_fourierrec::filter(size_t g_, size_t w_, size_t stream_) {
     cufftXtExec(plan_filter_fwd, g, ge, CUFFT_FORWARD);
     mulw <<<GS3d2, dimBlock, 0, stream>>> (ge, w, ne/2+1, nproj, 2*nz);
     cufftXtExec(plan_filter_inv, ge, g, CUFFT_INVERSE);
+    mulrec <<<GS3d1, dimBlock, 0, stream>>> (g, 1/(float)ne, ne, nproj, 2*nz);    
 }

@@ -132,6 +132,17 @@ void __global__ mulc(real2 *f, float c, int n, int nproj, int nz) {
   f[f_ind].y = static_cast<real>((float)f[f_ind].y*c);
 }
 
+void __global__ mulrec(real *f, float c, int n, int nproj, int nz) {
+  int tx = blockDim.x * blockIdx.x + threadIdx.x;
+  int ty = blockDim.y * blockIdx.y + threadIdx.y;
+  int tz = blockDim.z * blockIdx.z + threadIdx.z;
+  if (tx >= n || ty >= nproj || tz >= nz)
+    return;
+  int f_ind = tx + ty * n + tz * n * nproj;
+  f[f_ind] = static_cast<real>((float)f[f_ind]*c);
+  
+}
+
 
 void __global__ fftshiftc(real2 *f, int n, int nz) {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;

@@ -14,7 +14,7 @@ import inspect
 import h5py
 import numpy as np
 
-from tomocupyfp16_cli import utils
+from tomocupy_cli import utils
 
 
 log = logging.getLogger(__name__)
@@ -260,6 +260,10 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Filter for FBP reconstruction",
         'choices': ['shepp', 'parzen']},   
+    'crop': {
+        'type': int,
+        'default': 0,
+        'help': "Crop from each side of the slice"},
     }
 
 
