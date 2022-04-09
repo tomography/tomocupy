@@ -1,0 +1,1 @@
+{"args": ["/home/beams/TOMO/conda/anaconda/envs/tomocupy/bin/cmake", "-DCMAKE_BUILD_TYPE:STRING=Release"], "version": "3.21.3", "environment": {"PYTHONNOUSERSITE": null, "PYTHONPATH": null}}

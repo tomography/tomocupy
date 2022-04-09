@@ -1,0 +1,16 @@
+# ninja log v5
+2	215	1649520593392296287	src/cuda/CMakeFiles/cfunc_fourierrecfp16.dir/cfunc_fourierrecfp16PYTHON_wrap.cxx	3a940e81cb038c30
+2	215	1649520593392296287	src/cuda/cfunc_fourierrecfp16.py	3a940e81cb038c30
+2	215	1649520593392296287	/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-build/src/cuda/CMakeFiles/cfunc_fourierrecfp16.dir/cfunc_fourierrecfp16PYTHON_wrap.cxx	3a940e81cb038c30
+2	215	1649520593392296287	/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-build/src/cuda/cfunc_fourierrecfp16.py	3a940e81cb038c30
+2	217	1649520593392296287	src/cuda/CMakeFiles/cfunc_fourierrec.dir/cfunc_fourierrecPYTHON_wrap.cxx	3f4a8cc34fdc7f14
+2	217	1649520593392296287	src/cuda/cfunc_fourierrec.py	3f4a8cc34fdc7f14
+2	217	1649520593392296287	/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-build/src/cuda/CMakeFiles/cfunc_fourierrec.dir/cfunc_fourierrecPYTHON_wrap.cxx	3f4a8cc34fdc7f14
+2	217	1649520593392296287	/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-build/src/cuda/cfunc_fourierrec.py	3f4a8cc34fdc7f14
+218	797	1649520593971307983	src/cuda/CMakeFiles/cfunc_fourierrec.dir/CMakeFiles/cfunc_fourierrec.dir/cfunc_fourierrecPYTHON_wrap.cxx.o	d2a4b0c57729992d
+217	801	1649520593973308023	src/cuda/CMakeFiles/cfunc_fourierrecfp16.dir/CMakeFiles/cfunc_fourierrecfp16.dir/cfunc_fourierrecfp16PYTHON_wrap.cxx.o	224c8c56cd8f23af
+219	1761	1649520594934327437	src/cuda/CMakeFiles/cfunc_fourierrec.dir/cfunc_fourierrec.cu.o	9e07f6e1aacabd88
+217	1818	1649520594988328527	src/cuda/CMakeFiles/cfunc_fourierrecfp16.dir/cfunc_fourierrec.cu.o	259d7aac6d5358e8
+1761	1825	1649520594999328750	src/cuda/_cfunc_fourierrec.so	c1122db6f9cfc57c
+1818	1878	1649520595053329840	src/cuda/_cfunc_fourierrecfp16.so	bb11fb2a494b3846
+1878	1933	0	CMakeFiles/install.util	8246b2602e08996d

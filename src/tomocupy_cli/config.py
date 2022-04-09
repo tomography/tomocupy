@@ -255,6 +255,11 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Output format",
         'choices': ['tiff', 'h5']},     
+    'gridrec-filter': {
+        'default': 'parzen',
+        'type': str,
+        'help': "Filter for FBP reconstruction",
+        'choices': ['shepp', 'parzen']},   
     }
 
 

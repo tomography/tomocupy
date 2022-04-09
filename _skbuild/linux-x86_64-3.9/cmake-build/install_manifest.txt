@@ -1,0 +1,4 @@
+/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-install/src/tomocupy_cli/cfunc_fourierrec.py
+/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-install/src/tomocupy_cli/_cfunc_fourierrec.so
+/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-install/src/tomocupy_cli/cfunc_fourierrecfp16.py
+/home/beams8/TOMO/conda/tomocupy-cli/_skbuild/linux-x86_64-3.9/cmake-install/src/tomocupy_cli/_cfunc_fourierrecfp16.so

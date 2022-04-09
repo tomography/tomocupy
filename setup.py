@@ -1,4 +1,4 @@
-"""This is the main entry point for building tomocupyfp16.
+"""This is the main entry point for building tomocupy.
 The setup process for ptychocg is very much like any python module except
 that the compilation of the the extension module(s) is driven by CMake through
 scikit-build. Scikit-build defines a custom Extension class which calls CMake
@@ -14,12 +14,12 @@ from skbuild import setup
 from setuptools import find_packages
 
 setup(
-    name='tomocupyfp16-cli',
+    name='tomocupy-cli',
     version=open('VERSION').read().strip(),
     author='Viktor Nikitin',
     package_dir={"": "src"},
-    scripts=['bin/tomocupyfp16cli.py'],  
-    entry_points={'console_scripts':['tomocupyfp16 = tomocupyfp16cli:main'],},
+    scripts=['bin/tomocupycli.py'],  
+    entry_points={'console_scripts':['tomocupy = tomocupycli:main'],},
     packages=find_packages('src'),
     zip_safe=False,
 )

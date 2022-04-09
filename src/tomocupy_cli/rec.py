@@ -1,7 +1,7 @@
-from tomocupyfp16_cli import fourierrec
-from tomocupyfp16_cli import remove_stripe
-from tomocupyfp16_cli import utils
-from tomocupyfp16_cli import logging
+from tomocupy_cli import fourierrec
+from tomocupy_cli import remove_stripe
+from tomocupy_cli import utils
+from tomocupy_cli import logging
 from cupyx.scipy.fft import rfft, irfft
 import cupy as cp
 import numpy as np

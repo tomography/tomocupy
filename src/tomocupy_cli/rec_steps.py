@@ -1,8 +1,8 @@
-from tomocupyfp16_cli import fourierrec
-from tomocupyfp16_cli import retrieve_phase, remove_stripe
-from tomocupyfp16_cli import find_rotation
-from tomocupyfp16_cli import utils
-from tomocupyfp16_cli import logging
+from tomocupy_cli import fourierrec
+from tomocupy_cli import retrieve_phase, remove_stripe
+from tomocupy_cli import find_rotation
+from tomocupy_cli import utils
+from tomocupy_cli import logging
 from cupyx.scipy.fft import rfft, irfft
 import cupy as cp
 import numpy as np
@@ -132,7 +132,11 @@ class GPURecSteps():
         if self.args.dtype=='float16':
             ne = 2**int(np.ceil(np.log2(3*self.n//2)))# power of 2 for float16
         t = cp.fft.rfftfreq(ne).astype('float32')
-        w = t * (1 - t * 2)**3  # parzen
+        if self.args.gridrec_filter == 'parzen':
+            w = t * (1 - t * 2)**3  
+        elif self.args.gridrec_filter == 'shepp':
+            w = t * cp.sinc(t)  
+        
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
                 
         data = cp.pad(

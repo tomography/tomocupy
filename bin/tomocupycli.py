@@ -8,10 +8,10 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
-from tomocupyfp16_cli import logging
-from tomocupyfp16_cli import config
-from tomocupyfp16_cli import GPURec
-from tomocupyfp16_cli import GPURecSteps
+from tomocupy_cli import logging
+from tomocupy_cli import config
+from tomocupy_cli import GPURec
+from tomocupy_cli import GPURecSteps
 
 log = logging.getLogger(__name__)
 
