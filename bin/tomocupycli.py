@@ -56,8 +56,8 @@ def run_recmulti(args):
         with h5py.File(args.file_name,'r') as fid:
            args.end_row = fid['/exchange/data/'].shape[1]
     
-    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\';\""
-    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'; \""
+    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupyfp16; tomocupyfp16 recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\';\""
+    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupyfp16; tomocupyfp16 recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'; \""
     print(f'Tomo1: {cmd1}')
     p1 = subprocess.Popen(cmd1,shell=True)
     print(f'Tomo2: {cmd2}')
@@ -99,10 +99,10 @@ def main():
     if not os.path.exists(logs_home):
         os.makedirs(logs_home)
 
-    lfname = os.path.join(logs_home, 'tomocupyon_' + datetime.strftime(datetime.now(), "%Y-%m-%d_%H_%M_%S") + '.log')
+    lfname = os.path.join(logs_home, 'tomocupyfp16on_' + datetime.strftime(datetime.now(), "%Y-%m-%d_%H_%M_%S") + '.log')
     log_level = 'DEBUG' if args.verbose else "INFO"
     logging.setup_custom_logger(lfname, level=log_level)
-    log.debug("Started tomocupyon")
+    log.debug("Started tomocupyfp16on")
     log.info("Saving log at %s" % lfname)
 
     try:

@@ -1,5 +1,5 @@
 /*interface*/
-%module cfunc_fourierrec
+%module cfunc_fourierrecfp16
 
 %{
 #define SWIG_FILE_WITH_INIT

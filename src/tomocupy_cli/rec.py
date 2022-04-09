@@ -1,4 +1,4 @@
-from tomocupy_cli import lprec, fourierrec
+from tomocupy_cli import fourierrec
 from tomocupy_cli import remove_stripe
 from tomocupy_cli import utils
 from tomocupy_cli import logging
@@ -74,12 +74,8 @@ class GPURec():
         nproj = len(theta)
         theta = cp.array(theta)
 
-        # choose reconstruction method
-        if args.reconstruction_algorithm == 'lprec':
-            self.cl_rec = lprec.LpRec(n, nproj, nz)
         if args.reconstruction_algorithm == 'fourierrec':
-            self.cl_rec = fourierrec.FourierRec(n, nproj, nz, theta)
-
+            self.cl_rec = fourierrec.FourierRec(n, nproj, nz, theta, args.dtype)
         
         self.n = n
         self.nz = nz
@@ -98,7 +94,7 @@ class GPURec():
     def downsample(self, data):
         """Downsample data"""
 
-        data = data.astype('float32')
+        data = data.astype(self.args.dtype)
         for j in range(self.args.binning):
             x = data[:, :, ::2]
             y = data[:, :, 1::2]
@@ -112,9 +108,9 @@ class GPURec():
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
 
-        dark0 = cp.mean(dark, axis=0).astype('float32')
-        flat0 = cp.mean(flat, axis=0).astype('float32')
-        data = (data.astype('float32')-dark0)/(flat0-dark0)
+        dark0 = cp.mean(dark.astype(self.args.dtype), axis=0)        
+        flat0 = cp.mean(flat.astype(self.args.dtype), axis=0)
+        data = (data.astype(self.args.dtype)-dark0)/(flat0-dark0)
         return data
 
     def minus_log(self, data):
@@ -127,17 +123,23 @@ class GPURec():
     
     def fbp_filter_center(self, data, sh=0):
         """FBP filtering of projections"""
-
+        
         ne = 3*self.n//2
+        if self.args.dtype=='float16':
+            ne = 2**int(np.ceil(np.log2(3*self.n//2)))# power of 2 for float16
         t = cp.fft.rfftfreq(ne).astype('float32')
-        w = t * (1 - t * 2)**3  # parzen
+        if self.args.gridrec_filter == 'parzen':
+            w = t * (1 - t * 2)**3  
+        elif self.args.gridrec_filter == 'shepp':
+            w = t * cp.sinc(t)  
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
+                
         data = cp.pad(
             data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
-        
-        data = irfft(
-            w*rfft(data, axis=2), axis=2).astype('float32')  # note: filter works with complex64, however, it doesnt take much time
-        data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]
+        self.cl_rec.filter(data,w,cp.cuda.get_current_stream())
+        # data = irfft(
+            # w*rfft(data, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
+        data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]            
 
         return data
 
@@ -168,17 +170,16 @@ class GPURec():
                 
         # minus log
         data = self.minus_log(data)
-        
         # padding for 360 deg recon
         if(self.args.file_type == 'double_fov'):
             data = self.pad360(data)
         # fbp filter and compensatio for the center
-        data = self.fbp_filter_center(data)
+        data = self.fbp_filter_center(data)        
         # reshape to sinograms
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
         # backprojection
         self.cl_rec.backprojection(obj, data, cp.cuda.get_current_stream())
-
+        
     def read_data(self, data, dark, flat, nchunk, lchunk):
         """Reading data from hard disk and putting it to a queue"""
 
@@ -214,7 +215,6 @@ class GPURec():
             nrow = data.shape[1]-self.args.start_row
         else:
             nrow = self.args.end_row-self.args.start_row
-        
         nchunk = int(np.ceil(nrow/2**self.args.binning/self.nz))
         lchunk = np.minimum(
             self.nz, np.int32(nrow/2**self.args.binning-np.arange(nchunk)*self.nz))  # chunk sizes
@@ -226,26 +226,26 @@ class GPURec():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.nproj, self.nz, self.ni], dtype='float32'))
+            np.zeros([2, self.nproj, self.nz, self.ni], dtype=self.args.dtype))
         item_pinned['dark'] = utils.pinned_array(
-            np.zeros([2, self.ndark, self.nz, self.ni], dtype='float32'))
+            np.zeros([2, self.ndark, self.nz, self.ni], dtype=self.args.dtype))
         item_pinned['flat'] = utils.pinned_array(
-            np.ones([2, self.nflat, self.nz, self.ni], dtype='float32'))
+            np.ones([2, self.nflat, self.nz, self.ni], dtype=self.args.dtype))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.nproj, self.nz, self.ni], dtype='float32')
+            [2, self.nproj, self.nz, self.ni], dtype=self.args.dtype)
         item_gpu['dark'] = cp.zeros(
-            [2, self.ndark, self.nz, self.ni], dtype='float32')
+            [2, self.ndark, self.nz, self.ni], dtype=self.args.dtype)
         item_gpu['flat'] = cp.ones(
-            [2, self.nflat, self.nz, self.ni], dtype='float32')
+            [2, self.nflat, self.nz, self.ni], dtype=self.args.dtype)
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.nz, self.n, self.n], dtype='float32'))
+            np.zeros([2, self.nz, self.n, self.n], dtype=self.args.dtype))
         # gpu memory for reconstrution
-        rec = cp.zeros([2, self.nz, self.n, self.n], dtype='float32')
+        rec = cp.zeros([2, self.nz, self.n, self.n], dtype=self.args.dtype)
 
         # list of threads for parallel writing to hard disk
         write_threads = []
@@ -254,7 +254,7 @@ class GPURec():
         stream1 = cp.cuda.Stream(non_blocking=False)
         stream2 = cp.cuda.Stream(non_blocking=False)
         stream3 = cp.cuda.Stream(non_blocking=False)
-
+        
         if self.args.save_format=='tiff':
             if(self.args.out_path_name is None):
                 fnameout = os.path.dirname(
@@ -262,21 +262,29 @@ class GPURec():
             else:
                 fnameout = str(self.args.out_path_name)+'/r'
         elif self.args.save_format=='h5':
+            if not os.path.isdir(os.path.dirname(self.args.file_name)+'_rec'):
+                os.mkdir(os.path.dirname(self.args.file_name)+'_rec')
             if(self.args.out_path_name is None):
                 fnameout = os.path.dirname(
                     self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec.h5'
             else:
                 fnameout = str(self.args.out_path_name)
-            fid_rec = h5py.File(fnameout,'a') 
+            # try:
+                # fid_rec = h5py.File(fnameout,'a') 
+            # except:
+                # log.warning('removing existing h5')
+            os.system(f'rm -rf {fnameout}')
+            fid_rec = h5py.File(fnameout,'w') 
             sid =  '/exchange/recon'            
-            rec_dataset = fid_rec.get(sid)
-            if rec_dataset is not None: 
-                if (rec_dataset.shape[-1]!=self.n) or (rec_dataset.dtype!='float32'):
-                    del fid_rec[sid]
-                    rec_dataset = fid_rec.create_dataset(sid, (data.shape[1],self.n, self.n), chunks=(32,32,32),dtype='float32')
-            else:
-                rec_dataset = fid_rec.create_dataset(sid, (data.shape[1],self.n, self.n), chunks=(32,32,32),dtype='float16')
-        
+            # rec_dataset = fid_rec.get(sid)
+            # if rec_dataset is not None: 
+                # if (rec_dataset.shape[-1]!=self.n) or (rec_dataset.dtype!=self.args.dtype):
+                    # del fid_rec[sid]
+                    # rec_dataset = fid_rec.create_dataset(sid, shape = (data.shape[1],self.n, self.n), chunks =(1,self.n, self.n),  dtype=self.args.dtype)
+            # else:
+            rec_dataset = fid_rec.create_dataset(sid, shape = (data.shape[1],self.n, self.n),chunks =(1,self.n, self.n), dtype=self.args.dtype)
+
+
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
@@ -301,28 +309,27 @@ class GPURec():
             stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2], ::-1].copy()
+                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2], ::-1].copy()#.astype('float32')
                 if self.args.save_format=='tiff':
                     write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                                    args=(rec_pinned0,),
-                                                    kwargs={'fname': fnameout,
-                                                            'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
-                                                            'overwrite': True})
+                                                args=(rec_pinned0,),
+                                                kwargs={'fname': fnameout,
+                                                        'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
+                                                        'overwrite': True})
                 elif self.args.save_format=='h5':
                     write_thread = threading.Thread(target=self.write_h5,
                                     args=(rec_pinned0, rec_dataset, (k-2)*self.nz+self.args.start_row//2**self.args.binning))                    
                 write_threads.append(write_thread)
                 write_thread.start()
-                    
             stream1.synchronize()
             stream2.synchronize()
         log.info(f'Output: {fnameout}')
-        
-        
         fname_rec_line = os.path.dirname(fnameout)+'/rec_line.txt'
         log.info(f'Saving log to {fname_rec_line}')
+        reccmd = sys.argv
+        reccmd[0] = os.path.basename(reccmd[0])
         with open(fname_rec_line, 'w') as f:
-            f.write(' '.join(sys.argv))
+            f.write(' '.join(reccmd))
         # wait until reconstructions are written to hard disk
         for thread in write_threads:
             thread.join()
@@ -359,8 +366,8 @@ class GPURec():
         idslice = int(self.args.nsino*(data.shape[1]-1)/2**self.args.binning)*2**self.args.binning
         log.info(f'Try rotation center reconstruction for slice {idslice}')
         data = data[self.ids_proj, idslice:idslice+2**self.args.binning]
-        dark = dark[:, idslice:idslice+2**self.args.binning].astype('float32')
-        flat = flat[:, idslice:idslice+2**self.args.binning].astype('float32')
+        dark = dark[:, idslice:idslice+2**self.args.binning].astype(self.args.dtype)
+        flat = flat[:, idslice:idslice+2**self.args.binning].astype(self.args.dtype)
         data = np.append(data,data,1)
         dark = np.append(dark,dark,1)
         flat = np.append(flat,flat,1)
@@ -370,7 +377,7 @@ class GPURec():
         data = cp.ascontiguousarray(cp.array(data))
         dark = cp.ascontiguousarray(cp.array(dark))
         flat = cp.ascontiguousarray(cp.array(flat))
-        rec = cp.zeros([self.nz, self.n, self.n], dtype='float32')
+        rec = cp.zeros([self.nz, self.n, self.n], dtype=self.args.dtype)
         shift_array = np.arange(-self.args.center_search_width,
                                 self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
 
@@ -381,10 +388,10 @@ class GPURec():
 
         with cp.cuda.Stream(non_blocking=False):
             rec_cpu_list = self.recon_try(rec, data, dark, flat, shift_array*mul)        
-        
+        log.info(f'Saving data')
         if self.args.save_format=='tiff':
             fnameout = os.path.dirname(
-                self.args.file_name)+'_recgpu/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/r_'
+                self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/recon_'
             log.info(f'Output: {fnameout}')
             write_threads = []
             # avoid simultaneous directory creation
@@ -392,7 +399,7 @@ class GPURec():
                 rec_cpu_list[0], f'{fnameout}{((self.centeri-shift_array[0])*2**self.args.binning):08.2f}', overwrite=True)
             for k in range(1, len(shift_array)):
                 write_thread = threading.Thread(target=dxchange.write_tiff,
-                                                args=(rec_cpu_list[k],),
+                                                args=(rec_cpu_list[k][::-1],),
                                                 kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}',
                                                         'overwrite': True})
                 write_threads.append(write_thread)
@@ -403,16 +410,25 @@ class GPURec():
             if not os.path.exists(os.path.dirname(self.args.file_name)+'_rec/try_center'):
                 os.makedirs(os.path.dirname(self.args.file_name)+'_rec/try_center')
             fnameout = os.path.dirname(self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]+'_try.h5'
-            fid_rec = h5py.File(fnameout,'a') 
-                
-            log.info(f'Output: {fnameout}')
-            for k in range(0, len(shift_array)):
-                sid  = f'/exchange/r_{((self.centeri-shift_array[k])*2**self.args.binning):08.2f}'
-                ds = fid_rec.get(sid)
-                if ds is not None: 
-                    if (ds.shape[-1]!=rec_cpu_list[k].shape[-1]) or (ds.dtype!=rec_cpu_list[k].dtype):
-                        del fid_rec[sid]
-                        ds = fid_rec.create_dataset(sid, rec_cpu_list[k].shape, dtype=rec_cpu_list[k].dtype)                  
-                else:
-                    ds = fid_rec.create_dataset(sid, rec_cpu_list[k].shape, dtype=rec_cpu_list[k].dtype)  
-                ds[:] = rec_cpu_list[k]
+            os.system(f'rm -rf {fnameout}')
+            fid_rec = h5py.File(fnameout,'w') 
+            ds = fid_rec.create_dataset('/exchange/recon', shape = (len(shift_array),*rec_cpu_list[0].shape),dtype = rec_cpu_list[0].dtype)
+            import matplotlib.pyplot as plt
+            # write text with the rotation center directly to images
+            fig = plt.figure(figsize=(6, 1), dpi=100*self.n/2048)
+            fig.add_subplot(111)
+            shift_array = shift_array[::-1]
+            rec_cpu_list = rec_cpu_list[::-1]
+            for k in range(len(shift_array)):     
+                plt.cla()                
+                plt.axis('off')                            
+                plt.text(-0.1,0,f'{((self.centeri-shift_array[k])*2**self.args.binning):.2f}',fontsize=80)
+                fig.canvas.draw()
+                tdata = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+                tdata = tdata.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+                tdata = (255-tdata[:,:,0]).astype(self.args.dtype)
+                tdata[tdata<128] = 0
+                tdata[tdata>128] = np.inf
+                ds[k] = rec_cpu_list[k][::-1]
+                ds[k,:tdata.shape[0],:tdata.shape[1]] = tdata            
+            log.info(f'Output: {fnameout}')            

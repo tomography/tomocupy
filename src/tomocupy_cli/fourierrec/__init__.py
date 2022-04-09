@@ -1,2 +1,2 @@
 
-from tomocupy_cli.fourierrec.fourierrec import *
+from tomocupyfp16_cli.fourierrec.fourierrec import *

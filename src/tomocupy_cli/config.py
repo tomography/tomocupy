@@ -14,7 +14,7 @@ import inspect
 import h5py
 import numpy as np
 
-from tomocupy_cli import utils
+from tomocupyfp16_cli import utils
 
 
 log = logging.getLogger(__name__)
@@ -108,12 +108,7 @@ SECTIONS['file-reading'] = {
     'blocked-views': {
         'default': False,
         'help': 'When set, the blocked-views options are used',
-        'action': 'store_true'},   
-    'save-format': {
-        'default': 'tiff',
-        'type': str,
-        'help': "Output format",
-        'choices': ['tiff', 'h5']},         
+        'action': 'store_true'},    
     }
 
 
@@ -250,6 +245,21 @@ SECTIONS['reconstruction'] = {
         'default': '[0,1499]',
         'type': str,
         'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.",},        
+    'dtype': {
+        'default': 'float32',
+        'type': str,
+        'choices': ['float32', 'float16'],    
+        'help': "Data type used for reconstruction. Note float16 works with power of 2 sizes.",},        
+    'save-format': {
+        'default': 'tiff',
+        'type': str,
+        'help': "Output format",
+        'choices': ['tiff', 'h5']},     
+    'gridrec-filter': {
+        'default': 'parzen',
+        'type': str,
+        'help': "Filter for FBP reconstruction",
+        'choices': ['shepp', 'parzen']},   
     }
 
 

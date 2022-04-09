@@ -21,7 +21,7 @@ def remove_stripe_fw(data, sigma, wname, level):
     sli = torch.zeros([nz, 1, nproj_pad, ni], device='cuda')
 
     sli[:, 0, (nproj_pad - nproj)//2:(nproj_pad + nproj) //
-        2] = torch.as_tensor(data.swapaxes(0, 1), device='cuda')
+        2] = torch.as_tensor(data.astype('float32').swapaxes(0, 1), device='cuda')
     for k in range(level):
         sli, c = xfm(sli)
         cc.append(c)
@@ -42,7 +42,7 @@ def remove_stripe_fw(data, sigma, wname, level):
         sli = ifm((sli, cc[k]))
 
     data = cp.asarray(sli[:, 0, (nproj_pad - nproj) //
-                      2:(nproj_pad + nproj)//2, :ni])
+                      2:(nproj_pad + nproj)//2, :ni]).astype(data.dtype) #modified
     data = data.swapaxes(0, 1)
 
     return data
