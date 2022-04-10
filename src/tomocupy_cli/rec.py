@@ -63,11 +63,11 @@ class GPURec():
             n = ni
             center = centeri
 
-        #if args.dtype=='float16':                        
-        center += (2**int(np.log2(ni))-ni)/2
-        ni = 2**int(np.log2(ni))
-        n = 2**int(np.log2(n))
-        log.warning(f'Crop data to the power of 2 sizes to work with 16bit precision {ni}')
+        if args.dtype=='float16':                        
+            center += (2**int(np.log2(ni))-ni)/2
+            ni = 2**int(np.log2(ni))
+            n = 2**int(np.log2(n))
+            log.warning(f'Crop data to the power of 2 sizes to work with 16bit precision, output size in x dimension {ni}')
                 
         # blocked views fix
         ids_proj = np.arange(len(theta))[args.start_proj:args.end_proj]
@@ -275,7 +275,7 @@ class GPURec():
                 fnameout = os.path.dirname(
                     self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
             else:
-                fnameout = str(self.args.out_path_name)+'/r'
+                fnameout = str(self.args.out_path_name)+'/recon'
         elif self.args.save_format=='h5':
             if not os.path.isdir(os.path.dirname(self.args.file_name)+'_rec'):
                 os.mkdir(os.path.dirname(self.args.file_name)+'_rec')
