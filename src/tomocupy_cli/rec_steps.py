@@ -466,7 +466,7 @@ class GPURecSteps():
             stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2]].copy()
+                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2]][::-1].copy()
                 if self.args.save_format=='tiff':
                     write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                 args=(rec_pinned0,),
