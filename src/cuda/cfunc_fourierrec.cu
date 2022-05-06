@@ -1,6 +1,6 @@
 #include "cfunc_fourierrec.cuh"
 #include "kernels_fourierrec.cuh"
-#include <stdio.h>
+
 cfunc_fourierrec::cfunc_fourierrec(size_t nproj, size_t nz, size_t n, size_t theta_)
     : nproj(nproj), nz(nz), n(n) {
     float eps = 1e-2;
@@ -18,7 +18,6 @@ cfunc_fourierrec::cfunc_fourierrec(size_t nproj, size_t nz, size_t n, size_t the
             (ne/2+1) * nproj * 2 * nz * sizeof(real2));
     cudaMalloc((void **)&x, n * nproj * sizeof(float));
     cudaMalloc((void **)&y, n * nproj * sizeof(float));
-    
     
     long long ffts[] = {2*n,2*n};
 	  long long idist = (2 * n + 2 * m) * (2 * n + 2 * m);long long odist = (2 * n + 2 * m) * (2 * n + 2 * m);
