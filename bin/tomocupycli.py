@@ -67,6 +67,35 @@ def run_recmulti(args):
     # recover terminal
     os.system('stty sane')
     
+def defaults_from_dxchange(file_name):
+
+    hf = h5py.File(file_name)
+    energy_mode = int(hf['measurement/instrument/monochromator/energy_mode'][:])
+    if energy_mode < 2:
+        energy = float(hf['measurement/instrument/monochromator/energy'][:])
+    else:
+        energy = 50.0 # what should be white-beam mean energy?
+
+    pixel_size = float(hf['measurement/instrument/detection_system/objective/resolution'][:])
+    dist = float(hf['measurement/instrument/camera_motor_stack/setup/camera_distance'][:])
+    hf.close()
+    meta_dict = {"pixel_size" : pixel_size, "propagation_distance" : dist, "energy" : energy}
+    print(f'DEBUG: {meta_dict}')
+    return meta_dict
+
+def get_file_name():
+    """Get the command line --config option."""
+    for i, arg in enumerate(sys.argv):
+        if arg.startswith('--file-name'):
+            if arg == '--file-name':
+                return sys.argv[i + 1]
+            else:
+                name = sys.argv[i].split('--file-name')[1]
+                if name[0] == '=':
+                    name = name[1:]
+                return name
+    return name
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -83,6 +112,8 @@ def main():
         ('status',      run_status,      tomo_steps_params,                    "Show the tomographic reconstruction status"),        
     ]
 
+    file_name = get_file_name()
+    dxchange_defaults = defaults_from_dxchange(file_name)
     subparsers = parser.add_subparsers(title="Commands", metavar='')
 
     for cmd, func, sections, text in cmd_parsers:
@@ -90,8 +121,12 @@ def main():
         cmd_parser = subparsers.add_parser(cmd, help=text, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         cmd_parser = cmd_params.add_arguments(cmd_parser)
         cmd_parser.set_defaults(_func=func)
+        cmd_parser.set_defaults(**dxchange_defaults)
 
-    args = config.parse_known_args(parser, subparser=True)
+    args = config.parse_known_args(parser, subparser=True) # need to do this twice so as to get file-name in advance??
+    print(f'DEBUG: energy {args.energy}, pixel_size {args.pixel_size}')
+
+    
     # create logger
     logs_home = args.logs_home
 
