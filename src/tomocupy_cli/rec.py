@@ -276,12 +276,13 @@ class GPURec():
         if self.args.save_format == 'tiff':
             if(self.args.out_path_name is None):
                 fnameout = os.path.dirname(
-                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec'  
+                os.system(f'mkdir -p {fnameout}')
+                fnameout+='/recon'              
             else:
                 fnameout = str(self.args.out_path_name)+'/recon'
         elif self.args.save_format == 'h5':
-            if not os.path.isdir(os.path.dirname(self.args.file_name)+'_rec'):
-                os.mkdir(os.path.dirname(self.args.file_name)+'_rec')
+            os.system(f'mkdir -p {os.path.dirname(self.args.file_name)}_rec')
             if(self.args.out_path_name is None):
                 fnameout = os.path.dirname(
                     self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec.h5'
@@ -407,7 +408,9 @@ class GPURec():
         stream3 = cp.cuda.Stream(non_blocking=False)
 
         fnameout = os.path.dirname(
-            self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]+'/recon_'
+            self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
+        os.system(f'mkdir -p {fnameout}')
+        fnameout+='/recon'        
         log.info(f'Output: {fnameout}')
         write_threads = []
         # Conveyor for data cpu-gpu copy and reconstruction
@@ -436,7 +439,7 @@ class GPURec():
                         write_thread = threading.Thread(target=dxchange.write_tiff,
                                                         args=(
                                                             rec_pinned0[kk],),
-                                                        kwargs={'fname': f'{fnameout}{((self.centeri-shift_array[(k-2)*self.nz+kk])*2**self.args.binning):08.2f}',
+                                                        kwargs={'fname': f'{fnameout}_{((self.centeri-shift_array[(k-2)*self.nz+kk])*2**self.args.binning):08.2f}',
                                                                 'overwrite': True})
                         write_threads.append(write_thread)
                         write_thread.start()

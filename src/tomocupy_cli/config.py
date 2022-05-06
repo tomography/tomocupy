@@ -264,6 +264,10 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 0,
         'help': "Crop from each side of the slice"},
+    'dezinger': {
+        'type': int,
+        'default': 0,
+        'help': "Radius for removing outliers"},
     }
 
 

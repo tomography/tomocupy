@@ -79,3 +79,4 @@ def signal_handler(sig, frame):
 def write_h5(data, rec_dataset, start):
     """Save reconstruction chunk to an hdf5"""
     rec_dataset[start:start+data.shape[0]] = data
+
