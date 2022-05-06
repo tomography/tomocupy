@@ -471,11 +471,11 @@ class GPURecSteps():
                     write_thread = threading.Thread(target=dxchange.write_tiff_stack,
                                                 args=(rec_pinned0,),
                                                 kwargs={'fname': fnameout,
-                                                        'start':  (k-2)*self.nz+self.args.start_row//2**self.args.binning,
+                                                        'start':  (k-2)*self.nzp+self.args.start_row//2**self.args.binning,
                                                         'overwrite': True})
                 elif self.args.save_format=='h5':
                     write_thread = threading.Thread(target=self.write_h5,
-                                    args=(rec_pinned0, rec_dataset, (k-2)*self.nz+self.args.start_row//2**self.args.binning))                    
+                                    args=(rec_pinned0, rec_dataset, (k-2)*self.nzp+self.args.start_row//2**self.args.binning))                    
 
                 write_threads.append(write_thread)
                 write_thread.start()
