@@ -3,15 +3,17 @@ from tomocupy_cli import retrieve_phase, remove_stripe
 from tomocupy_cli import find_rotation
 from tomocupy_cli import utils
 from tomocupy_cli import logging
-from cupyx.scipy.fft import rfft, irfft
+import multiprocessing as mp
+import threading
+#from cupyx.scipy.fft import rfft, irfft
 import cupy as cp
 import numpy as np
 import numexpr as ne
 import dxchange
-import threading
 import h5py
 import os
 import signal
+import sys
 
 pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
@@ -127,24 +129,32 @@ class GPURecSteps():
     
     def fbp_filter_center(self, data, sh=0):
         """FBP filtering of projections"""
-        
+
         ne = 3*self.n//2
-        if self.args.dtype=='float16':
-            ne = 2**int(np.ceil(np.log2(3*self.n//2)))# power of 2 for float16
+        if self.args.dtype == 'float16':
+            # power of 2 for float16
+            ne = 2**int(np.ceil(np.log2(3*self.n//2)))
         t = cp.fft.rfftfreq(ne).astype('float32')
         if self.args.gridrec_filter == 'parzen':
-            w = t * (1 - t * 2)**3  
+            w = t * (1 - t * 2)**3
         elif self.args.gridrec_filter == 'shepp':
-            w = t * cp.sinc(t)  
-        
-        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sh+self.n/2))  # center fix
-                
+            w = t * cp.sinc(t)
+        sht = cp.zeros([self.nz, 1], dtype='float32')
+
+        if isinstance(sh, cp.ndarray):
+            # try
+            data = cp.tile(data, (self.nz//2, 1, 1))
+            sht[:len(sh)] = sh.reshape(len(sh), 1)
+        else:
+            # full
+            sht[:] = sh
+        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sht+self.n/2))  # center fix
         data = cp.pad(
             data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
-        self.cl_rec.filter(data,w,cp.cuda.get_current_stream())
+        self.cl_rec.filter(data, w, cp.cuda.get_current_stream())
         # data = irfft(
-            # w*rfft(data, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
-        data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]            
+        # w*rfft(data, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
+        data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]
 
         return data
 
@@ -205,7 +215,7 @@ class GPURecSteps():
                   (k+1)*lchunk, self.args.start_row:self.args.end_row]
         data[k*lchunk:self.args.start_proj+(k+1)*lchunk] = self.downsample(d)
 
-    def read_data_parallel(self, nthreads=8):
+    def read_data_parallel(self, nproc=8):
         """Read data in parallel chunks (good for SSD disks)"""
 
         fid = h5py.File(self.args.file_name, 'r')
@@ -221,15 +231,15 @@ class GPURecSteps():
         # parallel read of projections
         data = np.zeros([self.nproj, self.nz, self.ni],
                         dtype=fid['exchange/data'].dtype)
-        lchunk = int(np.ceil(self.nproj/nthreads))
-        threads = []
-        for k in range(nthreads):
-            read_thread = threading.Thread(target=self.read_data, args=(
+        lchunk = int(np.ceil(self.nproj/nproc))
+        procs = []
+        for k in range(nproc):
+            read_proc = threading.Thread(target=self.read_data, args=(
                 data, fid['exchange/data'], k, lchunk))
-            threads.append(read_thread)
-            read_thread.start()
-        for thread in threads:
-            thread.join()
+            procs.append(read_proc)
+            read_proc.start()
+        for proc in procs:
+            proc.join()
 
         return data, dark, flat
     
@@ -294,9 +304,9 @@ class GPURecSteps():
 
         # pinned memory for res
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.nproj, self.ncz, self.n], dtype=self.args.dtype))
+            np.zeros([2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype))
         # gpu memory for res
-        rec = cp.zeros([2, self.nproj, self.ncz, self.n], dtype=self.args.dtype)
+        rec = cp.zeros([2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype)
 
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
@@ -345,17 +355,17 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.n], dtype=self.args.dtype))
+            np.zeros([2, self.ncproj, self.nz, self.ni], dtype=self.args.dtype))
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.ncproj, self.nz, self.n], dtype=self.args.dtype)
+            [2, self.ncproj, self.nz, self.ni], dtype=self.args.dtype)
 
         # pinned memory for processed data
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.n], dtype=self.args.dtype))
+            np.zeros([2, self.ncproj, self.nz, self.ni], dtype=self.args.dtype))
         # gpu memory for processed data
-        rec = cp.zeros([2, self.ncproj, self.nz, self.n], dtype=self.args.dtype)
+        rec = cp.zeros([2, self.ncproj, self.nz, self.ni], dtype=self.args.dtype)
         
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
@@ -380,7 +390,7 @@ class GPURecSteps():
 
             stream3.synchronize()
             if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)
+                # add a new proc for writing to hard disk (after gpu->cpu copy is done)
                 res[(k-2)*self.ncproj:(k-2)*self.ncproj+lchunk[k-2]
                     ] = rec_pinned[(k-2) % 2, :lchunk[k-2]].copy()
             stream1.synchronize()
@@ -410,43 +420,56 @@ class GPURecSteps():
         # gpu memory for reconstrution
         rec = cp.zeros([2, self.ncz, self.n, self.n], dtype=self.args.dtype)
 
-        # list of threads for parallel writing to hard disk
-        write_threads = []
+        # init output files                
+        if(self.args.out_path_name is None):
+            fnameout = os.path.dirname(
+                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec'  
+            os.system(f'mkdir -p {fnameout}')
+        else:
+            fnameout = str(self.args.out_path_name)
+
+        if self.args.save_format == 'tiff':
+            # if save results as tiff
+            fnameout+='/recon'                          
+            # saving command line for reconstruction
+            fname_rec_line = os.path.dirname(fnameout)+'/rec_line.txt'
+            rec_line = sys.argv
+            rec_line[0] = os.path.basename(rec_line[0])
+            with open(fname_rec_line, 'w') as f:
+                f.write(' '.join(rec_line))
+
+        elif self.args.save_format == 'h5':
+            # if save results as h5 virtual datasets
+            fnameout+='.h5'            
+            # Assemble virtual dataset
+            layout = h5py.VirtualLayout(shape=(data.shape[1], self.n, self.n), dtype=self.args.dtype)
+            os.system(f'mkdir -p {fnameout[:-3]}_parts')
+            for k in range(nchunk):
+                filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
+                vsource = h5py.VirtualSource(filename, "/exchange/recon", shape=(lchunk[k],self.n,self.n), dtype=self.args.dtype)
+                st = self.args.start_row//2**self.args.binning+k*self.ncz
+                layout[st:st+lchunk[k]] = vsource
+            # Add virtual dataset to output file
+            rec_virtual =  h5py.File(fnameout, "w")            
+            rec_virtual.create_virtual_dataset("/exchange/recon", layout, fillvalue=0)
+            # saving command line for reconstruction
+            rec_line = sys.argv
+            # remove full path to the file
+            rec_line[0] = os.path.basename(rec_line[0])            
+            s = ' '.join(rec_line).encode("utf-8")
+            # save as an attribute in hdf5 file
+            rec_virtual.attrs["rec_line"] = np.array(s, dtype=h5py.string_dtype('utf-8', len(s)))
+            
+
+        # list of procs for parallel writing to hard disk
+        write_proces = []
 
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
         stream2 = cp.cuda.Stream(non_blocking=False)
         stream3 = cp.cuda.Stream(non_blocking=False)
         
-        if self.args.save_format=='tiff':
-            if(self.args.out_path_name is None):
-                fnameout = os.path.dirname(
-                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec/recon'
-            else:
-                fnameout = str(self.args.out_path_name)+'/r'
-        elif self.args.save_format=='h5':
-            if not os.path.isdir(os.path.dirname(self.args.file_name)+'_rec'):
-                os.mkdir(os.path.dirname(self.args.file_name)+'_rec')
-            if(self.args.out_path_name is None):
-                fnameout = os.path.dirname(
-                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec.h5'
-            else:
-                fnameout = str(self.args.out_path_name)
-            # try:
-            #     fid_rec = h5py.File(fnameout,'a') 
-            # except:
-            #     log.warning('removing existing h5')
-            os.system(f'rm -rf {fnameout}')
-            fid_rec = h5py.File(fnameout,'w') 
-            sid =  '/exchange/recon'            
-            # rec_dataset = fid_rec.get(sid)
-            # if rec_dataset is not None: 
-                # if (rec_dataset.shape[-1]!=self.n) or (rec_dataset.dtype!=self.args.dtype):
-                    # del fid_rec[sid]
-                    # rec_dataset = fid_rec.create_dataset(sid, shape = (data.shape[1],self.n, self.n), chunks =(1,self.n, self.n),  dtype=self.args.dtype)
-            # else:
-            rec_dataset = fid_rec.create_dataset(sid, shape = (data.shape[1],self.n, self.n),chunks =(1,self.n, self.n), dtype=self.args.dtype)
-
+       
 
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nchunk+2):
@@ -465,23 +488,35 @@ class GPURecSteps():
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
             stream3.synchronize()
             if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2]][::-1].copy()
-                if self.args.save_format=='tiff':
-                    write_thread = threading.Thread(target=dxchange.write_tiff_stack,
-                                                args=(rec_pinned0,),
-                                                kwargs={'fname': fnameout,
-                                                        'start':  (k-2)*self.nzp+self.args.start_row//2**self.args.binning,
-                                                        'overwrite': True})
-                elif self.args.save_format=='h5':
-                    write_thread = threading.Thread(target=self.write_h5,
-                                    args=(rec_pinned0, rec_dataset, (k-2)*self.nzp+self.args.start_row//2**self.args.binning))                    
+                # add a new proc for writing to hard disk (after gpu->cpu copy is done)
+                rec_pinned0 = rec_pinned[(k-2) % 2, :lchunk[k-2]].copy()
+                if self.args.crop > 0:
+                    rec_pinned0 = rec_pinned0[:, self.args.crop:-
+                                              self.args.crop, self.args.crop:-self.args.crop]
 
-                write_threads.append(write_thread)
-                write_thread.start()
+                if self.args.save_format == 'tiff':
+                    write_proc = mp.Process(target=dxchange.write_tiff_stack,
+                                                    args=(rec_pinned0,),
+                                                    kwargs={'fname': fnameout,
+                                                            'start':  (k-2)*self.ncz+self.args.start_row//2**self.args.binning,
+                                                            'overwrite': True})
+                elif self.args.save_format == 'h5':
+                    filename = f"{fnameout[:-3]}_parts/p{(k-2):04d}.h5"
+                    write_proc = mp.Process(target=utils.write_h5,args=(rec_pinned0, filename))
+                write_proces.append(write_proc)
+                write_proc.start()
+
             stream1.synchronize()
             stream2.synchronize()
         log.info(f'Output: {fnameout}')
+        fname_rec_line = os.path.dirname(fnameout)+'/rec_line.txt'
+
+        log.info(f'Saving reconstruction command to {fname_rec_line}')
+        reccmd = sys.argv
+        reccmd[0] = os.path.basename(reccmd[0])
+        with open(fname_rec_line, 'w') as f:
+            f.write(' '.join(reccmd))
         # wait until reconstructions are written to hard disk
-        for thread in write_threads:
-            thread.join()
+        for proc in write_proces:
+            proc.join()
+

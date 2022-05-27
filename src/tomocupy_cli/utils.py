@@ -2,7 +2,8 @@ import numpy as np
 import cupy as cp
 import argparse
 import os
-
+import h5py
+import time
 # timing functions
 
 def tic():
@@ -76,7 +77,7 @@ def signal_handler(sig, frame):
     os.system('kill -9 $PPID')
 
 
-def write_h5(data, rec_dataset, start):
+def write_h5(data, filename):
     """Save reconstruction chunk to an hdf5"""
-    rec_dataset[start:start+data.shape[0]] = data
-
+    with h5py.File(filename, "w") as fid:
+        fid.create_dataset("/exchange/recon", data = data,chunks=(1,data.shape[1],data.shape[1]))
