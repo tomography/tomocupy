@@ -34,7 +34,7 @@ def run_rec(args):
         if(args.reconstruction_type=='full'):
             clpthandle.recon_all()
         if(args.reconstruction_type=='try'):
-            clpthandle.recon_all_try()
+            clpthandle.recon_try()
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
@@ -56,8 +56,8 @@ def run_recmulti(args):
         with h5py.File(args.file_name,'r') as fid:
            args.end_row = fid['/exchange/data/'].shape[1]
     
-    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupyfp16; tomocupyfp16 recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\';\""
-    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupyfp16; tomocupyfp16 recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'; \""
+    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\';\""
+    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'; \""
     print(f'Tomo1: {cmd1}')
     p1 = subprocess.Popen(cmd1,shell=True)
     print(f'Tomo2: {cmd2}')

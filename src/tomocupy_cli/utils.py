@@ -2,20 +2,6 @@ import numpy as np
 import cupy as cp
 import argparse
 import os
-import h5py
-import time
-# timing functions
-
-def tic():
-    import time
-    global startTime_for_tictoc
-    startTime_for_tictoc = time.time()
-
-
-def toc():
-    import time
-    if 'startTime_for_tictoc' in globals():
-        return time.time() - startTime_for_tictoc
 
 # Print iterations progress
 
@@ -75,9 +61,3 @@ def signal_handler(sig, frame):
 
     print('Abort')
     os.system('kill -9 $PPID')
-
-
-def write_h5(data, filename):
-    """Save reconstruction chunk to an hdf5"""
-    with h5py.File(filename, "w") as fid:
-        fid.create_dataset("/exchange/recon", data = data,chunks=(1,data.shape[1],data.shape[1]))
