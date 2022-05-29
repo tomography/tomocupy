@@ -1,4 +1,3 @@
-from tomocupy_cli import logging
 import unittest
 import os
 import filecmp
@@ -7,7 +6,6 @@ import dxchange
 import inspect
 import h5py
 
-log = logging.getLogger(__name__)
 
 
 class SequentialTestLoader(unittest.TestLoader):
@@ -20,12 +18,10 @@ class SequentialTestLoader(unittest.TestLoader):
 class Tests(unittest.TestCase):
 
     def test_imports(self):
-        cmd = 'tomocupy recon -h > out.txt'
+        cmd = 'tomocupy recon -h'
         print(f'TEST {inspect.stack()[0][3]}: {cmd}')
         st = os.system(cmd)
-        result = filecmp.cmp("data/test_imports_out.txt", "out.txt", shallow=False)
-        self.assertEqual(st, 0)
-        self.assertEqual(result, True)
+        self.assertEqual(st, 0, 'Issues with import tomocupy')
         
     def test_try_recon(self):
         os.system('rm -rf data_rec')
