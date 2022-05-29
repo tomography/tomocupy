@@ -81,7 +81,7 @@ class GPURec():
         cl_conf = confio.ConfIO(args)
 
         self.n = cl_conf.n
-        self.nz = cl_conf.nz
+        self.ncz = cl_conf.ncz
         self.nproj = cl_conf.nproj
         self.center = cl_conf.center
         self.ni = cl_conf.ni
@@ -96,7 +96,7 @@ class GPURec():
         if args.reconstruction_algorithm == 'fourierrec':
             theta = cp.array(cl_conf.theta)
             self.cl_rec = fourierrec.FourierRec(
-                self.n, self.nproj, self.nz, theta, args.dtype)
+                self.n, self.nproj, self.ncz, theta, args.dtype)
 
         # queue for streaming projections
         self.data_queue = mp.Queue()
@@ -131,11 +131,11 @@ class GPURec():
             w = t * (1 - t * 2)**3
         elif self.args.gridrec_filter == 'shepp':
             w = t * cp.sinc(t)
-        sht = cp.zeros([self.nz, 1], dtype='float32')
+        sht = cp.zeros([self.ncz, 1], dtype='float32')
 
         if isinstance(sh, cp.ndarray):
             # try
-            data = cp.tile(data, (self.nz//2, 1, 1))
+            data = cp.tile(data, (self.ncz//2, 1, 1))
             sht[:len(sh)] = sh.reshape(len(sh), 1)
         else:
             # full
@@ -191,32 +191,32 @@ class GPURec():
 
         # start reading data to a queue
         read_proc = mp.Process(
-            target=self.cl_conf.read_data, args=(self.data_queue,))
+            target=self.cl_conf.read_data_to_queue, args=(self.data_queue,))
         read_proc.start()
 
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.nproj, self.nz, self.ni], dtype=self.args.dtype))
+            np.zeros([2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype))
         item_pinned['dark'] = utils.pinned_array(
-            np.zeros([2, self.ndark, self.nz, self.ni], dtype=self.args.dtype))
+            np.zeros([2, self.ndark, self.ncz, self.ni], dtype=self.args.dtype))
         item_pinned['flat'] = utils.pinned_array(
-            np.ones([2, self.nflat, self.nz, self.ni], dtype=self.args.dtype))
+            np.ones([2, self.nflat, self.ncz, self.ni], dtype=self.args.dtype))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.nproj, self.nz, self.ni], dtype=self.args.dtype)
+            [2, self.nproj, self.ncz, self.ni], dtype=self.args.dtype)
         item_gpu['dark'] = cp.zeros(
-            [2, self.ndark, self.nz, self.ni], dtype=self.args.dtype)
+            [2, self.ndark, self.ncz, self.ni], dtype=self.args.dtype)
         item_gpu['flat'] = cp.ones(
-            [2, self.nflat, self.nz, self.ni], dtype=self.args.dtype)
+            [2, self.nflat, self.ncz, self.ni], dtype=self.args.dtype)
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.nz, self.n, self.n], dtype=self.args.dtype))
+            np.zeros([2, self.ncz, self.n, self.n], dtype=self.args.dtype))
         # gpu memory for reconstrution
-        rec = cp.zeros([2, self.nz, self.n, self.n], dtype=self.args.dtype)
+        rec = cp.zeros([2, self.ncz, self.n, self.n], dtype=self.args.dtype)
 
         # streams for overlapping data transfers with computations
         stream1 = cp.cuda.Stream(non_blocking=False)
@@ -285,9 +285,9 @@ class GPURec():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.nz, self.n, self.n], dtype=self.args.dtype))
+            np.zeros([2, self.ncz, self.n, self.n], dtype=self.args.dtype))
         # gpu memory for reconstrution
-        rec = cp.zeros([2, self.nz, self.n, self.n], dtype=self.args.dtype)
+        rec = cp.zeros([2, self.ncz, self.n, self.n], dtype=self.args.dtype)
 
         # invert shifts for calculations if centeri<ni for double_fov
         mul = 1
@@ -307,7 +307,7 @@ class GPURec():
             if(k > 0 and k < self.nchunk+1):
                 with stream2:  # reconstruction
                     datat = self.fbp_filter_center(data, cp.array(
-                        mul*shift_array[(k-1)*self.nz:(k-1)*self.nz+self.lchunk[k-1]]))  # note multiplication by mul
+                        mul*shift_array[(k-1)*self.ncz:(k-1)*self.ncz+self.lchunk[k-1]]))  # note multiplication by mul
                     self.cl_rec.backprojection(
                         rec[(k-1) % 2], datat, cp.cuda.get_current_stream())
             if(k > 1):
@@ -319,7 +319,7 @@ class GPURec():
                 rec_pinned0 = rec_pinned[(k-2) % 2, :self.lchunk[k-2]].copy()
                 for kk in range(self.lchunk[k-2]):
                     cid = (self.centeri -
-                           shift_array[(k-2)*self.nz+kk])*2**self.args.binning
+                           shift_array[(k-2)*self.ncz+kk])*2**self.args.binning
                     write_proc = mp.Process(
                         target=self.cl_conf.write_data_try, args=(rec_pinned0[kk], cid))
                     write_procs.append(write_proc)

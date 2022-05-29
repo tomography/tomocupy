@@ -24,17 +24,19 @@ class ConfIO():
 
         file_in = h5py.File(self.args.file_name)
         # determine sizes
-        nslices, ni = file_in['/exchange/data'].shape[1:]
+        nz, ni = file_in['/exchange/data'].shape[1:]
         ndark = file_in['/exchange/data_dark'].shape[0]
         nflat = file_in['/exchange/data_white'].shape[0]
         theta = file_in['/exchange/theta'][:].astype('float32')/180*np.pi
+        in_dtype = file_in['exchange/data'].dtype
         if (self.args.end_row == -1):
             self.args.end_row = file_in['/exchange/data'].shape[1]
         if (self.args.end_proj == -1):
             self.args.end_proj = file_in['/exchange/data'].shape[0]
 
         # define chunk size for processing
-        nz = self.args.nsino_per_chunk
+        ncz = self.args.nsino_per_chunk
+        ncproj = self.args.nproj_per_chunk
         # take center
         centeri = self.args.rotation_axis
         if centeri == -1:
@@ -84,22 +86,24 @@ class ConfIO():
             shift_array = np.arange(-self.args.center_search_width,
                                     self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
 
-            nchunk = int(np.ceil(len(shift_array)/(nz)))
-            lchunk = np.minimum(nz, np.int32(
-                len(shift_array)-np.arange(nchunk)*nz))  # chunk sizes
+            nchunk = int(np.ceil(len(shift_array)/(ncz)))
+            lchunk = np.minimum(ncz, np.int32(
+                len(shift_array)-np.arange(nchunk)*ncz))  # chunk sizes
             self.shift_array = shift_array
         else:
             if self.args.end_row == -1:
-                nrow = nslices-self.args.start_row
+                nz = nz-self.args.start_row
             else:
-                nrow = self.args.end_row-self.args.start_row
-            nchunk = int(np.ceil(nrow/2**self.args.binning/nz))
+                nz = self.args.end_row-self.args.start_row
+            nchunk = int(np.ceil(nz/2**self.args.binning/ncz))
             lchunk = np.minimum(
-                nz, np.int32(nrow/2**self.args.binning-np.arange(nchunk)*nz))  # chunk sizes
+                ncz, np.int32(nz/2**self.args.binning-np.arange(nchunk)*ncz))  # chunk sizes
 
         self.n = n
         self.nz = nz
+        self.ncz = ncz
         self.nproj = nproj
+        self.ncproj = ncproj
         self.center = center
         self.ni = ni
         self.centeri = centeri
@@ -110,7 +114,7 @@ class ConfIO():
         self.nchunk = nchunk
         self.lchunk = lchunk
         self.file_in = file_in
-        self.nslices = nslices
+        self.in_dtype = in_dtype
 
     def init_output_files(self):
         """Constructing output file names and initiating the actual files"""
@@ -144,13 +148,13 @@ class ConfIO():
                 fnameout += '.h5'
                 # Assemble virtual dataset
                 layout = h5py.VirtualLayout(shape=(
-                    self.nslices//2**self.args.binning, self.n, self.n), dtype=self.args.dtype)
+                    self.file_in['exchange/data'].shape[1]//2**self.args.binning, self.n, self.n), dtype=self.args.dtype)
                 os.system(f'mkdir -p {fnameout[:-3]}_parts')
                 for k in range(self.nchunk):
                     filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                     vsource = h5py.VirtualSource(
                         filename, "/exchange/recon", shape=(self.lchunk[k], self.n, self.n), dtype=self.args.dtype)
-                    st = self.args.start_row//2**self.args.binning+k*self.nz
+                    st = self.args.start_row//2**self.args.binning+k*self.ncz
                     layout[st:st+self.lchunk[k]] = vsource
                 # Add virtual dataset to output file
                 rec_virtual = h5py.File(fnameout, "w")
@@ -167,7 +171,7 @@ class ConfIO():
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
-    def read_data(self, data_queue):
+    def read_data_to_queue(self, data_queue):
         """Reading data from hard disk and putting it to a queue"""
 
         # init references to data, no reading at this point
@@ -177,9 +181,9 @@ class ConfIO():
 
         for k in range(self.nchunk):
             item = {}
-            st = self.args.start_row+k*self.nz*2**self.args.binning
+            st = self.args.start_row+k*self.ncz*2**self.args.binning
             end = self.args.start_row + \
-                (k*self.nz+self.lchunk[k])*2**self.args.binning
+                (k*self.ncz+self.lchunk[k])*2**self.args.binning
             stn = data.shape[2]//2-self.ni//2*2**self.args.binning
             endn = data.shape[2]//2+self.ni//2*2**self.args.binning
             item['data'] = self.downsample(data[:,  st:end, stn:endn])[
@@ -198,7 +202,7 @@ class ConfIO():
 
         if self.args.save_format == 'tiff':
             dxchange.write_tiff_stack(rec, fname=self.fnameout, start=k *
-                                      self.nz+self.args.start_row//2**self.args.binning, overwrite=True)
+                                      self.ncz+self.args.start_row//2**self.args.binning, overwrite=True)
         elif self.args.save_format == 'h5':
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
@@ -251,9 +255,29 @@ class ConfIO():
 
     def write_data_try(self, rec, cid):
         """Write tiff reconstruction with a given name"""
-        
+
         if self.args.crop > 0:
             rec = rec[self.args.crop:-self.args.crop,
                       self.args.crop:-self.args.crop]
         dxchange.write_tiff(
             rec, f'{self.fnameout}_{cid:05.2f}.tiff', overwrite=True)
+
+    def read_data(self, data, k, lchunk):
+        """Read a chunk of projection with binning"""
+
+        d = self.file_in['exchange/data'][self.args.start_proj+k*lchunk:self.args.start_proj +
+                                          (k+1)*lchunk, self.args.start_row:self.args.end_row]
+        data[k*lchunk:self.args.start_proj+(k+1)*lchunk] = self.downsample(d)
+
+    def read_flat_dark(self):
+        """Read flat and dark"""
+
+        # read dark and flat, binning
+        dark = self.file_in['exchange/data_dark'][:,
+                                                  self.args.start_row:self.args.end_row].astype(self.args.dtype)
+        flat = self.file_in['exchange/data_white'][:,
+                                                   self.args.start_row:self.args.end_row].astype(self.args.dtype)
+        flat = self.downsample(flat)
+        dark = self.downsample(dark)
+
+        return flat, dark
