@@ -146,7 +146,7 @@ class Tests(unittest.TestCase):
         st = os.system(cmd)
         self.assertEqual(st, 0)
         ssum=np.sum(dxchange.read_tiff_stack(f'data_rec/test_data_rec/recon_00000.tiff', ind = range(0,22)))
-        self.assertAlmostEqual(ssum, 1459.2646, places=2)
+        self.assertAlmostEqual(ssum, 1459.2646, places=0)
 
     def test_full_recon_remove_stripe_fw_f16(self):
         os.system('rm -rf data_rec')
@@ -185,5 +185,5 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(ssum, 1099.7876, places=-2)
     
 if __name__ == '__main__':
-    unittest.main(testLoader=SequentialTestLoader(),failfast=True)
+    unittest.main(testLoader=SequentialTestLoader(),failfast=False)
     
