@@ -132,7 +132,7 @@ class ConfIO():
                 self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
             os.system(f'mkdir -p {fnameout}')
             fnameout += '/recon'
-        else:
+        elif self.args.reconstruction_type == 'full':
             # init output files
             if(self.args.out_path_name is None):
                 fnameout = os.path.dirname(
@@ -175,7 +175,22 @@ class ConfIO():
                 # save as an attribute in hdf5 file
                 rec_virtual.attrs["rec_line"] = np.array(
                     s, dtype=h5py.string_dtype('utf-8', len(s)))
+                
+                try:# trying to copy meta 
+                    import meta
+                    tree, meta_dict = meta.read_hdf(self.args.file_name)                
+                    for key, value in meta_dict.items():
+                        # print(key, value)
+                        dset = rec_virtual.create_dataset(key, data=value[0])
+                        if value[1] is not None:
+                            dset.attrs['units'] = value[1]
+                except: 
+                    log.info('Skip copying meta')
+                    pass
+        else:
+            return
 
+                
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 

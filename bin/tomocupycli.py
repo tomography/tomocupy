@@ -30,16 +30,21 @@ def run_rec(args):
     file_name = Path(args.file_name)    
     if file_name.is_file():        
         t = time.time()
-        clpthandle = GPURec(args)        
-        if(args.reconstruction_type=='full'):            
+        
+        if(args.reconstruction_type=='full'):                        
             if args.rotation_axis_auto == 'auto':            
-                args.rotation_axis = clpthandle.find_center()
-                log.warning(f'set rotaion  axis {args.rotation_axis}')
+                args.reconstruction_type=='check'
                 clpthandle = GPURec(args)        
+                args.rotation_axis = clpthandle.find_center()
+                log.warning(f'set rotaion  axis {args.rotation_axis}')                
+                args.rotation_axis_auto == 'auto'            
+            clpthandle = GPURec(args)                        
             clpthandle.recon_all()
         if(args.reconstruction_type=='try'):
+            clpthandle = GPURec(args)        
             clpthandle.recon_try()
         if(args.reconstruction_type=='check'):
+            clpthandle = GPURec(args)        
             clpthandle.find_center()
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
