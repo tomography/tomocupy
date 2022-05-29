@@ -218,7 +218,7 @@ class ConfIO():
         """Writing the kth data chunk to hard disk"""
 
         if self.args.crop > 0:
-            rec_pinned0 = rec_pinned0[:, self.args.crop:-
+            rec = rec[:, self.args.crop:-
                                       self.args.crop, self.args.crop:-self.args.crop]
 
         if self.args.save_format == 'tiff':
