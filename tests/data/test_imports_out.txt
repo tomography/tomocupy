@@ -1,0 +1,102 @@
+usage: tomocupy recon [-h] [--binning {0,1,2,3}] [--blocked-views]
+                      [--file-name PATH] [--file-type {standard,double_fov}]
+                      [--out-path-name PATH]
+                      [--remove-stripe-method {none,fw}]
+                      [--center-search-step CENTER_SEARCH_STEP]
+                      [--center-search-width CENTER_SEARCH_WIDTH]
+                      [--crop CROP] [--dezinger DEZINGER]
+                      [--dtype {float32,float16}] [--end-proj END_PROJ]
+                      [--end-row END_ROW] [--gridrec-filter {shepp,parzen}]
+                      [--nproj-per-chunk NPROJ_PER_CHUNK] [--nsino NSINO]
+                      [--nsino-per-chunk NSINO_PER_CHUNK]
+                      [--reconstruction-algorithm {fourierrec,lprec}]
+                      [--reconstruction-type {full,try}]
+                      [--rotation-axis ROTATION_AXIS]
+                      [--rotation-axis-auto {manual,auto}]
+                      [--rotation-axis-pairs ROTATION_AXIS_PAIRS]
+                      [--save-format {tiff,h5}] [--start-proj START_PROJ]
+                      [--start-row START_ROW]
+                      [--blocked-views-end BLOCKED_VIEWS_END]
+                      [--blocked-views-start BLOCKED_VIEWS_START]
+                      [--fw-filter {haar,db5,sym5,sym16}]
+                      [--fw-level FW_LEVEL] [--fw-pad] [--fw-sigma FW_SIGMA]
+                      [--config FILE] [--config-update] [--logs-home FILE]
+                      [--verbose]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --binning {0,1,2,3}   Reconstruction binning factor as power(2, choice)
+                        (default: 0)
+  --blocked-views       When set, the blocked-views options are used (default:
+                        False)
+  --file-name PATH      Name of the last used hdf file or directory containing
+                        multiple hdf files (default: .)
+  --file-type {standard,double_fov}
+                        Input file type (default: standard)
+  --out-path-name PATH  Path for output files (default: None)
+  --remove-stripe-method {none,fw}
+                        Remove stripe method: none, fourier-wavelet (default:
+                        none)
+  --center-search-step CENTER_SEARCH_STEP
+                        +/- center search step (pixel). (default: 0.5)
+  --center-search-width CENTER_SEARCH_WIDTH
+                        +/- center search width (pixel). (default: 10.0)
+  --crop CROP           Crop from each side of the slice (default: 0)
+  --dezinger DEZINGER   Radius for removing outliers (default: 0)
+  --dtype {float32,float16}
+                        Data type used for reconstruction. Note float16 works
+                        with power of 2 sizes. (default: float32)
+  --end-proj END_PROJ   End projection (default: -1)
+  --end-row END_ROW     End slice (default: -1)
+  --gridrec-filter {shepp,parzen}
+                        Filter for FBP reconstruction (default: parzen)
+  --nproj-per-chunk NPROJ_PER_CHUNK
+                        Number of sinograms per chunk. Use larger numbers with
+                        computers with larger memory. Value <= 0 defaults to #
+                        of cpus. (default: 8)
+  --nsino NSINO         Location of the sinogram used for slice reconstruction
+                        and find axis (0 top, 1 bottom) (default: 0.5)
+  --nsino-per-chunk NSINO_PER_CHUNK
+                        Number of sinograms per chunk. Use larger numbers with
+                        computers with larger memory. (default: 8)
+  --reconstruction-algorithm {fourierrec,lprec}
+                        Reconstruction algorithm (default: fourierrec)
+  --reconstruction-type {full,try}
+                        Reconstruct full data set. (default: try)
+  --rotation-axis ROTATION_AXIS
+                        Location of rotation axis (default: -1.0)
+  --rotation-axis-auto {manual,auto}
+                        How to get rotation axis auto calculate ('auto'), or
+                        manually ('manual') (default: read_auto)
+  --rotation-axis-pairs ROTATION_AXIS_PAIRS
+                        Projection pairs to find rotation axis. Each second
+                        projection in a pair will be flipped and used to find
+                        shifts from the first element in a pair. The shifts
+                        are used to calculate the center. Example [0,1499] for
+                        a 180 deg scan, or [0,1499,749,2249] for 360, etc.
+                        (default: [0,1499])
+  --save-format {tiff,h5}
+                        Output format (default: tiff)
+  --start-proj START_PROJ
+                        Start projection (default: 0)
+  --start-row START_ROW
+                        Start slice (default: 0)
+  --blocked-views-end BLOCKED_VIEWS_END
+                        Angle of the last blocked view (default: 1)
+  --blocked-views-start BLOCKED_VIEWS_START
+                        Angle of the first blocked view (default: 0)
+  --fw-filter {haar,db5,sym5,sym16}
+                        Fourier-Wavelet remove stripe filter (default: sym16)
+  --fw-level FW_LEVEL   Fourier-Wavelet remove stripe level parameter
+                        (default: 7)
+  --fw-pad              When set, Fourier-Wavelet remove stripe extend the
+                        size of the sinogram by padding with zeros (default:
+                        True)
+  --fw-sigma FW_SIGMA   Fourier-Wavelet remove stripe damping parameter
+                        (default: 1)
+  --config FILE         File name of configuration file (default:
+                        /home/beams/USERTXM/tomocupyon.conf)
+  --config-update       When set, the content of the config file is updated
+                        using the current params values (default: False)
+  --logs-home FILE      Log file directory (default: /home/beams/USERTXM/logs)
+  --verbose             Verbose output (default: False)

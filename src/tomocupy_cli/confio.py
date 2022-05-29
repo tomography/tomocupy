@@ -58,10 +58,16 @@ class ConfIO():
             n = ni
             center = centeri
 
+        stn = 0
+        endn = ni
+        
         if self.args.dtype == 'float16':
             center += (2**int(np.log2(ni))-ni)/2
+            stn = (ni-2**int(np.log2(ni)))//2
+            endn = stn+2**int(np.log2(ni))
             ni = 2**int(np.log2(ni))
-            n = 2**int(np.log2(n))
+            n = 2**int(np.log2(n))            
+        
             log.warning(
                 f'Crop data to the power of 2 sizes to work with 16bit precision, output size in x dimension {ni}')
 
@@ -98,7 +104,7 @@ class ConfIO():
             nchunk = int(np.ceil(nz/2**self.args.binning/ncz))
             lchunk = np.minimum(
                 ncz, np.int32(nz/2**self.args.binning-np.arange(nchunk)*ncz))  # chunk sizes
-
+        
         self.n = n
         self.nz = nz
         self.ncz = ncz
@@ -115,6 +121,8 @@ class ConfIO():
         self.lchunk = lchunk
         self.file_in = file_in
         self.in_dtype = in_dtype
+        self.stn = stn
+        self.endn = endn
 
     def init_output_files(self):
         """Constructing output file names and initiating the actual files"""
@@ -183,13 +191,11 @@ class ConfIO():
             item = {}
             st = self.args.start_row+k*self.ncz*2**self.args.binning
             end = self.args.start_row + \
-                (k*self.ncz+self.lchunk[k])*2**self.args.binning
-            stn = data.shape[2]//2-self.ni//2*2**self.args.binning
-            endn = data.shape[2]//2+self.ni//2*2**self.args.binning
-            item['data'] = self.downsample(data[:,  st:end, stn:endn])[
+                (k*self.ncz+self.lchunk[k])*2**self.args.binning            
+            item['data'] = self.downsample(data[:,  st:end, self.stn:self.endn])[
                 self.ids_proj]
-            item['flat'] = self.downsample(flat[:,  st:end, stn:endn])
-            item['dark'] = self.downsample(dark[:,  st:end, stn:endn])
+            item['flat'] = self.downsample(flat[:,  st:end, self.stn:self.endn])
+            item['dark'] = self.downsample(dark[:,  st:end, self.stn:self.endn])
 
             data_queue.put(item)
 
@@ -264,19 +270,15 @@ class ConfIO():
 
     def read_data(self, data, k, lchunk):
         """Read a chunk of projection with binning"""
-
         d = self.file_in['exchange/data'][self.args.start_proj+k*lchunk:self.args.start_proj +
-                                          (k+1)*lchunk, self.args.start_row:self.args.end_row]
+                                          (k+1)*lchunk, self.args.start_row:self.args.end_row,self.stn:self.endn]
         data[k*lchunk:self.args.start_proj+(k+1)*lchunk] = self.downsample(d)
 
     def read_flat_dark(self):
         """Read flat and dark"""
-
         # read dark and flat, binning
-        dark = self.file_in['exchange/data_dark'][:,
-                                                  self.args.start_row:self.args.end_row].astype(self.args.dtype)
-        flat = self.file_in['exchange/data_white'][:,
-                                                   self.args.start_row:self.args.end_row].astype(self.args.dtype)
+        dark = self.file_in['exchange/data_dark'][:,self.args.start_row:self.args.end_row,self.stn:self.endn].astype(self.args.dtype)
+        flat = self.file_in['exchange/data_white'][:,self.args.start_row:self.args.end_row,self.stn:self.endn].astype(self.args.dtype)
         flat = self.downsample(flat)
         dark = self.downsample(dark)
 

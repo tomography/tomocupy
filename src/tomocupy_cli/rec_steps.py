@@ -241,7 +241,7 @@ class GPURecSteps():
 
         log.info('Step 1. Reading data.')
         data, flat, dark = self.read_data_parallel()
-
+        
         log.info('Step 2. Processing by chunks in z.')
         data = self.proc_sino_parallel(data, dark, flat)
 
