@@ -17,7 +17,7 @@ def find_min_max(data):
      
     return mmin,mmax
 
-def register_shift_sift(datap1,datap2):
+def register_shift_sift(datap1,datap2,th=0.5):
     """Find shifts via SIFT detecting features"""
 
     mmin,mmax = find_min_max(datap1)
@@ -44,7 +44,7 @@ def register_shift_sift(datap1,datap2):
         matches = match.knnMatch(des1,des2,k=2)
         good = []
         for m,n in matches:
-            if m.distance < 0.5*n.distance:
+            if m.distance < th*n.distance:
                 good.append(m)
         draw_params = dict(matchColor=(0,255,0),
                             singlePointColor=None,
@@ -55,4 +55,4 @@ def register_shift_sift(datap1,datap2):
         dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good ]).reshape(-1,1,2)
         shift = (src_pts-dst_pts)[:,0,:]
         shifts[id] = np.mean(shift,axis=0)[::-1]
-    return shifts
+    return shifts,len(good)

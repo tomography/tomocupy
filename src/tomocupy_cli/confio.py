@@ -283,3 +283,10 @@ class ConfIO():
         dark = self.downsample(dark)
 
         return flat, dark
+    
+    def read_pairs(self, pairs):
+        """Read pairs for checking rotation center"""
+
+        d = self.file_in['exchange/data'][pairs, self.args.start_row:self.args.end_row,self.stn:self.endn]
+        data = self.downsample(d)
+        return data

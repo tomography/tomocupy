@@ -252,11 +252,15 @@ class GPURecSteps():
         if self.args.rotation_axis_auto == 'auto':
             from ast import literal_eval
             pairs = literal_eval(self.args.rotation_axis_pairs)
-            shifts = find_rotation.register_shift_sift(
-                data[pairs[::2]], data[pairs[1::2], :, ::-1])
+            shifts,nmatches = find_rotation.register_shift_sift(
+                data[pairs[::2]], data[pairs[1::2], :, ::-1],self.args.rotation_axis_sift_threshold)
             centers = self.n//2-shifts[:, 1]/2
+            log.info(f'Number of matched features {nmatches}')
             log.info(
                 f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
+            log.info(
+                f'Vertical misalignment {shifts[:, 0]}, mean: {np.mean(shifts[:, 0])}')
+
             self.center = np.mean(centers)
 
         log.info('Step 4. Reconstruction by chunks in z.')

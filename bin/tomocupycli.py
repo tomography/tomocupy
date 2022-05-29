@@ -31,10 +31,16 @@ def run_rec(args):
     if file_name.is_file():        
         t = time.time()
         clpthandle = GPURec(args)        
-        if(args.reconstruction_type=='full'):
+        if(args.reconstruction_type=='full'):            
+            if args.rotation_axis_auto == 'auto':            
+                args.rotation_axis = clpthandle.find_center()
+                log.warning(f'set rotaion  axis {args.rotation_axis}')
+                clpthandle = GPURec(args)        
             clpthandle.recon_all()
         if(args.reconstruction_type=='try'):
             clpthandle.recon_try()
+        if(args.reconstruction_type=='check'):
+            clpthandle.find_center()
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
@@ -51,6 +57,7 @@ def run_recstep(args):
         log.error("File Name does not exist: %s" % args.file_name)
 
 def run_recmulti(args):
+    ##to test 
     line = ' '.join(sys.argv[2:])
     if(args.end_row==-1):
         with h5py.File(args.file_name,'r') as fid:

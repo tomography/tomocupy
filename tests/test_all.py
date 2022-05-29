@@ -1,6 +1,5 @@
 import unittest
 import os
-import filecmp
 import numpy as np
 import dxchange
 import inspect
@@ -183,6 +182,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(st, 0)
         ssum=np.sum(dxchange.read_tiff_stack(f'data_rec/test_data_rec/recon_00000.tiff', ind = range(0,22)).astype('float32'))
         self.assertAlmostEqual(ssum, 1099.7876, places=-2)
+
+    def test_recon_step_rotation(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy reconstep --file-name data/test_data.h5 --reconstruction-type full --rotation-axis-auto auto  --rotation-axis-pairs [0,719]'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0)
+        ssum=np.sum(dxchange.read_tiff_stack(f'data_rec/test_data_rec/recon_00000.tiff', ind = range(0,22)).astype('float32'))
+        self.assertAlmostEqual(ssum, 1416.6256, places=1)
     
 if __name__ == '__main__':
     unittest.main(testLoader=SequentialTestLoader(),failfast=False)

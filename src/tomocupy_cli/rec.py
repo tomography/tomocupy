@@ -52,6 +52,7 @@ import cupy as cp
 import numpy as np
 import multiprocessing as mp
 import signal
+from tomocupy_cli import find_rotation
 
 
 __author__ = "Viktor Nikitin"
@@ -81,6 +82,7 @@ class GPURec():
         cl_conf = confio.ConfIO(args)
 
         self.n = cl_conf.n
+        self.nz = cl_conf.nz
         self.ncz = cl_conf.ncz
         self.nproj = cl_conf.nproj
         self.center = cl_conf.center
@@ -92,6 +94,7 @@ class GPURec():
         self.nchunk = cl_conf.nchunk
         self.lchunk = cl_conf.lchunk
         self.args = cl_conf.args
+
 
         if args.reconstruction_algorithm == 'fourierrec':
             theta = cp.array(cl_conf.theta)
@@ -329,3 +332,26 @@ class GPURec():
 
         for proc in write_procs:
             proc.join()
+
+    def find_center(self):
+        from ast import literal_eval
+        pairs = literal_eval(self.args.rotation_axis_pairs)
+        
+        flat, dark = self.cl_conf.read_flat_dark()        
+        data = self.cl_conf.read_pairs(pairs)
+        data = cp.array(data)
+        flat = cp.array(flat)
+        dark = cp.array(dark)
+
+        data = self.darkflat_correction(data, dark, flat)
+        data = self.minus_log(data)
+        data = data.get()
+        shifts, nmatches = find_rotation.register_shift_sift(
+                data[::2], data[1::2, :, ::-1],self.args.rotation_axis_sift_threshold)
+        centers = self.n//2-shifts[:, 1]/2+self.cl_conf.stn
+        log.info(f'Number of matched features {nmatches}')
+        log.info(
+            f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
+        log.info(
+            f'Vertical misalignment {shifts[:, 0]}, mean: {np.mean(shifts[:, 0])}')
+        return np.mean(centers)
