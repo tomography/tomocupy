@@ -104,7 +104,7 @@ class GPURec():
         # queue for streaming projections
         self.data_queue = mp.Queue()
         self.cl_conf = cl_conf
-#        print(vars(self))
+        #print(vars(self))
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""

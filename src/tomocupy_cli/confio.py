@@ -29,6 +29,7 @@ class ConfIO():
         nflat = file_in['/exchange/data_white'].shape[0]
         theta = file_in['/exchange/theta'][:].astype('float32')/180*np.pi
         in_dtype = file_in['exchange/data'].dtype
+                
         if (self.args.end_row == -1):
             self.args.end_row = file_in['/exchange/data'].shape[1]
         if (self.args.end_proj == -1):
@@ -58,8 +59,9 @@ class ConfIO():
             n = ni
             center = centeri
 
+        
         stn = 0
-        endn = ni
+        endn = file_in['/exchange/data'].shape[-1]
         
         if self.args.dtype == 'float16':
             center += (2**int(np.log2(ni))-ni)/2
@@ -167,14 +169,7 @@ class ConfIO():
                 # Add virtual dataset to output file
                 rec_virtual = h5py.File(fnameout, "w")
                 rec_virtual.create_virtual_dataset("/exchange/recon", layout)
-                # saving command line for reconstruction
-                rec_line = sys.argv
-                # remove full path to the file
-                rec_line[0] = os.path.basename(rec_line[0])
-                s = ' '.join(rec_line).encode("utf-8")
-                # save as an attribute in hdf5 file
-                rec_virtual.attrs["rec_line"] = np.array(
-                    s, dtype=h5py.string_dtype('utf-8', len(s)))
+                
                 
                 try:# trying to copy meta 
                     import meta
@@ -187,6 +182,15 @@ class ConfIO():
                 except: 
                     log.info('Skip copying meta')
                     pass
+            
+                # saving command line for reconstruction
+                rec_line = sys.argv
+                # remove full path to the file
+                rec_line[0] = os.path.basename(rec_line[0])
+                s = ' '.join(rec_line).encode("utf-8")
+                # save as an attribute in hdf5 file
+                rec_virtual.attrs["rec_line"] = np.array(
+                    s, dtype=h5py.string_dtype('utf-8', len(s)))
         else:
             return
 

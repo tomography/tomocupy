@@ -33,6 +33,18 @@ class Tests(unittest.TestCase):
             ssum+=np.sum(dxchange.read_tiff(f'data_rec/try_center/test_data/recon_{k:05.2f}.tiff'))
         self.assertAlmostEqual(ssum, 2766.41386,places=2)
 
+    def test_try_recon_binning(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --binning 1'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0)
+        ssum = 0
+        for k in np.arange(759,779):
+            ssum+=np.sum(dxchange.read_tiff(f'data_rec/try_center/test_data/recon_{k:05.2f}.tiff'))
+        self.assertAlmostEqual(ssum, 653.3486022949219,places=2)
+
+
     def test_try_recon_double_fov(self):
         os.system('rm -rf data_rec')
         cmd = 'tomocupy recon --file-name data/test_data.h5 --file-type double_fov --rotation-axis 130'
@@ -64,6 +76,17 @@ class Tests(unittest.TestCase):
         ssum=np.sum(dxchange.read_tiff_stack(f'data_rec/test_data_rec/recon_00000.tiff', ind = range(0,22)))
         self.assertAlmostEqual(ssum, 1449.0039,places=2)
 
+    def test_full_recon_binning(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --binning 1'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0)
+        data = dxchange.read_tiff_stack(f'data_rec/test_data_rec/recon_00000.tiff', ind = range(0,11))
+        ssum=np.sum(data)
+        self.assertEqual(data.shape, (11,768,768))
+        self.assertAlmostEqual(ssum, 362.4355,places=2)
+
     def test_full_recon_parts(self):
         os.system('rm -rf data_rec')
         cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --start-row 3 --end-row 15 --start-proj 200 --end-proj 700'
@@ -84,6 +107,19 @@ class Tests(unittest.TestCase):
             ssum = np.sum(data)
         self.assertEqual(data.shape, (22,1536,1536))
         self.assertAlmostEqual(ssum, 1449.0039,places=2)
+
+
+    def test_full_recon_binning_h5(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --save-format h5 --binning 1'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0, f"{cmd} failed to run")
+        with h5py.File('data_rec/test_data_rec.h5','r') as fid:
+            data = fid['exchange/recon']
+            ssum = np.sum(data)
+            self.assertEqual(data.shape, (11,768,768))
+            self.assertAlmostEqual(ssum, 362.4355,places=2)
 
     def test_full_recon_double_fov(self):
         os.system('rm -rf data_rec')
