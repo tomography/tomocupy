@@ -30,11 +30,22 @@ def run_rec(args):
     file_name = Path(args.file_name)    
     if file_name.is_file():        
         t = time.time()
-        clpthandle = GPURec(args)        
-        if(args.reconstruction_type=='full'):
+        
+        if(args.reconstruction_type=='full'):                        
+            if args.rotation_axis_auto == 'auto':            
+                args.reconstruction_type=='check'
+                clpthandle = GPURec(args)        
+                args.rotation_axis = clpthandle.find_center()
+                log.warning(f'set rotaion  axis {args.rotation_axis}')                
+                args.rotation_axis_auto == 'auto'            
+            clpthandle = GPURec(args)                        
             clpthandle.recon_all()
         if(args.reconstruction_type=='try'):
-            clpthandle.recon_all_try()
+            clpthandle = GPURec(args)        
+            clpthandle.recon_try()
+        if(args.reconstruction_type=='check'):
+            clpthandle = GPURec(args)        
+            clpthandle.find_center()
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
@@ -51,6 +62,7 @@ def run_recstep(args):
         log.error("File Name does not exist: %s" % args.file_name)
 
 def run_recmulti(args):
+    ##to test 
     line = ' '.join(sys.argv[2:])
     if(args.end_row==-1):
         with h5py.File(args.file_name,'r') as fid:
@@ -99,10 +111,10 @@ def main():
     if not os.path.exists(logs_home):
         os.makedirs(logs_home)
 
-    lfname = os.path.join(logs_home, 'tomocupyon_' + datetime.strftime(datetime.now(), "%Y-%m-%d_%H_%M_%S") + '.log')
+    lfname = os.path.join(logs_home, 'tomocupyfp16on_' + datetime.strftime(datetime.now(), "%Y-%m-%d_%H_%M_%S") + '.log')
     log_level = 'DEBUG' if args.verbose else "INFO"
     logging.setup_custom_logger(lfname, level=log_level)
-    log.debug("Started tomocupyon")
+    log.debug("Started tomocupyfp16on")
     log.info("Saving log at %s" % lfname)
 
     try:

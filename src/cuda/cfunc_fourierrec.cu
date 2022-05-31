@@ -1,15 +1,23 @@
 #include "cfunc_fourierrec.cuh"
 #include "kernels_fourierrec.cuh"
-#include "defs.cuh"
-cfunc_fourierrec::cfunc_fourierrec(size_t ntheta, size_t pnz, size_t n, size_t theta_)
-    : ntheta(ntheta), pnz(pnz), n(n) {
+
+cfunc_fourierrec::cfunc_fourierrec(size_t nproj, size_t nz, size_t n, size_t theta_)
+    : nproj(nproj), nz(nz), n(n) {
     float eps = 1e-2;
     mu = -log(eps) / (2 * n * n);
+    #ifndef HALF
+        ne = 3*n/2;        
+    #else
+        ne = pow(2,ceil(log2(3*n/2)));
+    #endif
+        
     m = ceil(2 * n * 1 / PI * sqrt(-mu * log(eps) + (mu * n) * (mu * n) / 4));    
-    cudaMalloc((void **)&fdee,
-            (2 * n + 2 * m) * (2 * n + 2 * m) * pnz * sizeof(float2));
-    cudaMalloc((void **)&x, n * ntheta * sizeof(float));
-    cudaMalloc((void **)&y, n * ntheta * sizeof(float));
+    cudaMalloc((void **)&fde,
+            (2 * n + 2 * m) * (2 * n + 2 * m) * nz * sizeof(real2));
+    cudaMalloc((void **)&ge,
+            (ne/2+1) * nproj * 2 * nz * sizeof(real2));
+    cudaMalloc((void **)&x, n * nproj * sizeof(float));
+    cudaMalloc((void **)&y, n * nproj * sizeof(float));
     
     long long ffts[] = {2*n,2*n};
 	  long long idist = (2 * n + 2 * m) * (2 * n + 2 * m);long long odist = (2 * n + 2 * m) * (2 * n + 2 * m);
@@ -21,7 +29,7 @@ cfunc_fourierrec::cfunc_fourierrec(size_t ntheta, size_t pnz, size_t n, size_t t
         2, ffts, 
         inembed, 1, idist, CUDA_C, 
         onembed, 1, odist, CUDA_C, 
-        pnz, &workSize, CUDA_C);    
+        nz, &workSize, CUDA_C);    
     // fft 1d
     cufftCreate(&plan1d);
     ffts[0] = n;
@@ -33,10 +41,27 @@ cfunc_fourierrec::cfunc_fourierrec(size_t ntheta, size_t pnz, size_t n, size_t t
         1, ffts, 
         inembed, 1, idist, CUDA_C, 
         onembed, 1, odist, CUDA_C, 
-        ntheta*pnz, &workSize, CUDA_C);                   
+        nproj*nz, &workSize, CUDA_C);                   
 
+    //fft filter R<->C
+    cufftCreate(&plan_filter_fwd);
+    cufftCreate(&plan_filter_inv);
+    
+    ffts[0] = ne;
+	  idist = ne;odist = ne/2+1;
+    inembed[0] = ne;onembed[0] = ne/2+1;
+    cufftXtMakePlanMany(plan_filter_fwd, 
+        1, ffts, 
+        inembed, 1, idist, CUDA_R, 
+        onembed, 1, odist, CUDA_C, 
+        2*nproj*nz, &workSize, CUDA_C);      
+    cufftXtMakePlanMany(plan_filter_inv, 
+        1, ffts, 
+        onembed, 1, odist, CUDA_C, 
+        inembed, 1, idist, CUDA_R, 
+        2*nproj*nz, &workSize, CUDA_C);
+    
     theta = (float*)theta_;
-
   }
 
 
@@ -45,49 +70,66 @@ cfunc_fourierrec::~cfunc_fourierrec() { free(); }
 
 void cfunc_fourierrec::free() {
   if (!is_free) {
-    cudaFree(fdee);
+    cudaFree(fde);
+    cudaFree(ge);
     cudaFree(x);
     cudaFree(y);
     cufftDestroy(plan2d);
     cufftDestroy(plan1d);
+    cufftDestroy(plan_filter_fwd);
+    cufftDestroy(plan_filter_inv);
     is_free = true;   
   }
 }
 
 void cfunc_fourierrec::backprojection(size_t f_, size_t g_, size_t stream_) {
-    float2* g = (float2 *)g_;    
-    float2* f = (float2 *)f_;
+    real2* g = (real2 *)g_;    
+    real2* f = (real2 *)f_;
     cudaStream_t stream = (cudaStream_t)stream_;    
     cufftSetStream(plan1d, stream);
     cufftSetStream(plan2d, stream);    
 
     // set thread block, grid sizes will be computed before cuda kernel execution
-    dim3 dimBlock(BS1,BS2,BS3);    
+    dim3 dimBlock(32,32,1);    
     dim3 GS2d0,GS3d0,GS3d1,GS3d2,GS3d3;  
-    GS2d0 = dim3(ceil(n / (float)BS1), ceil(ntheta / (float)BS2));
-    GS3d0 = dim3(ceil(n / (float)BS1), ceil(n / (float)BS2),ceil(pnz / (float)BS3));
-    GS3d1 = dim3(ceil(2 * n / (float)BS1), ceil(2 * n / (float)BS2),ceil(pnz / (float)BS3));
-    GS3d2 = dim3(ceil((2 * n + 2 * m) / (float)BS1),ceil((2 * n + 2 * m) / (float)BS2), ceil(pnz / (float)BS3));
-    GS3d3 = dim3(ceil(n / (float)BS1), ceil(ntheta / (float)BS2),ceil(pnz / (float)BS3));
+    GS2d0 = dim3(ceil(n / 32.0), ceil(nproj / 32.0));
+    GS3d0 = dim3(ceil(n / 32.0), ceil(n / 32.0),nz);
+    GS3d1 = dim3(ceil(2 * n / 32.0), ceil(2 * n / 32.0),nz);
+    GS3d2 = dim3(ceil((2 * n + 2 * m) / 32.0),ceil((2 * n + 2 * m) / 32.0), nz);
+    GS3d3 = dim3(ceil(n / 32.0), ceil(nproj / 32.0),nz);
    
     
-    cudaMemsetAsync(fdee, 0, (2 * n + 2 * m) * (2 * n + 2 * m) * pnz * sizeof(float2),stream);
-
-    takexy <<<GS2d0, dimBlock, 0, stream>>> (x, y, theta, n, ntheta);
-
-    ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, ntheta, pnz);
-    cufftXtExec(plan1d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
-    ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, ntheta, pnz);
-    gather <<<GS3d3, dimBlock, 0, stream>>> (g, fdee, x, y, m, mu, n, ntheta, pnz, TOMO_ADJ);
+    cudaMemsetAsync(fde, 0, (2 * n + 2 * m) * (2 * n + 2 * m) * nz * sizeof(real2),stream);
     
-
-    wrap <<<GS3d2, dimBlock, 0, stream>>> (fdee, n, pnz, m, TOMO_ADJ);
-
-    fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fdee, 2 * n + 2 * m, pnz);
-    cufftXtExec(plan2d, (cufftComplex *)&fdee[m + m * (2 * n + 2 * m)],
-                (cufftComplex *)&fdee[m + m * (2 * n + 2 * m)], CUFFT_INVERSE);
-    fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fdee, 2 * n + 2 * m, pnz);
+    takexy <<<GS2d0, dimBlock, 0, stream>>> (x, y, theta, n, nproj);        
+    ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);
+    cufftXtExec(plan1d, g, g, CUFFT_FORWARD);
+    ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);    
+    mulc <<<GS3d3, dimBlock, 0, stream>>> (g, 1/(float)n, n, nproj, nz);
     
-    divphi <<<GS3d0, dimBlock, 0, stream>>> (fdee, f, mu, n, pnz, m, TOMO_ADJ);    
-    circ <<<GS3d0, dimBlock,0,stream>>> (f, 1.0f / n, n, pnz);
+    gather <<<GS3d3, dimBlock, 0, stream>>> (g, fde, x, y, m, mu, n, nproj, nz);    
+    
+    wrap <<<GS3d2, dimBlock, 0, stream>>> (fde, n, nz, m);
+    
+    fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fde, 2 * n + 2 * m, nz);
+    cufftXtExec(plan2d, &fde[m + m * (2 * n + 2 * m)],
+               &fde[m + m * (2 * n + 2 * m)], CUFFT_INVERSE);
+    fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fde, 2 * n + 2 * m, nz);
+    
+    divphi <<<GS3d0, dimBlock, 0, stream>>> (fde, f, mu, n, nz, nproj, m);        
+}
+
+void cfunc_fourierrec::filter(size_t g_, size_t w_, size_t stream_) {
+    real* g = (real *)g_;    
+    real2* w = (real2 *)w_;
+    cudaStream_t stream = (cudaStream_t)stream_;    
+    cufftSetStream(plan_filter_fwd, stream);
+    cufftSetStream(plan_filter_inv, stream);    
+    dim3 dimBlock(32,32,1);        
+    dim3 GS3d1 = dim3(ceil(ne/32.0), ceil(nproj / 32.0),2*nz);
+    dim3 GS3d2 = dim3(ceil((ne/2+1)/32.0), ceil(nproj / 32.0),2*nz);
+    cufftXtExec(plan_filter_fwd, g, ge, CUFFT_FORWARD);
+    mulw <<<GS3d2, dimBlock, 0, stream>>> (ge, w, ne/2+1, nproj, 2*nz);
+    cufftXtExec(plan_filter_inv, ge, g, CUFFT_INVERSE);
+    mulrec <<<GS3d1, dimBlock, 0, stream>>> (g, 1/(float)ne, ne, nproj, 2*nz);    
 }

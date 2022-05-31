@@ -154,3 +154,5 @@ script
 /.coverage.xml
 /CMakeFiles
 /test_rotate.py
+/tests/data_rec
+/tests/out.txt

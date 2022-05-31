@@ -65,17 +65,21 @@ class cfunc_fourierrec(object):
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
     __repr__ = _swig_repr
     n = property(_cfunc_fourierrec.cfunc_fourierrec_n_get)
-    ntheta = property(_cfunc_fourierrec.cfunc_fourierrec_ntheta_get)
-    pnz = property(_cfunc_fourierrec.cfunc_fourierrec_pnz_get)
+    nproj = property(_cfunc_fourierrec.cfunc_fourierrec_nproj_get)
+    nz = property(_cfunc_fourierrec.cfunc_fourierrec_nz_get)
 
-    def __init__(self, ntheta, pnz, n, theta_):
-        _cfunc_fourierrec.cfunc_fourierrec_swiginit(self, _cfunc_fourierrec.new_cfunc_fourierrec(ntheta, pnz, n, theta_))
+    def __init__(self, nproj, nz, n, theta_):
+        _cfunc_fourierrec.cfunc_fourierrec_swiginit(self, _cfunc_fourierrec.new_cfunc_fourierrec(nproj, nz, n, theta_))
     __swig_destroy__ = _cfunc_fourierrec.delete_cfunc_fourierrec
 
     def backprojection(self, f, g, stream):
         return _cfunc_fourierrec.cfunc_fourierrec_backprojection(self, f, g, stream)
 
+    def filter(self, g, w, stream):
+        return _cfunc_fourierrec.cfunc_fourierrec_filter(self, g, w, stream)
+
 # Register cfunc_fourierrec in _cfunc_fourierrec:
 _cfunc_fourierrec.cfunc_fourierrec_swigregister(cfunc_fourierrec)
+
 
 

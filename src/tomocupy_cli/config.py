@@ -186,7 +186,7 @@ SECTIONS['reconstruction'] = {
         'default': 'try',
         'type': str,
         'help': "Reconstruct full data set. ",
-        'choices': ['full','try']},
+        'choices': ['full','try','check']},
     'reconstruction-algorithm': {
         'default': 'fourierrec',
         'type': str,
@@ -245,6 +245,33 @@ SECTIONS['reconstruction'] = {
         'default': '[0,1499]',
         'type': str,
         'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.",},        
+    'rotation-axis-sift-threshold': {
+        'default': '0.5',
+        'type': float,
+        'help': "SIFT threshold for rotation search.",},        
+    'dtype': {
+        'default': 'float32',
+        'type': str,
+        'choices': ['float32', 'float16'],    
+        'help': "Data type used for reconstruction. Note float16 works with power of 2 sizes.",},        
+    'save-format': {
+        'default': 'tiff',
+        'type': str,
+        'help': "Output format",
+        'choices': ['tiff', 'h5']},     
+    'gridrec-filter': {
+        'default': 'parzen',
+        'type': str,
+        'help': "Filter for FBP reconstruction",
+        'choices': ['shepp', 'parzen']},   
+    'crop': {
+        'type': int,
+        'default': 0,
+        'help': "Crop from each side of the slice"},
+    'dezinger': {
+        'type': int,
+        'default': 0,
+        'help': "Radius for removing outliers"},
     }
 
 
