@@ -15,6 +15,7 @@ import h5py
 import numpy as np
 
 from tomocupy_cli import utils
+from tomocupy_cli import __version__
 
 
 log = logging.getLogger(__name__)
@@ -435,3 +436,44 @@ def log_values(args):
 
     log.warning('tomocupyon status end')
 
+def update_hdf_process(fname, args=None, sections=None):
+    """
+    Write in the hdf raw data file the content of *config_file* with values from *args* 
+    if they are specified, otherwise use the defaults. If *sections* are specified, 
+    write values from *args* only to those sections, use the defaults on the remaining ones.
+    """
+    if (args == None):
+        log.warning("  *** Not saving log data to the HDF file.")
+
+    else:
+        with h5py.File(fname,'r+') as hdf_file:
+            #If the group we will write to already exists, remove it
+            if hdf_file.get('/process/tomocupy-cli-' + __version__):
+                del(hdf_file['/process/tomocupy-cli-' + __version__])
+            #dt = h5py.string_dtype(encoding='ascii')
+            log.info("  *** tomopy.conf parameter written to /process%s in file %s " % (__version__, fname))
+            config = configparser.ConfigParser()
+            for section in SECTIONS:
+                config.add_section(section)
+                for name, opts in SECTIONS[section].items():
+                    if args and sections and section in sections and hasattr(args, name.replace('-', '_')):
+                        value = getattr(args, name.replace('-', '_'))
+                        if isinstance(value, list):
+                            # print(type(value), value)
+                            value = ', '.join(value)
+                    else:
+                        value = opts['default'] if opts['default'] is not None else ''
+
+                    prefix = '# ' if value == '' else ''
+
+                    if name != 'config':
+                        dataset = '/process' + '/tomocupy-cli-' + __version__ + '/' + section + '/'+ name
+                        dset_length = len(str(value)) * 2 if len(str(value)) > 5 else 10
+                        dt = 'S{0:d}'.format(dset_length)
+                        hdf_file.require_dataset(dataset, shape=(1,), dtype=dt)
+                        log.info(name + ': ' + str(value))
+                        try:
+                            hdf_file[dataset][0] = np.string_(str(value))
+                        except TypeError:
+                            log.error("Could not convert value {}".format(value))
+                            raise

@@ -1,3 +1,4 @@
+from tomocupy_cli import config
 from tomocupy_cli import logging
 import numpy as np
 import numexpr as ne
@@ -166,9 +167,11 @@ class ConfIO():
                         filename, "/exchange/recon", shape=(self.lchunk[k], self.n, self.n), dtype=self.args.dtype)
                     st = self.args.start_row//2**self.args.binning+k*self.ncz
                     layout[st:st+self.lchunk[k]] = vsource
+
                 # Add virtual dataset to output file
                 rec_virtual = h5py.File(fnameout, "w")
                 dset_rec = rec_virtual.create_virtual_dataset("/exchange/recon", layout)
+
                 # saving command line to repeat the reconstruction as attribute of /exchange/recon
                 rec_line = sys.argv
                 # remove full path to the file
@@ -187,10 +190,12 @@ class ConfIO():
                 except: 
                     log.info('Skip copying meta')
                     pass
+
+                rec_virtual.close()
+                config.update_hdf_process(fnameout, self.args, sections=('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
             
         else:
             return
-
                 
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
