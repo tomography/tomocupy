@@ -164,20 +164,23 @@ class ConfIO():
                 for k in range(self.nchunk):
                     filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                     vsource = h5py.VirtualSource(
-                        filename, "/exchange/recon", shape=(self.lchunk[k], self.n, self.n), dtype=self.args.dtype)
+                        filename, "/exchange/data", shape=(self.lchunk[k], self.n, self.n), dtype=self.args.dtype)
                     st = self.args.start_row//2**self.args.binning+k*self.ncz
                     layout[st:st+self.lchunk[k]] = vsource
 
                 # Add virtual dataset to output file
                 rec_virtual = h5py.File(fnameout, "w")
-                dset_rec = rec_virtual.create_virtual_dataset("/exchange/recon", layout)
+                dset_rec = rec_virtual.create_virtual_dataset("/exchange/data", layout)
 
-                # saving command line to repeat the reconstruction as attribute of /exchange/recon
+                # saving command line to repeat the reconstruction as attribute of /exchange/data
                 rec_line = sys.argv
                 # remove full path to the file
                 rec_line[0] = os.path.basename(rec_line[0])
                 s = ' '.join(rec_line).encode("utf-8")
                 dset_rec.attrs["command"] = np.array(s, dtype=h5py.string_dtype('utf-8', len(s)))
+                dset_rec.attrs["axes"] = 'z:y:x'
+                dset_rec.attrs["description"] = 'ReconData'
+                dset_rec.attrs["units"] = 'counts'
 
                 try:# trying to copy meta 
                     import meta
@@ -233,7 +236,7 @@ class ConfIO():
         elif self.args.save_format == 'h5':
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
-                fid.create_dataset("/exchange/recon", data=rec,
+                fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
 
     def downsample(self, data):
@@ -254,7 +257,7 @@ class ConfIO():
         """Save data to an hdf5"""
 
         with h5py.File(filename, "w") as fid:
-            fid.create_dataset("/exchange/recon", data=data,
+            fid.create_dataset("/exchange/data", data=data,
                                chunks=(1, self.n, self.n))
 
     def read_data_try(self):
