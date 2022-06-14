@@ -23,21 +23,21 @@ log = logging.getLogger(__name__)
 
 def default_parameter(func, param):
     """Get the default value for a function parameter.
-    
+
     For a given function *func*, introspect the function and return
     the default value for the function parameter named *param*.
-    
+
     Return
     ======
     default_val
       The default value for the parameter.
-    
+
     Raises
     ======
     RuntimeError
       Raised if the function *func* has no default value for the
       requested parameter *param*.
-    
+
     """
     # Retrieve the function parameter by introspection
     try:
@@ -83,7 +83,7 @@ SECTIONS['general'] = {
         'default': False,
         'help': 'When set, the content of the config file is updated using the current params values',
         'action': 'store_true'},
-        }
+}
 
 SECTIONS['file-reading'] = {
     'file-name': {
@@ -100,7 +100,7 @@ SECTIONS['file-reading'] = {
         'default': 'standard',
         'type': str,
         'help': "Input file type",
-        'choices': ['standard', 'double_fov']},        
+        'choices': ['standard', 'double_fov']},
     'binning': {
         'type': utils.positive_int,
         'default': 0,
@@ -109,8 +109,8 @@ SECTIONS['file-reading'] = {
     'blocked-views': {
         'default': False,
         'help': 'When set, the blocked-views options are used',
-        'action': 'store_true'},    
-    }
+        'action': 'store_true'},
+}
 
 
 SECTIONS['blocked-views'] = {
@@ -122,15 +122,15 @@ SECTIONS['blocked-views'] = {
         'type': float,
         'default': 1,
         'help': "Angle of the last blocked view"},
-        }
-        
+}
+
 SECTIONS['remove-stripe'] = {
     'remove-stripe-method': {
         'default': 'none',
         'type': str,
         'help': "Remove stripe method: none, fourier-wavelet",
         'choices': ['none', 'fw']},
-        }
+}
 
 
 SECTIONS['fw'] = {
@@ -151,7 +151,7 @@ SECTIONS['fw'] = {
         'default': True,
         'help': "When set, Fourier-Wavelet remove stripe extend the size of the sinogram by padding with zeros",
         'action': 'store_true'},
-    }
+}
 
 SECTIONS['retrieve-phase'] = {
     'retrieve-phase-method': {
@@ -179,7 +179,7 @@ SECTIONS['retrieve-phase'] = {
         'type': utils.positive_int,
         'default': 8,
         'help': "Padding with extra slices in z for phase-retrieval filtering"},
-        }
+}
 
 
 SECTIONS['reconstruction'] = {
@@ -187,12 +187,12 @@ SECTIONS['reconstruction'] = {
         'default': 'try',
         'type': str,
         'help': "Reconstruct full data set. ",
-        'choices': ['full','try','check']},
+        'choices': ['full', 'try', 'try_lamino', 'check']},
     'reconstruction-algorithm': {
         'default': 'fourierrec',
         'type': str,
         'help': "Reconstruction algorithm",
-        'choices': ['fourierrec', 'lprec']},    
+        'choices': ['fourierrec', 'fbp']},
     'rotation-axis': {
         'default': -1.0,
         'type': float,
@@ -205,18 +205,26 @@ SECTIONS['reconstruction'] = {
         'type': float,
         'default': 0.5,
         'help': "+/- center search step (pixel). "},
+    'lamino-search-width': {
+        'type': float,
+        'default': 5.0,
+        'help': "+/- center search width (pixel). "},
+    'lamino-search-step': {
+        'type': float,
+        'default': 0.25,
+        'help': "+/- center search step (pixel). "},
     'nsino': {
         'default': 0.5,
         'type': float,
         'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
-    'nsino-per-chunk': {     
+    'nsino-per-chunk': {
         'type': int,
-        'default': 8,
-        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory. ",},    
-    'nproj-per-chunk': {     
+        'default': 64,
+        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory. ", },
+    'nproj-per-chunk': {
         'type': int,
-        'default': 8,
-        'help': "Number of projections per chunk. Use larger numbers with computers with larger memory.  ",},    
+        'default': 64,
+        'help': "Number of projections per chunk. Use larger numbers with computers with larger memory.  ", },
     'start-row': {
         'type': int,
         'default': 0,
@@ -233,38 +241,38 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': -1,
         'help': "End projection"},
-    'nproj-per-chunk': {     
+    'nproj-per-chunk': {
         'type': int,
         'default': 8,
-        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.",},            
+        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.", },
     'rotation-axis-auto': {
         'default': 'read_auto',
         'type': str,
         'help': "How to get rotation axis auto calculate ('auto'), or manually ('manual')",
-        'choices': ['manual', 'auto',]},
+        'choices': ['manual', 'auto', ]},
     'rotation-axis-pairs': {
         'default': '[0,1499]',
         'type': str,
-        'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.",},        
+        'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.", },
     'rotation-axis-sift-threshold': {
         'default': '0.5',
         'type': float,
-        'help': "SIFT threshold for rotation search.",},        
+        'help': "SIFT threshold for rotation search.", },
     'dtype': {
         'default': 'float32',
         'type': str,
-        'choices': ['float32', 'float16'],    
-        'help': "Data type used for reconstruction. Note float16 works with power of 2 sizes.",},        
+        'choices': ['float32', 'float16'],
+        'help': "Data type used for reconstruction. Note float16 works with power of 2 sizes.", },
     'save-format': {
         'default': 'tiff',
         'type': str,
         'help': "Output format",
-        'choices': ['tiff', 'h5']},     
+        'choices': ['tiff', 'h5']},
     'gridrec-filter': {
         'default': 'parzen',
         'type': str,
         'help': "Filter for FBP reconstruction",
-        'choices': ['shepp', 'parzen']},   
+        'choices': ['shepp', 'parzen']},
     'crop': {
         'type': int,
         'default': 0,
@@ -273,13 +281,25 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 0,
         'help': "Radius for removing outliers"},
-    }
+    'lamino-angle': {
+        'default': 0,
+        'type': float,
+        'help': "Pitch of the stage for laminography"},
+    'recon-height': {
+        'default': 0,
+        'type': int,
+        'help': "Height of the object for reconstruction (in pixels)"},
+}
 
 
-RECON_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw')
-RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'retrieve-phase', 'fw')
+RECON_PARAMS = ('file-reading', 'remove-stripe',
+                'reconstruction', 'blocked-views', 'fw')
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe',
+                      'reconstruction', 'blocked-views', 'retrieve-phase', 'fw')
 
-NICE_NAMES = ('General', 'File reading', 'Remove stripe', 'Remove stripe FW', 'Retrieve phase', 'Blocked views', 'Reconstruction')
+NICE_NAMES = ('General', 'File reading', 'Remove stripe',
+              'Remove stripe FW', 'Retrieve phase', 'Blocked views', 'Reconstruction')
+
 
 def get_config_name():
     """Get the command line --config option."""
@@ -344,7 +364,7 @@ def config_to_list(config_name=CONFIG_FILE_NAME):
                         result.append('--{}={}'.format(name, value))
 
     return result
-   
+
 
 class Params(object):
     def __init__(self, sections=()):
@@ -365,6 +385,7 @@ class Params(object):
         self.add_arguments(parser)
 
         return parser.parse_args('')
+
 
 def write(config_file, args=None, sections=None):
     """
@@ -393,6 +414,7 @@ def write(config_file, args=None, sections=None):
     with open(config_file, 'w') as f:
         config.write(f)
 
+
 def show_config(args):
     """Log all values set in the args namespace.
     Arguments are grouped according to their section and logged alphabetically
@@ -402,13 +424,15 @@ def show_config(args):
 
     log.warning('tomocupy status start')
     for section, name in zip(SECTIONS, NICE_NAMES):
-        entries = sorted((k for k in args.keys() if k.replace('_', '-') in SECTIONS[section]))
+        entries = sorted(
+            (k for k in args.keys() if k.replace('_', '-') in SECTIONS[section]))
         if entries:
             for entry in entries:
                 value = args[entry] if args[entry] != None else "-"
                 log.info("  {:<16} {}".format(entry, value))
 
     log.warning('tomocupy status end')
+
 
 def log_values(args):
     """Log all values set in the args namespace.
@@ -419,7 +443,8 @@ def log_values(args):
 
     log.warning('tomocupyon status start')
     for section, name in zip(SECTIONS, NICE_NAMES):
-        entries = sorted((k for k in args.keys() if k.replace('_', '-') in SECTIONS[section]))
+        entries = sorted(
+            (k for k in args.keys() if k.replace('_', '-') in SECTIONS[section]))
 
         # print('log_values', section, name, entries)
         if entries:
@@ -436,6 +461,7 @@ def log_values(args):
 
     log.warning('tomocupyon status end')
 
+
 def update_hdf_process(fname, args=None, sections=None):
     """
     Write in the hdf raw data file the content of *config_file* with values from *args* 
@@ -446,12 +472,13 @@ def update_hdf_process(fname, args=None, sections=None):
         log.warning("  *** Not saving log data to the HDF file.")
 
     else:
-        with h5py.File(fname,'r+') as hdf_file:
-            #If the group we will write to already exists, remove it
+        with h5py.File(fname, 'r+') as hdf_file:
+            # If the group we will write to already exists, remove it
             if hdf_file.get('/process/tomocupy-cli-' + __version__):
                 del(hdf_file['/process/tomocupy-cli-' + __version__])
             #dt = h5py.string_dtype(encoding='ascii')
-            log.info("  *** tomopy.conf parameter written to /process%s in file %s " % (__version__, fname))
+            log.info("  *** tomopy.conf parameter written to /process%s in file %s " %
+                     (__version__, fname))
             config = configparser.ConfigParser()
             for section in SECTIONS:
                 config.add_section(section)
@@ -467,13 +494,16 @@ def update_hdf_process(fname, args=None, sections=None):
                     prefix = '# ' if value == '' else ''
 
                     if name != 'config':
-                        dataset = '/process' + '/tomocupy-cli-' + __version__ + '/' + section + '/'+ name
-                        dset_length = len(str(value)) * 2 if len(str(value)) > 5 else 10
+                        dataset = '/process' + '/tomocupy-cli-' + \
+                            __version__ + '/' + section + '/' + name
+                        dset_length = len(str(value)) * \
+                            2 if len(str(value)) > 5 else 10
                         dt = 'S{0:d}'.format(dset_length)
                         hdf_file.require_dataset(dataset, shape=(1,), dtype=dt)
                         log.info(name + ': ' + str(value))
                         try:
                             hdf_file[dataset][0] = np.string_(str(value))
                         except TypeError:
-                            log.error("Could not convert value {}".format(value))
+                            log.error(
+                                "Could not convert value {}".format(value))
                             raise

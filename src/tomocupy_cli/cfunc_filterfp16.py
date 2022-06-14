@@ -10,9 +10,9 @@ if _swig_python_version_info < (2, 7, 0):
 
 # Import the low-level C/C++ module
 if __package__ or "." in __name__:
-    from . import _cfunc_fourierrecfp16
+    from . import _cfunc_filterfp16
 else:
-    import _cfunc_fourierrecfp16
+    import _cfunc_filterfp16
 
 try:
     import builtins as __builtin__
@@ -61,22 +61,22 @@ class _SwigNonDynamicMeta(type):
     __setattr__ = _swig_setattr_nondynamic_class_variable(type.__setattr__)
 
 
-class cfunc_fourierrec(object):
+class cfunc_filter(object):
     thisown = property(lambda x: x.this.own(), lambda x, v: x.this.own(v), doc="The membership flag")
     __repr__ = _swig_repr
-    n = property(_cfunc_fourierrecfp16.cfunc_fourierrec_n_get)
-    nproj = property(_cfunc_fourierrecfp16.cfunc_fourierrec_nproj_get)
-    nz = property(_cfunc_fourierrecfp16.cfunc_fourierrec_nz_get)
+    n = property(_cfunc_filterfp16.cfunc_filter_n_get)
+    nproj = property(_cfunc_filterfp16.cfunc_filter_nproj_get)
+    nz = property(_cfunc_filterfp16.cfunc_filter_nz_get)
 
-    def __init__(self, nproj, nz, n, theta_):
-        _cfunc_fourierrecfp16.cfunc_fourierrec_swiginit(self, _cfunc_fourierrecfp16.new_cfunc_fourierrec(nproj, nz, n, theta_))
-    __swig_destroy__ = _cfunc_fourierrecfp16.delete_cfunc_fourierrec
+    def __init__(self, nproj, nz, n):
+        _cfunc_filterfp16.cfunc_filter_swiginit(self, _cfunc_filterfp16.new_cfunc_filter(nproj, nz, n))
+    __swig_destroy__ = _cfunc_filterfp16.delete_cfunc_filter
 
-    def backprojection(self, f, g, stream):
-        return _cfunc_fourierrecfp16.cfunc_fourierrec_backprojection(self, f, g, stream)
+    def filter(self, g, w, stream):
+        return _cfunc_filterfp16.cfunc_filter_filter(self, g, w, stream)
 
-# Register cfunc_fourierrec in _cfunc_fourierrecfp16:
-_cfunc_fourierrecfp16.cfunc_fourierrec_swigregister(cfunc_fourierrec)
+# Register cfunc_filter in _cfunc_filterfp16:
+_cfunc_filterfp16.cfunc_filter_swigregister(cfunc_filter)
 
 
 

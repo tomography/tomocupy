@@ -14,7 +14,7 @@ Extra functionality for reconstruction with phase retrieval. Data splitting is d
 
 ::
  
-    (tomocupy)$ tomocupy reconstep --file-name /data/2021-12/Duchkov/exp4_ho_130_vertical_0_2018.h5 --remove-stripe-method fw --nproj-per-chunk 32 --nsino-per-chunk 32 --retrieve-phase-alpha 0.001 --retrieve-phase-method none  --binning 0 --reconstruction-type full --rotation-axis 1198 --rotation-axis-pairs [0,1200,599,1799,300,1500] --rotation-axis-auto auto --start-row 400 --end-row 1800
+    (tomocupy)$ tomocupy recon_steps --file-name /data/2021-12/Duchkov/exp4_ho_130_vertical_0_2018.h5 --remove-stripe-method fw --nproj-per-chunk 32 --nsino-per-chunk 32 --retrieve-phase-alpha 0.001 --retrieve-phase-method none  --binning 0 --reconstruction-type full --rotation-axis 1198 --rotation-axis-pairs [0,1200,599,1799,300,1500] --rotation-axis-auto auto --start-row 400 --end-row 1800
 
 
 More options
@@ -23,4 +23,4 @@ More options
 
     (tomocupy)$ tomocupy -h
     (tomocupy)$ tomocupy recon -h
-    (tomocupy)$ tomocupy reconstep -h
+    (tomocupy)$ tomocupy recon_steps -h

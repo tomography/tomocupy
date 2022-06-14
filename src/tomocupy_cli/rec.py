@@ -44,6 +44,7 @@
 # #########################################################################
 
 from tomocupy_cli import fourierrec
+from tomocupy_cli import fbp_filter
 from tomocupy_cli import remove_stripe
 from tomocupy_cli import utils
 from tomocupy_cli import logging
@@ -91,20 +92,22 @@ class GPURec():
         self.ndark = cl_conf.ndark
         self.nflat = cl_conf.nflat
         self.ids_proj = cl_conf.ids_proj
-        self.nchunk = cl_conf.nchunk
-        self.lchunk = cl_conf.lchunk
+        self.nzchunk = cl_conf.nzchunk
+        self.lzchunk = cl_conf.lzchunk
+        self.nschunk = cl_conf.nschunk
+        self.lschunk = cl_conf.lschunk
+
         self.args = cl_conf.args
+        self.cl_conf = cl_conf
 
-
-        if args.reconstruction_algorithm == 'fourierrec':
-            theta = cp.array(cl_conf.theta)
-            self.cl_rec = fourierrec.FourierRec(
-                self.n, self.nproj, self.ncz, theta, args.dtype)
+        theta = cp.array(cl_conf.theta)
+        self.cl_filter = fbp_filter.FBPFilter(
+            self.n, self.nproj, self.ncz, args.dtype)
+        self.cl_rec = fourierrec.FourierRec(
+            self.n, self.nproj, self.ncz, theta, args.dtype)
 
         # queue for streaming projections
         self.data_queue = mp.Queue()
-        self.cl_conf = cl_conf
-        #print(vars(self))
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
@@ -146,9 +149,9 @@ class GPURec():
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center+sht+self.n/2))  # center fix
         data = cp.pad(
             data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
-        self.cl_rec.filter(data, w, cp.cuda.get_current_stream())
-        # data = irfft(
-        # w*rfft(data, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
+        self.cl_filter.filter(data, w, cp.cuda.get_current_stream())
+        # data = cp.fft.irfft(
+        # w[:,cp.newaxis]*cp.fft.rfft(data, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
         data = data[:, :, ne//2-self.n//2:ne//2+self.n//2]
 
         return data
@@ -182,10 +185,10 @@ class GPURec():
         # padding for 360 deg recon
         if(self.args.file_type == 'double_fov'):
             data = self.pad360(data)
-        # reshape to sinograms
-        data = cp.ascontiguousarray(data.swapaxes(0, 1))
         # fbp filter and compensatio for the center
         data = self.fbp_filter_center(data)
+        # reshape to sinograms
+        data = cp.ascontiguousarray(data.swapaxes(0, 1))
         # backprojection
         self.cl_rec.backprojection(obj, data, cp.cuda.get_current_stream())
 
@@ -231,22 +234,22 @@ class GPURec():
 
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
-        for k in range(self.nchunk+2):
+        for k in range(self.nzchunk+2):
             utils.printProgressBar(
-                k, self.nchunk+1, self.data_queue.qsize(), length=40)
-            if(k > 0 and k < self.nchunk+1):
+                k, self.nzchunk+1, self.data_queue.qsize(), length=40)
+            if(k > 0 and k < self.nzchunk+1):
                 with stream2:  # reconstruction
                     self.recon(rec[(k-1) % 2], item_gpu['data'][(k-1) % 2],
                                item_gpu['dark'][(k-1) % 2], item_gpu['flat'][(k-1) % 2])
             if(k > 1):
                 with stream3:  # gpu->cpu copy
                     rec[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
-            if(k < self.nchunk):
+            if(k < self.nzchunk):
                 # copy to pinned memory
                 item = self.data_queue.get()
-                item_pinned['data'][k % 2, :, :self.lchunk[k]] = item['data']
-                item_pinned['dark'][k % 2, :, :self.lchunk[k]] = item['dark']
-                item_pinned['flat'][k % 2, :, :self.lchunk[k]] = item['flat']
+                item_pinned['data'][k % 2, :, :self.lzchunk[k]] = item['data']
+                item_pinned['dark'][k % 2, :, :self.lzchunk[k]] = item['dark']
+                item_pinned['flat'][k % 2, :, :self.lzchunk[k]] = item['flat']
                 with stream1:  # cpu->gpu copy
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
@@ -254,7 +257,7 @@ class GPURec():
             stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :self.lchunk[k-2]].copy()
+                rec_pinned0 = rec_pinned[(k-2) % 2, :self.lzchunk[k-2]].copy()
                 write_proc = mp.Process(
                     target=self.cl_conf.write_data, args=(rec_pinned0, k-2))
                 write_procs.append(write_proc)
@@ -304,13 +307,13 @@ class GPURec():
 
         write_procs = []
         # Conveyor for data cpu-gpu copy and reconstruction
-        for k in range(self.nchunk+2):
+        for k in range(self.nschunk+2):
             utils.printProgressBar(
-                k, self.nchunk+1, self.data_queue.qsize(), length=40)
-            if(k > 0 and k < self.nchunk+1):
+                k, self.nschunk+1, self.data_queue.qsize(), length=40)
+            if(k > 0 and k < self.nschunk+1):
                 with stream2:  # reconstruction
                     datat = self.fbp_filter_center(data, cp.array(
-                        mul*shift_array[(k-1)*self.ncz:(k-1)*self.ncz+self.lchunk[k-1]]))  # note multiplication by mul
+                        mul*shift_array[(k-1)*self.ncz:(k-1)*self.ncz+self.lschunk[k-1]]))  # note multiplication by mul
                     self.cl_rec.backprojection(
                         rec[(k-1) % 2], datat, cp.cuda.get_current_stream())
             if(k > 1):
@@ -319,8 +322,8 @@ class GPURec():
             stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :self.lchunk[k-2]].copy()
-                for kk in range(self.lchunk[k-2]):
+                rec_pinned0 = rec_pinned[(k-2) % 2, :self.lschunk[k-2]].copy()
+                for kk in range(self.lschunk[k-2]):
                     cid = (self.centeri -
                            shift_array[(k-2)*self.ncz+kk])*2**self.args.binning
                     write_proc = mp.Process(
@@ -336,8 +339,8 @@ class GPURec():
     def find_center(self):
         from ast import literal_eval
         pairs = literal_eval(self.args.rotation_axis_pairs)
-        
-        flat, dark = self.cl_conf.read_flat_dark()        
+
+        flat, dark = self.cl_conf.read_flat_dark()
         data = self.cl_conf.read_pairs(pairs)
         data = cp.array(data)
         flat = cp.array(flat)
@@ -347,7 +350,7 @@ class GPURec():
         data = self.minus_log(data)
         data = data.get()
         shifts, nmatches = find_rotation.register_shift_sift(
-                data[::2], data[1::2, :, ::-1],self.args.rotation_axis_sift_threshold)
+            data[::2], data[1::2, :, ::-1], self.args.rotation_axis_sift_threshold)
         centers = self.n//2-shifts[:, 1]/2+self.cl_conf.stn
         log.info(f'Number of matched features {nmatches}')
         log.info(

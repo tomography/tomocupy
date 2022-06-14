@@ -75,9 +75,6 @@ class cfunc_fourierrec(object):
     def backprojection(self, f, g, stream):
         return _cfunc_fourierrec.cfunc_fourierrec_backprojection(self, f, g, stream)
 
-    def filter(self, g, w, stream):
-        return _cfunc_fourierrec.cfunc_fourierrec_filter(self, g, w, stream)
-
 # Register cfunc_fourierrec in _cfunc_fourierrec:
 _cfunc_fourierrec.cfunc_fourierrec_swigregister(cfunc_fourierrec)
 
