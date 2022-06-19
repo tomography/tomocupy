@@ -264,7 +264,7 @@ class Tests(unittest.TestCase):
             f'data_rec/test_data_rec/recon_00000.tiff', ind=range(0, 22))
         ssum = np.sum(data)
         self.assertEqual(data.shape, (22, 1536*2, 1536*2))
-        self.assertAlmostEqual(ssum, 2425.952, places=2)
+        self.assertAlmostEqual(ssum, 35396.36, places=2)
 
 if __name__ == '__main__':
     unittest.main(testLoader=SequentialTestLoader(), failfast=True)
