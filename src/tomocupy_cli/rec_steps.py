@@ -43,7 +43,6 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-from hashlib import sha256
 from tomocupy_cli import fourierrec
 from tomocupy_cli import fbp
 from tomocupy_cli import fbp_filter
@@ -202,8 +201,7 @@ class GPURecSteps():
         # padding for 360 deg recon
         if(self.args.file_type == 'double_fov'):
             data = self.pad360(data)
-        data = self.fbp_filter_center(data)
-
+        data = self.fbp_filter_center(data)        
         res[:] = data
 
     def recon_steps_all(self):
@@ -359,7 +357,7 @@ class GPURecSteps():
 
     def proc_proj_parallel(self, data):
 
-        res = np.zeros(data.shape, dtype=self.args.dtype)
+        res = np.zeros([self.nproj,self.nz,self.n], dtype=self.args.dtype)
 
         # pinned memory for data item
         item_pinned = {}
@@ -372,9 +370,9 @@ class GPURecSteps():
 
         # pinned memory for processed data
         rec_pinned = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.ni], dtype=self.args.dtype))
+            np.zeros([2, self.ncproj, self.nz, self.n], dtype=self.args.dtype))
         # gpu memory for processed data
-        rec = cp.zeros([2, self.ncproj, self.nz, self.ni],
+        rec = cp.zeros([2, self.ncproj, self.nz, self.n],
                        dtype=self.args.dtype)
 
         # Conveyor for data cpu-gpu copy and reconstruction
@@ -411,12 +409,12 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.ncz, self.nproj, self.ni], dtype=self.args.dtype))
+            np.zeros([2, self.ncz, self.nproj, self.n], dtype=self.args.dtype))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.ncz, self.nproj, self.ni], dtype=self.args.dtype)
+            [2, self.ncz, self.nproj, self.n], dtype=self.args.dtype)
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
@@ -465,14 +463,14 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.ni], dtype='float32'))
+            np.zeros([2, self.ncproj, self.nz, self.n], dtype='float32'))
         item_pinned['theta'] = utils.pinned_array(
             np.zeros([2, self.ncproj], dtype='float32'))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.ncproj, self.nz, self.ni], dtype='float32')
+            [2, self.ncproj, self.nz, self.n], dtype='float32')
         item_gpu['theta'] = cp.zeros(
             [2, self.ncproj], dtype='float32')
 
@@ -538,14 +536,14 @@ class GPURecSteps():
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, self.ncproj, self.nz, self.ni], dtype='float32'))
+            np.zeros([2, self.ncproj, self.nz, self.n], dtype='float32'))
         item_pinned['theta'] = utils.pinned_array(
             np.zeros([2, self.ncproj], dtype='float32'))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, self.ncproj, self.nz, self.ni], dtype='float32')
+            [2, self.ncproj, self.nz, self.n], dtype='float32')
         item_gpu['theta'] = cp.zeros(
             [2, self.ncproj], dtype='float32')
 

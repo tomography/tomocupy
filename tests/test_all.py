@@ -254,6 +254,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(data.shape, (22, 512, 512))
         self.assertAlmostEqual(ssum, 583.6758, places=2)
 
+    def test_full_reconstep_double_fov(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy recon_steps --reconstruction-algorithm fbp --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 170 --file-type double_fov --lamino-angle 20'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0, f"{cmd} failed to run")
+        data = dxchange.read_tiff_stack(
+            f'data_rec/test_data_rec/recon_00000.tiff', ind=range(0, 22))
+        ssum = np.sum(data)
+        self.assertEqual(data.shape, (22, 1536*2, 1536*2))
+        self.assertAlmostEqual(ssum, 2425.952, places=2)
 
 if __name__ == '__main__':
     unittest.main(testLoader=SequentialTestLoader(), failfast=True)
