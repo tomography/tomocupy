@@ -2,20 +2,35 @@
 Usage
 =====
 
-Example
+Examples
 =======
-
+Try center reconstruction
 ::
- 
-    (tomocupy)$ tomocupy recon --file-name /data/2021-11/Banerjee/ROM_R_3474_072.h5 --rotation-axis 339 --reconstruction-type full --file-type double_fov --remove-stripe-method fw --binning 0 --nsino-per-chunk 8
+   (tomocupy)$ tomocupy recon --file-name data/test_data.h5 --nsino-per-chunk 4 --reconstruction-type try --center-search-width 100
 
-
-Extra functionality for reconstruction with phase retrieval. Data splitting is done by steps involving splitting by slices and projections + automatic center search with using SIFT for projection pairs. Example
-
+Full volume reconstruction
 ::
- 
-    (tomocupy)$ tomocupy recon_steps --file-name /data/2021-12/Duchkov/exp4_ho_130_vertical_0_2018.h5 --remove-stripe-method fw --nproj-per-chunk 32 --nsino-per-chunk 32 --retrieve-phase-alpha 0.001 --retrieve-phase-method none  --binning 0 --reconstruction-type full --rotation-axis 1198 --rotation-axis-pairs [0,1200,599,1799,300,1500] --rotation-axis-auto auto --start-row 400 --end-row 1800
+   (tomocupy)$ tomocupy recon --file-name data/test_data.h5 --nsino-per-chunk 4 --rotation-axis 700 --reconstruction-type full
 
+Double FOV reconstruction
+::
+    (tomocupy)$ (tomocupy)$ tomocupy recon --file-name data/test_data.h5 --nsino-per-chunk 4 --rotation-axis 700 --reconstruction-type full --file-type double_fov
+
+Full volume reconstruction with phase retrieval
+::
+    (tomocupy)$ tomocupy recon_steps --file-name data/test_data.h5 --nsino-per-chunk 4 --rotation-axis 700 --reconstruction-type full --energy 20 --pixel-size 1.75 --propagation-distance 100 --retrieve-phase-alpha 0.001 --retrieve-phase-method paganin --reconstruction-type full 
+
+Laminographic try reconstruction
+::
+    (tomocupy)$ tomocupy recon_steps --file-name data/test_data.h5 --nsino-per-chunk 8 --nproj-per-chunk 8 --reconstruction-type try --center-search-width 100 --lamino-angle 20
+
+Laminographic try angle reconstruction
+::
+    (tomocupy)$ tomocupy recon_steps --file-name data/test_data.h5 --nsino-per-chunk 8 --nproj-per-chunk 8 --rotation-axis 700 --reconstruction-type try-lamino --lamino-search-width 2 --lamino-angle 20
+
+Laminographic full reconstruction
+::
+    (tomocupy)$ tomocupy recon_steps --file-name data/test_data.h5 --nsino-per-chunk 8 --nproj-per-chunk 8--reconstruction-type full --rotation-axis 700 --lamino-angle 20
 
 More options
 ============
