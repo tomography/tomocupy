@@ -180,19 +180,48 @@ SECTIONS['retrieve-phase'] = {
         'default': 8,
         'help': "Padding with extra slices in z for phase-retrieval filtering"},
 }
+SECTIONS['lamino'] = {
+    'lamino-search-width': {
+        'type': float,
+        'default': 5.0,
+        'help': "+/- center search width (pixel). "},
+    'lamino-search-step': {
+        'type': float,
+        'default': 0.25,
+        'help': "+/- center search step (pixel). "},
+    'lamino-angle': {
+        'default': 0,
+        'type': float,
+        'help': "Pitch of the stage for laminography"},
+}
 
-
-SECTIONS['reconstruction'] = {
+SECTIONS['reconstruction-types'] = {
     'reconstruction-type': {
         'default': 'try',
         'type': str,
         'help': "Reconstruct full data set. ",
-        'choices': ['full', 'try', 'try_lamino', 'check']},
+        'choices': ['full', 'try']},
     'reconstruction-algorithm': {
         'default': 'fourierrec',
         'type': str,
         'help': "Reconstruction algorithm",
-        'choices': ['fourierrec', 'fbp']},
+        'choices': ['fourierrec']},
+}
+
+SECTIONS['reconstruction-steps-types'] = {
+    'reconstruction-type': {
+        'default': 'try',
+        'type': str,
+        'help': "Reconstruct full data set. ",
+        'choices': ['full', 'try', 'try_lamino']},
+    'reconstruction-algorithm': {
+        'default': 'fourierrec',
+        'type': str,
+        'help': "Reconstruction algorithm",
+        'choices': ['fourierrec', 'linesummation']},
+}
+
+SECTIONS['reconstruction'] = {
     'rotation-axis': {
         'default': -1.0,
         'type': float,
@@ -205,25 +234,17 @@ SECTIONS['reconstruction'] = {
         'type': float,
         'default': 0.5,
         'help': "+/- center search step (pixel). "},
-    'lamino-search-width': {
-        'type': float,
-        'default': 5.0,
-        'help': "+/- center search width (pixel). "},
-    'lamino-search-step': {
-        'type': float,
-        'default': 0.25,
-        'help': "+/- center search step (pixel). "},
     'nsino': {
         'default': 0.5,
         'type': float,
         'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
     'nsino-per-chunk': {
         'type': int,
-        'default': 64,
+        'default': 168,
         'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory. ", },
     'nproj-per-chunk': {
         'type': int,
-        'default': 64,
+        'default': 8,
         'help': "Number of projections per chunk. Use larger numbers with computers with larger memory.  ", },
     'start-row': {
         'type': int,
@@ -245,19 +266,6 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 8,
         'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.", },
-    'rotation-axis-auto': {
-        'default': 'read_auto',
-        'type': str,
-        'help': "How to get rotation axis auto calculate ('auto'), or manually ('manual')",
-        'choices': ['manual', 'auto', ]},
-    'rotation-axis-pairs': {
-        'default': '[0,1499]',
-        'type': str,
-        'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.", },
-    'rotation-axis-sift-threshold': {
-        'default': '0.5',
-        'type': float,
-        'help': "SIFT threshold for rotation search.", },
     'dtype': {
         'default': 'float32',
         'type': str,
@@ -268,7 +276,7 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Output format",
         'choices': ['tiff', 'h5']},
-    'gridrec-filter': {
+    'fbp-filter': {
         'default': 'parzen',
         'type': str,
         'help': "Filter for FBP reconstruction",
@@ -281,21 +289,13 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 0,
         'help': "Radius for removing outliers"},
-    'lamino-angle': {
-        'default': 0,
-        'type': float,
-        'help': "Pitch of the stage for laminography"},
-    'recon-height': {
-        'default': 0,
-        'type': int,
-        'help': "Height of the object for reconstruction (in pixels)"},
 }
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'blocked-views', 'fw')
+                'reconstruction', 'blocked-views', 'fw', 'reconstruction-types')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe',
-                      'reconstruction', 'blocked-views', 'retrieve-phase', 'fw')
+                      'reconstruction', 'blocked-views', 'retrieve-phase', 'fw', 'lamino', 'reconstruction-steps-types')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
               'Remove stripe FW', 'Retrieve phase', 'Blocked views', 'Reconstruction')

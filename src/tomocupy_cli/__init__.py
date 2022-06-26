@@ -7,14 +7,14 @@ except DistributionNotFound:
     pass
     
 from tomocupy_cli.config import *
-from tomocupy_cli.find_rotation import *
 from tomocupy_cli.fourierrec import *
-from tomocupy_cli.fbp import *
+from tomocupy_cli.line_summation import *
 from tomocupy_cli.logging import *
 from tomocupy_cli.rec import *
 from tomocupy_cli.rec_steps import *
 from tomocupy_cli.remove_stripe import *
 from tomocupy_cli.retrieve_phase import *
 from tomocupy_cli.utils import *
-from tomocupy_cli.confio import *
+from tomocupy_cli.conf_io import *
+from tomocupy_cli.tomo_functions import *
 

@@ -6,7 +6,7 @@ import cupy as cp
 
 source = """
 extern "C" {        
-    void __global__ adj(float *f, float *data, float *theta, float phi, int sz, int ncz, int n, int nz, int nproj)
+    void __global__ backprojection(float *f, float *data, float *theta, float phi, int sz, float c, int ncz, int n, int nz, int nproj)
     {
         int tx = blockDim.x * blockIdx.x + threadIdx.x;
         int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -42,22 +42,21 @@ extern "C" {
             {
                 u = u-ur;
                 v = v-vr;                
-                f0 +=   data[ur+0+(vr+0)*n+t*n*nz]*(1-u)*(1-v)+
-                        data[ur+1+(vr+0)*n+t*n*nz]*(0+u)*(1-v)+
-                        data[ur+0+(vr+1)*n+t*n*nz]*(1-u)*(0+v)+
-                        data[ur+1+(vr+1)*n+t*n*nz]*(0+u)*(0+v);
-                        
+                f0 +=   data[ur+0+t*n+(vr+0)*n*nproj]*(1-u)*(1-v)+
+                        data[ur+1+t*n+(vr+0)*n*nproj]*(0+u)*(1-v)+
+                        data[ur+0+t*n+(vr+1)*n*nproj]*(1-u)*(0+v)+
+                        data[ur+1+t*n+(vr+1)*n*nproj]*(0+u)*(0+v);
             }
         }
-        f[tx + ty * n + tz * n * n] += f0;        
+        f[tx + ty * n + tz * n * n] += f0*c;        
     }    
 
-    void __global__ adj_try(float *f, float *data, float *theta, float phi, int sz, float* sh, int nsh, int n, int nz, int nproj)
+    void __global__ backprojection_try(float *f, float *data, float *theta, float phi, int sz, float* sh, float c, int ncz, int n, int nz, int nproj)
     {
         int tx = blockDim.x * blockIdx.x + threadIdx.x;
         int ty = blockDim.y * blockIdx.y + threadIdx.y;
         int tz = blockDim.z * blockIdx.z + threadIdx.z;
-        if (tx >= n || ty >= n || tz >= nsh)
+        if (tx >= n || ty >= n || tz >= ncz)
             return;
         float u = 0;
         float v = 0;
@@ -88,22 +87,22 @@ extern "C" {
             {
                 u = u-ur;
                 v = v-vr;                
-                f0 +=   data[ur+0+(vr+0)*n+t*n*nz]*(1-u)*(1-v)+
-                        data[ur+1+(vr+0)*n+t*n*nz]*(0+u)*(1-v)+
-                        data[ur+0+(vr+1)*n+t*n*nz]*(1-u)*(0+v)+
-                        data[ur+1+(vr+1)*n+t*n*nz]*(0+u)*(0+v);
+                f0 +=   data[ur+0+t*n+(vr+0)*n*nproj]*(1-u)*(1-v)+
+                        data[ur+1+t*n+(vr+0)*n*nproj]*(0+u)*(1-v)+
+                        data[ur+0+t*n+(vr+1)*n*nproj]*(1-u)*(0+v)+
+                        data[ur+1+t*n+(vr+1)*n*nproj]*(0+u)*(0+v);
                         
             }
         }
-        f[tx + ty * n + tz * n * n] += f0;        
+        f[tx + ty * n + tz * n * n] += f0*c;        
     }  
 
-    void __global__ adj_try_lamino(float *f, float *data, float *theta, float* phi, int sz, int nsh, int n, int nz, int nproj)    
+    void __global__ backprojection_try_lamino(float *f, float *data, float *theta, float* phi, int sz, float c, int ncz, int n, int nz, int nproj)    
     {
         int tx = blockDim.x * blockIdx.x + threadIdx.x;
         int ty = blockDim.y * blockIdx.y + threadIdx.y;
         int tz = blockDim.z * blockIdx.z + threadIdx.z;
-        if (tx >= n || ty >= n || tz >= nsh)
+        if (tx >= n || ty >= n || tz >= ncz)
             return;
         float u = 0;
         float v = 0;
@@ -134,46 +133,57 @@ extern "C" {
             {
                 u = u-ur;
                 v = v-vr;                
-                f0 +=   data[ur+0+(vr+0)*n+t*n*nz]*(1-u)*(1-v)+
-                        data[ur+1+(vr+0)*n+t*n*nz]*(0+u)*(1-v)+
-                        data[ur+0+(vr+1)*n+t*n*nz]*(1-u)*(0+v)+
-                        data[ur+1+(vr+1)*n+t*n*nz]*(0+u)*(0+v);
+                f0 +=   data[ur+0+t*n+(vr+0)*n*nproj]*(1-u)*(1-v)+
+                        data[ur+1+t*n+(vr+0)*n*nproj]*(0+u)*(1-v)+
+                        data[ur+0+t*n+(vr+1)*n*nproj]*(1-u)*(0+v)+
+                        data[ur+1+t*n+(vr+1)*n*nproj]*(0+u)*(0+v);
                         
             }
         }
-        f[tx + ty * n + tz * n * n] += f0;        
+        f[tx + ty * n + tz * n * n] += f0*c;        
     }    
 }
 """
 
 module = cp.RawModule(code=source)
-adj_kernel = module.get_function('adj')
-adj_try_kernel = module.get_function('adj_try')
-adj_try_lamino_kernel = module.get_function('adj_try_lamino')
+backprojection_kernel = module.get_function('backprojection')
+backprojection_try_kernel = module.get_function('backprojection_try')
+backprojection_try_lamino_kernel = module.get_function('backprojection_try_lamino')
 
 
-def adj(f, data, theta, lamino_angle, sz):
-    [ncz, n] = f.shape[:2]
-    [nproj, nz] = data.shape[:2]
-    phi = cp.float32(cp.pi/2+(lamino_angle)/180*cp.pi)
+class LineSummation():
+    """Backprojection by summation over lines"""
 
-    adj_kernel((int(cp.ceil(n/32)), int(cp.ceil(n/32+0.5)), ncz), (32, 32, 1),
-               (f, data, theta, phi, sz, ncz, n, nz, nproj))
+    def __init__(self, nproj, ncproj, nz, ncz, n, dtype):
+        self.nproj = nproj
+        self.ncproj = ncproj
+        self.nz = nz
+        self.ncz = ncz
+        self.n = n
+        self.dtype = dtype
 
+    def backprojection(self, f, data, theta, lamino_angle, sz):
+        f0 = f.astype('float32', copy=False)  # TODO: implement for float16
+        data = data.astype('float32', copy=False)
+        phi = cp.float32(cp.pi/2+(lamino_angle)/180*cp.pi)
+        backprojection_kernel((int(cp.ceil(self.n/32)), int(cp.ceil(self.n/32+0.5)), self.ncz), (32, 32, 1),
+                              (f0, data, theta, phi, sz, cp.float32(1.0/self.nproj), self.ncz, self.n, self.nz, self.ncproj))
+        f[:] = f0.astype(self.dtype, copy=False)
 
-def adj_try(f, data, theta, lamino_angle, sz, sh):
-    [nsh, n] = f.shape[:2]
-    [nproj, nz] = data.shape[:2]
-    phi = cp.float32(cp.pi/2+(lamino_angle)/180*cp.pi)
-    adj_try_kernel((int(cp.ceil(n/32)), int(cp.ceil(n/32+0.5)), nsh), (32, 32, 1),
-                   (f, data, theta, phi, sz, sh, nsh, n, nz, nproj))
+    def backprojection_try(self, f, data, theta, lamino_angle, sz, sh):
+        f0 = f.astype('float32', copy=False)  # TODO: implement for float16
+        data = data.astype('float32', copy=False)
+        theta = theta.astype('float32', copy=False)
+        phi = cp.float32(cp.pi/2+(lamino_angle)/180*cp.pi)
+        backprojection_try_kernel((int(cp.ceil(self.n/32)), int(cp.ceil(self.n/32+0.5)), self.ncz), (32, 32, 1),
+                                  (f0, data, theta, phi, sz, sh, cp.float32(1.0/self.nproj), self.ncz, self.n, self.nz, self.ncproj))
+        f[:] = f0.astype(self.dtype, copy=False)
 
-
-def adj_try_lamino(f, data, theta, lamino_angle, sz, sh):
-    [nsh, n] = f.shape[:2]
-    [nproj, nz] = data.shape[:2]
-
-    # init lamino angle
-    phi = (cp.pi/2+(lamino_angle+sh)/180*cp.pi).astype('float32')
-    adj_try_lamino_kernel((int(cp.ceil(n/32)), int(cp.ceil(n/32+0.5)), nsh), (32, 32, 1),
-                          (f, data, theta, phi, sz, nsh, n, nz, nproj))
+    def backprojection_try_lamino(self, f, data, theta, lamino_angle, sz, sh):
+        f0 = f.astype('float32', copy=False)  # TODO: implement for float16
+        data = data.astype('float32', copy=False)
+        # init lamino angle
+        phi = (cp.pi/2+(lamino_angle+sh)/180*cp.pi).astype('float32')
+        backprojection_try_lamino_kernel((int(cp.ceil(self.n/32)), int(cp.ceil(self.n/32+0.5)), self.ncz), (32, 32, 1),
+                                         (f0, data, theta, phi, sz, cp.float32(1.0/self.nproj), self.ncz, self.n, self.nz, self.ncproj))
+        f[:] = f.astype(self.dtype, copy=False)

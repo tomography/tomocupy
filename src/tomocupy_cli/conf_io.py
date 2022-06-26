@@ -18,7 +18,13 @@ class ConfIO():
     def __init__(self, args):
         self.args = args
         self.init_sizes()
-        self.init_output_files()
+        if self.args.reconstruction_type[:3] == 'try':
+            self.init_sizes_try()
+            self.init_output_files_try()
+        else:
+            self.init_output_files()
+        if self.args.reconstruction_algorithm == 'linesummation':
+            self.init_sizes_lamino()
 
     def init_sizes(self):
         """Calculating and adjusting sizes for reconstruction by chunks"""
@@ -29,7 +35,6 @@ class ConfIO():
         ndark = file_in['/exchange/data_dark'].shape[0]
         nflat = file_in['/exchange/data_white'].shape[0]
         theta = file_in['/exchange/theta'][:].astype('float32')/180*np.pi
-        in_dtype = file_in['exchange/data'].dtype
 
         if (self.args.end_row == -1):
             self.args.end_row = file_in['/exchange/data'].shape[1]
@@ -88,41 +93,19 @@ class ConfIO():
 
         nproj = len(theta)
 
-        # take reconstruction height
-        rh = self.args.recon_height
-        if rh == 0:
-            rh = int(np.ceil((nz/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) * \
-                2**self.args.binning
-
-        # calculate chunks
-        # reconstruct one slice with different centers
-        if self.args.reconstruction_type == 'try':
-            shift_array = np.arange(-self.args.center_search_width,
-                                    self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
-        else:  # self.args.reconstruction_type=='try_lamino':
-            shift_array = np.arange(-self.args.lamino_search_width,
-                                    self.args.lamino_search_width, self.args.lamino_search_step).astype('float32')
-
         if self.args.end_row == -1:
             nz = nz-self.args.start_row
         else:
             nz = self.args.end_row-self.args.start_row
 
         nz //= 2**self.args.binning
-        rh //= 2**self.args.binning
 
-        nschunk = int(np.ceil(len(shift_array)/(ncz)))
-        lschunk = np.minimum(ncz, np.int32(
-            len(shift_array)-np.arange(nschunk)*ncz))  # chunk sizes
         nzchunk = int(np.ceil(nz/ncz))
         lzchunk = np.minimum(
             ncz, np.int32(nz-np.arange(nzchunk)*ncz))  # chunk sizes
         ntchunk = int(np.ceil(nproj/ncproj))
         ltchunk = np.minimum(
             ncproj, np.int32(nproj-np.arange(ntchunk)*ncproj))  # chunk sizes in proj
-        nrchunk = int(np.ceil(rh/ncz))
-        lrchunk = np.minimum(
-            ncz, np.int32(rh-np.arange(nrchunk)*ncz))  # chunk sizes in proj
 
         self.n = n
         self.nz = nz
@@ -140,93 +123,123 @@ class ConfIO():
         self.lzchunk = lzchunk
         self.ntchunk = ntchunk
         self.ltchunk = ltchunk
-        self.nschunk = nschunk
-        self.lschunk = lschunk
-        self.nrchunk = nrchunk
-        self.lrchunk = lrchunk
         self.file_in = file_in
-        self.in_dtype = in_dtype
+        self.dtype = self.args.dtype
         self.stn = stn
         self.endn = endn
-        self.rh = rh
+
+    def init_sizes_try(self):
+        if self.args.reconstruction_type == 'try':
+            # invert shifts for calculations if centeri<ni for double_fov
+            shift_array = np.arange(-self.args.center_search_width,
+                                    self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
+            save_centers = (self.centeri - shift_array)*2**self.args.binning
+            if (self.args.file_type == 'double_fov') and (self.centeri < self.ni//2):
+                shift_array = -shift_array
+        elif self.args.reconstruction_type == 'try_lamino':
+            shift_array = np.arange(-self.args.lamino_search_width,
+                                    self.args.lamino_search_width, self.args.lamino_search_step).astype('float32')
+            save_centers = self.args.lamino_angle + shift_array
+
+        nschunk = int(np.ceil(len(shift_array)/self.ncz))
+        lschunk = np.minimum(self.ncz, np.int32(
+            len(shift_array)-np.arange(nschunk)*self.ncz))  # chunk sizes
         self.shift_array = shift_array
+        self.save_centers = save_centers
+        self.nschunk = nschunk
+        self.lschunk = lschunk
+        self.idslice = int(self.args.nsino*(self.nz*2**self.args.binning-1) /
+                           2**self.args.binning)*2**self.args.binning
+
+    def init_sizes_lamino(self):
+        # take reconstruction height
+        rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) * \
+            2**self.args.binning
+        rh //= 2**self.args.binning
+        nrchunk = int(np.ceil(rh/self.ncz))
+        lrchunk = np.minimum(
+            self.ncz, np.int32(rh-np.arange(nrchunk)*self.ncz))
+        self.nrchunk = nrchunk
+        self.lrchunk = lrchunk
+        self.rh = rh
+        self.lamino_angle = self.args.lamino_angle
+
+    def init_output_files_try(self):
+        """Constructing output file names and initiating the actual files"""
+
+        fnameout = os.path.dirname(
+            self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
+        os.system(f'mkdir -p {fnameout}')
+        fnameout += '/recon'
+        self.fnameout = fnameout
+        log.info(f'Output: {fnameout}')
 
     def init_output_files(self):
         """Constructing output file names and initiating the actual files"""
 
-        if self.args.reconstruction_type == 'try' or self.args.reconstruction_type == 'try_lamino':
+        # init output files
+        if(self.args.out_path_name is None):
             fnameout = os.path.dirname(
-                self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
+                self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec'
             os.system(f'mkdir -p {fnameout}')
-            fnameout += '/recon'
-        elif self.args.reconstruction_type == 'full':
-            # init output files
-            if(self.args.out_path_name is None):
-                fnameout = os.path.dirname(
-                    self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec'
-                os.system(f'mkdir -p {fnameout}')
-            else:
-                fnameout = str(self.args.out_path_name)
-
-            if self.args.save_format == 'tiff':
-                # if save results as tiff
-                fnameout += '/recon'
-                # saving command line for reconstruction
-                fname_rec_line = os.path.dirname(fnameout)+'/rec_line.txt'
-                rec_line = sys.argv
-                rec_line[0] = os.path.basename(rec_line[0])
-                with open(fname_rec_line, 'w') as f:
-                    f.write(' '.join(rec_line))
-
-            elif self.args.save_format == 'h5':
-                # if save results as h5 virtual datasets
-                fnameout += '.h5'
-                # Assemble virtual dataset
-                layout = h5py.VirtualLayout(shape=(
-                    self.file_in['exchange/data'].shape[1]//2**self.args.binning, self.n, self.n), dtype=self.args.dtype)
-                os.system(f'mkdir -p {fnameout[:-3]}_parts')
-                for k in range(self.nzchunk):
-                    filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
-                    vsource = h5py.VirtualSource(
-                        filename, "/exchange/data", shape=(self.lzchunk[k], self.n, self.n), dtype=self.args.dtype)
-                    st = self.args.start_row//2**self.args.binning+k*self.ncz
-                    layout[st:st+self.lzchunk[k]] = vsource
-
-                # Add virtual dataset to output file
-                rec_virtual = h5py.File(fnameout, "w")
-                dset_rec = rec_virtual.create_virtual_dataset(
-                    "/exchange/data", layout)
-
-                # saving command line to repeat the reconstruction as attribute of /exchange/data
-                rec_line = sys.argv
-                # remove full path to the file
-                rec_line[0] = os.path.basename(rec_line[0])
-                s = ' '.join(rec_line).encode("utf-8")
-                dset_rec.attrs["command"] = np.array(
-                    s, dtype=h5py.string_dtype('utf-8', len(s)))
-                dset_rec.attrs["axes"] = 'z:y:x'
-                dset_rec.attrs["description"] = 'ReconData'
-                dset_rec.attrs["units"] = 'counts'
-
-                try:  # trying to copy meta
-                    import meta
-                    tree, meta_dict = meta.read_hdf(self.args.file_name)
-                    for key, value in meta_dict.items():
-                        # print(key, value)
-                        dset = rec_virtual.create_dataset(key, data=value[0])
-                        if value[1] is not None:
-                            dset.attrs['units'] = value[1]
-                except:
-                    log.info('Skip copying meta')
-                    pass
-
-                rec_virtual.close()
-                config.update_hdf_process(fnameout, self.args, sections=(
-                    'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
-
         else:
-            return
+            fnameout = str(self.args.out_path_name)
 
+        if self.args.save_format == 'tiff':
+            # if save results as tiff
+            fnameout += '/recon'
+            # saving command line for reconstruction
+            fname_rec_line = os.path.dirname(fnameout)+'/rec_line.txt'
+            rec_line = sys.argv
+            rec_line[0] = os.path.basename(rec_line[0])
+            with open(fname_rec_line, 'w') as f:
+                f.write(' '.join(rec_line))
+
+        elif self.args.save_format == 'h5':
+            # if save results as h5 virtual datasets
+            fnameout += '.h5'
+            # Assemble virtual dataset
+            layout = h5py.VirtualLayout(shape=(
+                self.file_in['exchange/data'].shape[1]//2**self.args.binning, self.n, self.n), dtype=self.dtype)
+            os.system(f'mkdir -p {fnameout[:-3]}_parts')
+            for k in range(self.nzchunk):
+                filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
+                vsource = h5py.VirtualSource(
+                    filename, "/exchange/data", shape=(self.lzchunk[k], self.n, self.n), dtype=self.dtype)
+                st = self.args.start_row//2**self.args.binning+k*self.ncz
+                layout[st:st+self.lzchunk[k]] = vsource
+
+            # Add virtual dataset to output file
+            rec_virtual = h5py.File(fnameout, "w")
+            dset_rec = rec_virtual.create_virtual_dataset(
+                "/exchange/data", layout)
+
+            # saving command line to repeat the reconstruction as attribute of /exchange/data
+            rec_line = sys.argv
+            # remove full path to the file
+            rec_line[0] = os.path.basename(rec_line[0])
+            s = ' '.join(rec_line).encode("utf-8")
+            dset_rec.attrs["command"] = np.array(
+                s, dtype=h5py.string_dtype('utf-8', len(s)))
+            dset_rec.attrs["axes"] = 'z:y:x'
+            dset_rec.attrs["description"] = 'ReconData'
+            dset_rec.attrs["units"] = 'counts'
+
+            try:  # trying to copy meta
+                import meta
+                tree, meta_dict = meta.read_hdf(self.args.file_name)
+                for key, value in meta_dict.items():
+                    # print(key, value)
+                    dset = rec_virtual.create_dataset(key, data=value[0])
+                    if value[1] is not None:
+                        dset.attrs['units'] = value[1]
+            except:
+                log.info('Skip copying meta')
+                pass
+
+            rec_virtual.close()
+            config.update_hdf_process(fnameout, self.args, sections=(
+                'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
@@ -271,7 +284,7 @@ class ConfIO():
     def downsample(self, data):
         """Downsample data"""
 
-        data = data.astype(self.args.dtype)
+        data = data.astype(self.dtype)
         for j in range(self.args.binning):
             x = data[:, :, ::2]
             y = data[:, :, 1::2]
@@ -296,17 +309,14 @@ class ConfIO():
         data = fid['exchange/data']
         dark = fid['exchange/data_dark']
         flat = fid['exchange/data_white']
-        idslice = int(
-            self.args.nsino*(data.shape[1]-1)/2**self.args.binning)*2**self.args.binning
-        log.info(f'Try rotation center reconstruction for slice {idslice}')
-        data = data[:, idslice:idslice+2**self.args.binning][self.ids_proj]
-        dark = dark[:, idslice:idslice+2 **
-                    self.args.binning].astype(self.args.dtype)
-        flat = flat[:, idslice:idslice+2 **
-                    self.args.binning].astype(self.args.dtype)
-        data = np.append(data, data, 1)
-        dark = np.append(dark, dark, 1)
-        flat = np.append(flat, flat, 1)
+        log.info(
+            f'Try rotation center reconstruction for slice {self.idslice}')
+        data = data[:, self.idslice:self.idslice +
+                    2**self.args.binning][self.ids_proj]
+        dark = dark[:, self.idslice:self.idslice+2 **
+                    self.args.binning].astype(self.dtype)
+        flat = flat[:, self.idslice:self.idslice+2 **
+                    self.args.binning].astype(self.dtype)
         data = self.downsample(data)
         flat = self.downsample(flat)
         dark = self.downsample(dark)
@@ -331,17 +341,9 @@ class ConfIO():
         """Read flat and dark"""
         # read dark and flat, binning
         dark = self.file_in['exchange/data_dark'][:, self.args.start_row:self.args.end_row,
-                                                  self.stn:self.endn].astype(self.args.dtype)
+                                                  self.stn:self.endn].astype(self.dtype)
         flat = self.file_in['exchange/data_white'][:,
-                                                   self.args.start_row:self.args.end_row, self.stn:self.endn].astype(self.args.dtype)
+                                                   self.args.start_row:self.args.end_row, self.stn:self.endn].astype(self.dtype)
         flat = self.downsample(flat)
         dark = self.downsample(dark)
         return flat, dark
-
-    def read_pairs(self, pairs):
-        """Read pairs for checking rotation center"""
-
-        d = self.file_in['exchange/data'][pairs,
-                                          self.args.start_row:self.args.end_row, self.stn:self.endn]
-        data = self.downsample(d)
-        return data

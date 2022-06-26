@@ -4,6 +4,8 @@ import cupy as cp
 
 
 class FourierRec():
+    """Backprojection by the Fourier-based method"""
+
     def __init__(self, n, nproj, nz, theta, dtype):
         self.theta = theta  # keep theta in memory
         self.nz = nz
@@ -24,9 +26,3 @@ class FourierRec():
         objc = cp.ascontiguousarray(obj.reshape(self.nz//2, self.n, 2*self.n))
         self.fslv.backprojection(obj.data.ptr, data.data.ptr, stream.ptr)
         obj[:] = cp.concatenate((objc[:, :, ::2], objc[:, :, 1::2]))
-
-    def filter(self, data, w, stream):
-        # reorganize data as a complex array, reuse data
-        data = cp.ascontiguousarray(data)
-        w = cp.ascontiguousarray(w.view('float32').astype(data.dtype))
-        self.fslv.filter(data.data.ptr, w.data.ptr, stream.ptr)

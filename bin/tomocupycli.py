@@ -32,22 +32,13 @@ def run_rec(args):
     file_name = Path(args.file_name)
     if file_name.is_file():
         t = time.time()
-
-        if(args.reconstruction_type == 'full'):
-            if args.rotation_axis_auto == 'auto':
-                args.reconstruction_type == 'check'
-                clpthandle = GPURec(args)
-                args.rotation_axis = clpthandle.find_center()
-                log.warning(f'set rotaion  axis {args.rotation_axis}')
-                args.rotation_axis_auto == 'auto'
+        args.retrieve_phase_method = 'none' # don not allow phase retrieval here
+        if(args.reconstruction_type == 'full'):            
             clpthandle = GPURec(args)
             clpthandle.recon_all()
         if(args.reconstruction_type == 'try'):
             clpthandle = GPURec(args)
-            clpthandle.recon_try()
-        if(args.reconstruction_type == 'check'):
-            clpthandle = GPURec(args)
-            clpthandle.find_center()
+            clpthandle.recon_try()        
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
@@ -58,6 +49,9 @@ def run_recstep(args):
     file_name = Path(args.file_name)
     if file_name.is_file():
         t = time.time()
+        if args.lamino_angle!=0 and args.reconstruction_algorithm != 'linesummation' :
+            log.warning('Switching to reconstruction algorithm linesummation for laminography')
+            args.reconstruction_algorithm = 'linesummation'
         clpthandle = GPURecSteps(args)
         if(args.reconstruction_type == 'full'):
             clpthandle.recon_steps_all()
@@ -68,26 +62,6 @@ def run_recstep(args):
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
     else:
         log.error("File Name does not exist: %s" % args.file_name)
-
-
-def run_recmulti(args):
-    # to test
-    line = ' '.join(sys.argv[2:])
-    if(args.end_row == -1):
-        with h5py.File(args.file_name, 'r') as fid:
-            args.end_row = fid['/exchange/data/'].shape[1]
-
-    cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\';\""
-    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'; \""
-    print(f'Tomo1: {cmd1}')
-    p1 = subprocess.Popen(cmd1, shell=True)
-    print(f'Tomo2: {cmd2}')
-    p2 = subprocess.Popen(cmd2, shell=True)
-    p1.wait()
-    p2.wait()
-    # recover terminal
-    os.system('stty sane')
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -103,8 +77,6 @@ def main():
          "Run tomographic reconstruction by splitting data into chunks in z "),
         ('recon_steps',   run_recstep,     tomo_steps_params,
          "Run tomographic reconstruction by splitting by chunks in z and angles (step-wise)"),
-        ('reconmulti',  run_recmulti,    tomo_params,
-         "Run reconstruction on several nodes"),
         ('status',      run_status,      tomo_steps_params,
          "Show the tomographic reconstruction status"),
     ]
