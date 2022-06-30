@@ -3,9 +3,9 @@ from tomocupy_cli import logging
 import numpy as np
 import numexpr as ne
 import h5py
-import dxchange
 import os
 import sys
+import tifffile
 
 log = logging.getLogger(__name__)
 
@@ -273,8 +273,10 @@ class ConfIO():
                       self.args.crop, self.args.crop:-self.args.crop]
 
         if self.args.save_format == 'tiff':
-            dxchange.write_tiff_stack(rec, fname=self.fnameout, start=k *
-                                      self.ncz+self.args.start_row//2**self.args.binning, overwrite=True)
+            st = k*self.ncz+self.args.start_row//2**self.args.binning
+            for kk in range(rec.shape[0]):
+                fid = st+kk
+                tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff',rec[kk])
         elif self.args.save_format == 'h5':
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
@@ -328,8 +330,7 @@ class ConfIO():
         if self.args.crop > 0:
             rec = rec[self.args.crop:-self.args.crop,
                       self.args.crop:-self.args.crop]
-        dxchange.write_tiff(
-            rec, f'{self.fnameout}_{cid:05.2f}.tiff', overwrite=True)
+        tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff',rec)
 
     def read_data(self, data, k, lchunk):
         """Read a chunk of projection with binning"""

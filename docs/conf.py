@@ -315,7 +315,6 @@ autodoc_mock_imports = [
     'cv2',
     'cupy',
     'cupyx',
-    'dxchange',
     'h5py',
     'inspect',
     'logging',

@@ -43,9 +43,6 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-from tomocupy_cli import fourierrec
-from tomocupy_cli import fbp_filter
-from tomocupy_cli import remove_stripe
 from tomocupy_cli import utils
 from tomocupy_cli import logging
 from tomocupy_cli import conf_io
@@ -54,7 +51,6 @@ import cupy as cp
 import numpy as np
 import multiprocessing as mp
 import signal
-from tomocupy_cli import find_rotation
 
 
 __author__ = "Viktor Nikitin"

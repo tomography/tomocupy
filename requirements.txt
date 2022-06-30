@@ -1,4 +1,3 @@
-dxchange 
 cupy 
 scikit-build 
 swig 
