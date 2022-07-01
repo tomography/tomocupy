@@ -2,10 +2,9 @@ import numpy as np
 import cupy as cp
 import argparse
 import os
+from threading import Thread
 
 # Print iterations progress
-
-
 def printProgressBar(iteration, total, qsize, prefix='', suffix='', decimals=1, length=100, fill='█', printEnd="\r"):
     """
     Call in a loop to create terminal progress bar
@@ -62,3 +61,20 @@ def signal_handler(sig, frame):
     print('Abort')
     os.system('kill -9 $PPID')
 
+class WriteThread():
+    def __init__(self):
+        self.thread = None
+
+    def run(self,fun,args):   
+        self.thread = Thread(target=fun, args=args)        
+        self.thread.start()
+
+    def is_alive(self):
+        if self.thread == None:
+            return False
+        return self.thread.is_alive()
+    
+    def join(self):
+        if self.thread == None:
+            return 
+        self.thread.join()

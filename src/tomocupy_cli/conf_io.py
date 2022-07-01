@@ -268,7 +268,6 @@ class ConfIO():
     
     def write_data(self, rec, k):
         """Writing the kth data chunk to hard disk"""
-
         if self.args.crop > 0:
             rec = rec[:, self.args.crop:-
                       self.args.crop, self.args.crop:-self.args.crop]
@@ -282,7 +281,7 @@ class ConfIO():
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
-                                   chunks=(1, self.n, self.n))
+                                   chunks=(1, self.n, self.n))        
 
     def downsample(self, data):
         """Downsample data"""

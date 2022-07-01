@@ -289,6 +289,10 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 0,
         'help': "Radius for removing outliers"},
+    'max-write-threads': {
+        'type': int,
+        'default': 8,
+        'help': "Max number of threads for writing by chunks"},    
 }
 
 

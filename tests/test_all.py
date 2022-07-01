@@ -340,7 +340,39 @@ class Tests(unittest.TestCase):
             data = fid['exchange/data']
             ssum = np.sum(data.astype('float32'))        
         self.assertAlmostEqual(ssum, 336.27917, places=-2)
+    
+    def test_full_recon_write_threads(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --nsino-per-chunk 4 --max-write-threads 4'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0)
+        ssum = 0
+        for k in range(22):
+            ssum += np.sum(tifffile.imread(f'data_rec/test_data_rec/recon_{k:05}.tiff'))
+        self.assertAlmostEqual(ssum, 1449.0039, places=1)
 
+    def test_full_recon_write_threads(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --nsino-per-chunk 4 --max-write-threads 1'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0)
+        ssum = 0
+        for k in range(22):
+            ssum += np.sum(tifffile.imread(f'data_rec/test_data_rec/recon_{k:05}.tiff'))
+        self.assertAlmostEqual(ssum, 1449.0039, places=1)
+    
+    def test_recon_step_write_threads(self):
+        os.system('rm -rf data_rec')
+        cmd = 'tomocupy recon_steps --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --nsino-per-chunk 4 --max-write-threads 1'
+        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
+        st = os.system(cmd)
+        self.assertEqual(st, 0)
+        ssum = 0
+        for k in range(22):
+            ssum += np.sum(tifffile.imread(f'data_rec/test_data_rec/recon_{k:05}.tiff'))
+        self.assertAlmostEqual(ssum, 1449.0038, places=1)
 
 if __name__ == '__main__':
     unittest.main(testLoader=SequentialTestLoader(), failfast=True)
