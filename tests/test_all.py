@@ -24,7 +24,7 @@ class Tests(unittest.TestCase):
 
     def test_try_recon(self):
         os.system('rm -rf data_rec')
-        cmd = 'tomocupy recon --file-name data/test_data.h5 --nsino-per-chunk 4'
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --nsino-per-chunk 2'
         print(f'TEST {inspect.stack()[0][3]}: {cmd}')
         st = os.system(cmd)
         self.assertEqual(st, 0)
@@ -36,7 +36,7 @@ class Tests(unittest.TestCase):
 
     def test_try_recon_binning(self):
         os.system('rm -rf data_rec')
-        cmd = 'tomocupy recon --file-name data/test_data.h5 --binning 1'
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --binning 1 --nsino-per-chunk 2'
         print(f'TEST {inspect.stack()[0][3]}: {cmd}')
         st = os.system(cmd)
         self.assertEqual(st, 0)
@@ -83,7 +83,7 @@ class Tests(unittest.TestCase):
 
     def test_full_recon_binning(self):
         os.system('rm -rf data_rec')
-        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --binning 1 --nsino-per-chunk 4'
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --binning 1 --nsino-per-chunk 2'
         print(f'TEST {inspect.stack()[0][3]}: {cmd}')
         st = os.system(cmd)
         self.assertEqual(st, 0)
@@ -94,7 +94,7 @@ class Tests(unittest.TestCase):
 
     def test_full_recon_parts(self):
         os.system('rm -rf data_rec')
-        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --start-row 3 --end-row 15 --start-proj 200 --end-proj 700 --nsino-per-chunk 4'
+        cmd = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 770 --start-row 3 --end-row 15 --start-proj 200 --end-proj 700 --nsino-per-chunk 2'
         print(f'TEST {inspect.stack()[0][3]}: {cmd}')
         st = os.system(cmd)
         self.assertEqual(st, 0, f"{cmd} failed to run")
