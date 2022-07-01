@@ -50,6 +50,7 @@ from tomocupy_cli import tomo_functions
 import cupy as cp
 import numpy as np
 import multiprocessing as mp
+from multiprocessing.pool import ThreadPool
 import signal
 
 
@@ -114,6 +115,10 @@ class GPURec():
         lzchunk = self.cl_conf.lzchunk
         ncz = self.cl_conf.ncz
 
+        # list of procs for parallel writing to hard disk
+        write_procs = ThreadPool(8)
+        max_proc = write_procs._processes# could allocate less than 8
+
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
@@ -134,15 +139,14 @@ class GPURec():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_recon_chunk], dtype=dtype))
+            np.zeros([2*max_proc, *self.shape_recon_chunk], dtype=dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
-
-        # list of procs for parallel writing to hard disk
-        write_procs = []
+        
 
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
+        
         for k in range(nzchunk+2):
             utils.printProgressBar(
                 k, nzchunk+1, self.data_queue.qsize(), length=40)
@@ -163,7 +167,7 @@ class GPURec():
 
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
-                    rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
+                    rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % (2*max_proc)])
             if(k < nzchunk):
                 # copy to pinned memory
                 item = self.data_queue.get()
@@ -177,17 +181,13 @@ class GPURec():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :lzchunk[k-2]].copy()
-                write_proc = mp.Process(
-                    target=self.cl_conf.write_data, args=(rec_pinned0, k-2))
-                write_procs.append(write_proc)
-                write_proc.start()
+                write_procs.apply_async(self.cl_conf.write_data, args=(rec_pinned[(k-2) % (2*max_proc), :lzchunk[k-2]], k-2))
+
             self.stream1.synchronize()
             self.stream2.synchronize()
 
-        # wait until reconstructions are written to hard disk
-        for proc in write_procs:
-            proc.join()
+        write_procs.close()
+        write_procs.join()
 
     def recon_try(self):
         """GPU reconstruction of 1 slice from an h5file"""
