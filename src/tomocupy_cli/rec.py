@@ -196,9 +196,7 @@ class GPURec():
 
     def recon_try(self):
         """GPU reconstruction of 1 slice from an h5file"""
-
         data, flat, dark = self.cl_conf.read_data_try()
-        shift_array = self.cl_conf.shift_array
 
         data = cp.array(data)
         dark = cp.array(dark)
@@ -213,7 +211,7 @@ class GPURec():
         nschunk = self.cl_conf.nschunk
         lschunk = self.cl_conf.lschunk
         ncz = self.cl_conf.ncz
-        
+
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
             np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
