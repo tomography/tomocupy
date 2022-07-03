@@ -260,18 +260,7 @@ class Tests(unittest.TestCase):
             ssum += np.sum(tifffile.imread(f'data_rec/try_center/test_data/recon_{k:05.2f}.tiff'))
         self.assertAlmostEqual(ssum,3204.8912048339844, places=1)
 
-    def test_try_recon_binning(self):
-        os.system('rm -rf data_rec')
-        cmd = 'tomocupy recon --file-name data/test_data.h5 --binning 1'
-        print(f'TEST {inspect.stack()[0][3]}: {cmd}')
-        st = os.system(cmd)
-        self.assertEqual(st, 0)
-        ssum = 0
-        for k in np.arange(759, 779):
-            ssum += np.sum(tifffile.imread(
-                f'data_rec/try_center/test_data/recon_{k:05.2f}.tiff'))
-        self.assertAlmostEqual(ssum, 653.3486022949219, places=1)
-
+    
     def test_try_recon_double_fov(self):
         os.system('rm -rf data_rec')
         cmd = 'tomocupy recon --file-name data/test_data.h5 --file-type double_fov --rotation-axis 130 --nsino-per-chunk 2'
