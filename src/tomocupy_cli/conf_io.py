@@ -265,6 +265,7 @@ class ConfIO():
 
             data_queue.put(item)
 
+    
     def write_data(self, rec, k):
         """Writing the kth data chunk to hard disk"""
 
