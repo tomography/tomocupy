@@ -47,12 +47,11 @@ from tomocupy_cli import utils
 from tomocupy_cli import logging
 from tomocupy_cli import conf_io
 from tomocupy_cli import tomo_functions
+from threading import Thread
+from queue import Queue
 import cupy as cp
 import numpy as np
-import multiprocessing as mp
-from multiprocessing.pool import ThreadPool
 import signal
-
 
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
@@ -64,8 +63,7 @@ pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 log = logging.getLogger(__name__)
-
-
+        
 class GPURec():
     '''
     Class for tomographic reconstruction on GPU with conveyor data processing by chunks.
@@ -94,9 +92,14 @@ class GPURec():
         self.stream1 = cp.cuda.Stream(non_blocking=False)
         self.stream2 = cp.cuda.Stream(non_blocking=False)
         self.stream3 = cp.cuda.Stream(non_blocking=False)
+        
+        #threads for data writing to disk
+        self.write_procs = []
+        for k in range(cl_conf.args.max_write_threads):
+            self.write_procs.append(utils.WriteThread())            
 
         # queue for streaming projections
-        self.data_queue = mp.Queue()
+        self.data_queue = Queue()
 
         # additional refs
         self.cl_conf = cl_conf
@@ -105,7 +108,7 @@ class GPURec():
         """GPU reconstruction of data from an h5file by splitting into chunks"""
 
         # start reading data to a queue
-        read_proc = mp.Process(
+        read_proc = Thread(
             target=self.cl_conf.read_data_to_queue, args=(self.data_queue,))
         read_proc.start()
 
@@ -114,11 +117,7 @@ class GPURec():
         nzchunk = self.cl_conf.nzchunk
         lzchunk = self.cl_conf.lzchunk
         ncz = self.cl_conf.ncz
-
-        # list of procs for parallel writing to hard disk
-        write_procs = ThreadPool(8)
-        max_proc = write_procs._processes# could allocate less than 8
-
+        
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
@@ -139,11 +138,10 @@ class GPURec():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([2*max_proc, *self.shape_recon_chunk], dtype=dtype))
+            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
         
-
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         
@@ -167,7 +165,14 @@ class GPURec():
 
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
-                    rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % (2*max_proc)])
+                    # find free thread
+                    ithread = 0                
+                    while True:
+                        if not self.write_procs[ithread].is_alive():
+                            break                       
+                        ithread=(ithread+1)%self.cl_conf.args.max_write_threads
+
+                    rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
             if(k < nzchunk):
                 # copy to pinned memory
                 item = self.data_queue.get()
@@ -181,13 +186,13 @@ class GPURec():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                write_procs.apply_async(self.cl_conf.write_data, args=(rec_pinned[(k-2) % (2*max_proc), :lzchunk[k-2]], k-2))
+                self.write_procs[ithread].run(self.cl_conf.write_data,(rec_pinned[ithread,:lzchunk[k-2]], k-2))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
 
-        write_procs.close()
-        write_procs.join()
+        for t in self.write_procs:
+            t.join()
 
     def recon_try(self):
         """GPU reconstruction of 1 slice from an h5file"""
@@ -208,15 +213,13 @@ class GPURec():
         nschunk = self.cl_conf.nschunk
         lschunk = self.cl_conf.lschunk
         ncz = self.cl_conf.ncz
-
+        
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_recon_chunk], dtype=dtype))
+            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
 
-        # invert shifts for calculations if centeri<ni for double_fov
-        write_procs = []
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nschunk+2):
             utils.printProgressBar(
@@ -231,18 +234,22 @@ class GPURec():
                         rec_gpu[(k-1) % 2], datat, self.stream2)
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
-                    rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
+                    # find free thread
+                    ithread = 0                
+                    while True:
+                        if not self.write_procs[ithread].is_alive():
+                            break                       
+                        ithread=(ithread+1)%self.cl_conf.args.max_write_threads
+
+                    rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
             self.stream3.synchronize()
             if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                rec_pinned0 = rec_pinned[(k-2) % 2, :lschunk[k-2]].copy()
+                # add a new thread for writing to hard disk (after gpu->cpu copy is done)                
                 for kk in range(lschunk[k-2]):
-                    write_proc = mp.Process(
-                        target=self.cl_conf.write_data_try, args=(rec_pinned0[kk], self.cl_conf.save_centers[(k-2)*ncz+kk]))
-                    write_procs.append(write_proc)
-                    write_proc.start()
+                    self.write_procs[ithread].run(self.cl_conf.write_data_try,(rec_pinned[ithread, kk],self.cl_conf.save_centers[(k-2)*ncz+kk]))
+                    
             self.stream1.synchronize()
             self.stream2.synchronize()
 
-        for proc in write_procs:
-            proc.join()
+        for t in self.write_procs:
+            t.join()
