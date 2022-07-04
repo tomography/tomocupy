@@ -11,6 +11,7 @@ from datetime import datetime
 from tomocupy_cli import logging
 from tomocupy_cli import config
 from tomocupy_cli import GPURec
+from tomocupy_cli import FindCenter
 from tomocupy_cli import GPURecSteps
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,10 @@ def run_rec(args):
         t = time.time()
         args.retrieve_phase_method = 'none' # don not allow phase retrieval here
         if(args.reconstruction_type == 'full'):            
+            if args.rotation_axis_auto == 'auto':            
+                clrotthandle = FindCenter(args)        
+                args.rotation_axis = clrotthandle.find_center()
+                log.warning(f'set rotaion  axis {args.rotation_axis}')                                
             clpthandle = GPURec(args)
             clpthandle.recon_all()
         if(args.reconstruction_type == 'try'):
