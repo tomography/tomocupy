@@ -272,7 +272,7 @@ SECTIONS['reconstruction'] = {
         'help': "How to get rotation axis auto calculate ('auto'), or manually ('manual')",
         'choices': ['manual', 'auto',]},
     'rotation-axis-pairs': {
-        'default': '[0,1499]',
+        'default': '[0,0]',
         'type': str,
         'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.",},        
     'rotation-axis-sift-threshold': {

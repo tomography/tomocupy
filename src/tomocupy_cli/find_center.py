@@ -139,7 +139,10 @@ class FindCenter():
         from ast import literal_eval
         pairs = literal_eval(self.cl_conf.args.rotation_axis_pairs)
         
-        flat, dark = self.cl_conf.read_flat_dark()        
+        flat, dark = self.cl_conf.read_flat_dark() 
+        if pairs[0] ==pairs[1]:
+            pairs[0] = 0
+            pairs[1] = self.cl_conf.nproj-1       
         data = self.cl_conf.read_pairs(pairs)
         data = cp.array(data)
         flat = cp.array(flat)

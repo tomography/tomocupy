@@ -148,8 +148,7 @@ class ConfIO():
         self.save_centers = save_centers
         self.nschunk = nschunk
         self.lschunk = lschunk
-        self.idslice = int(self.args.nsino*(self.nz*2**self.args.binning-1) /
-                           2**self.args.binning)*2**self.args.binning
+        self.idslice = int(self.args.nsino*self.nz-1)    
 
     def init_sizes_lamino(self):
         # take reconstruction height
@@ -162,7 +161,7 @@ class ConfIO():
         self.nrchunk = nrchunk
         self.lrchunk = lrchunk
         self.rh = rh
-        self.lamino_angle = self.args.lamino_angle
+        self.lamino_angle = self.args.lamino_angle        
 
     def init_output_files_try(self):
         """Constructing output file names and initiating the actual files"""

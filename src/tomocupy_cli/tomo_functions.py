@@ -38,7 +38,8 @@ class TomoFunctions():
 
         dark0 = cp.mean(dark.astype(self.args.dtype), axis=0)
         flat0 = cp.mean(flat.astype(self.args.dtype), axis=0)
-        res = (data.astype(self.args.dtype)-dark0)/(flat0-dark0)
+        res = (data.astype(self.args.dtype)-dark0)/(flat0-dark0+1e-3)
+        res[res<=0] = 1
         return res
 
     def minus_log(self, data):
