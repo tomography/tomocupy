@@ -156,3 +156,7 @@ script
 /test_rotate.py
 /tests/data_rec
 /tests/out.txt
+
+#
+*.jpg
+.loglogin

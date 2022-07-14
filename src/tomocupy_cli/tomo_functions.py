@@ -7,7 +7,7 @@ from tomocupy_cli import retrieve_phase, remove_stripe
 import cupy as cp
 import numpy as np
 import numexpr as ne
-
+from cupyx.scipy import ndimage
 
 class TomoFunctions():
     def __init__(self, cl_conf):
@@ -49,6 +49,16 @@ class TomoFunctions():
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0
         return data  # reuse input memory
+    
+    def remove_outliers(self, data):
+        """Remove outliers"""
+        
+        if(int(self.args.dezinger)>0):
+            r = int(self.args.dezinger)            
+            fdata = ndimage.median_filter(data,[1,r,r])
+            ids = cp.where(cp.abs(fdata-data)>0.5*cp.abs(fdata))
+            data[ids] = fdata[ids]    
+        return data
 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
@@ -94,6 +104,7 @@ class TomoFunctions():
             res = cp.zeros(data.shape, self.args.dtype)
         # dark flat field correrction
         res[:] = self.darkflat_correction(data, dark, flat)
+        res[:] = self.remove_outliers(res)
         # remove stripes
         if(self.args.remove_stripe_method == 'fw'):
             res[:] = remove_stripe.remove_stripe_fw(
