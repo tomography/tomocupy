@@ -240,7 +240,7 @@ SECTIONS['reconstruction'] = {
         'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
     'nsino-per-chunk': {
         'type': int,
-        'default': 168,
+        'default': 8,
         'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory. ", },
     'nproj-per-chunk': {
         'type': int,
