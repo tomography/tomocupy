@@ -1,7 +1,7 @@
-:mod:`tomocupy_cli.remove_stripe`
+:mod:`tomocupy.remove_stripe`
 =================================
 
-.. automodule:: tomocupy_cli.remove_stripe
+.. automodule:: tomocupy.remove_stripe
    :members:
    :show-inheritance:
    :undoc-members:

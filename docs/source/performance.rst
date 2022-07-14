@@ -2,7 +2,7 @@
 Performance
 ===========
 
-Performance tests for `tomopy cli <https://tomopycli.readthedocs.io/en/latest/>`_ and `tomocupy cli <https://tomocupycli.readthedocs.io/en/latest/>`_ using the streaming data analysis cluster tomo 1-2 located at beamline 2-BM of the Advancd Photon source:
+Performance tests for `tomopy cli <https://tomopycli.readthedocs.io/en/latest/>`_ and `tomocupy cli <https://tomocupy.readthedocs.io/en/latest/>`_ using the streaming data analysis cluster tomo 1-2 located at beamline 2-BM of the Advancd Photon source:
 
 .. _cluster: https://anl.box.com/s/uysvb5ujnlugmd16r2f6o10fem9rjgvr
 .. _disk_array: https://anl.box.com/s/zzyvv7w80ltwbtf09zrjiqiw7ak6i7ge

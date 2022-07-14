@@ -73,7 +73,7 @@ master_doc = 'index'
 
 # General information about the project.
 Affiliation = u'Argonne National Laboratory'
-project = u'tomocupy-cli'
+project = u'tomocupy'
 copyright = u'2022, ' + Affiliation
 
 # The version info for the project you're documenting, acts as replacement for
@@ -287,7 +287,7 @@ texinfo_documents = [
   project+u' Documentation',
   Affiliation, 
   project, 
-  'tomocupy-cli'),
+  'tomocupy'),
 ]
 
 # Documents to append as an appendix to all manuals.

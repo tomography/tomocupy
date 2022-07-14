@@ -1,25 +1,32 @@
-============
-Tomocupy-cli
-============
+========
+Tomocupy
+========
 
-**Tomocupy-cli** is a command-line interface for GPU reconstruction of tomographic data. All preprocessing operations are implemented on GPU with using cupy library. Two backprojection methods: Fourier-based (fourierrec) and Log-polar-based (lprec) are implemented with CUDA C++ and python wrappers. lprec works only with equally-spaced angles in the interval [0,180), fourierrec supports arbitrary angles. Ring removal is implemented with using the pytorch wavelet library on GPU.
-
-The package supports two types of reconstructions: manual center search (option '--reconstruction-type try') and whole volume reconstruction (option '--reconstruction-type full'). It is also possible to reconstruct data from 360 degrees scans where the rotation axis is located at the border of the fields of view (option '--file-type double_fov').
-
+**Tomocupy** is a package and a command-line interface for GPU reconstruction of tomographic/laminographic data in 16-bit and 32-bit precision. All preprocessing operations are implemented on GPU with using cupy library, backprojection is implemented with CUDA C.
+Tomocupy implements an efficient data processing conveyor. First, independent Python threads are started for reading data chunks from the hard disk into a Python data queue object (CPU RAM memory) and for writing reconstructed chunks from another Python queue object (CPU RAM memory) to the hard disk. 
+Second, CPU-GPU data transfers are overlapped with GPU computations by using CUDA streams. 
 
 Features
 --------
 
-* List here 
-* the module features
+* Fast tomographic reconstruction on GPU
+* Fast laminographic reconstruction on GPU
+* Efficeint conveyor data processing
+* 16-bit or 32-bit arithmetics
+* Manual rotation center search and automatic rotation center search with using SIFT algorithm
+* Manual search of the laminographic tilting angle
+* Additional preprocessing steps: ring removal with wavelets, phase retrieval procedure with Paganin filter, dezinger filtering
+* Fourier-based method or direct discretization of the back-proejection operator for reconstruction
+* Saving data in tiff and h5 formats
+
 
 
 Contribute
 ----------
 
-* Documentation: https://github.com/tomography/tomocupy-cli/tree/master/doc
-* Issue Tracker: https://github.com/tomography/tomocupy-cli/docs/issues
-* Source Code: https://github.com/tomography/tomocupy-cli/
+* Documentation: https://github.com/tomography/tomocupy/tree/master/doc
+* Issue Tracker: https://github.com/tomography/tomocupy/docs/issues
+* Source Code: https://github.com/tomography/tomocupy/
 
 Content
 -------

@@ -1,7 +1,7 @@
-:mod:`tomocupy_cli.find_rotation`
+:mod:`tomocupy.find_rotation`
 =================================
 
-.. automodule:: tomocupy_cli.find_rotation
+.. automodule:: tomocupy.find_rotation
    :members:
    :show-inheritance:
    :undoc-members:

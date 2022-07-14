@@ -20,21 +20,22 @@ Install
     (tomocupy)$ pip install .
     (tomocupy)$ cd -
 
-3. Set path to the nvcc profiler (e.g. /local/cuda-11.4/bin/nvcc ) and install tomocupy
+3. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.4/bin/nvcc') and install tomocupy
 
 ::
-
-    (tomocupy)$ export CUDACXX=/local/cuda-11.4/bin/nvcc 
-    (tomocupy)$ git clone https://github.com/nikitinvv/tomocupy-cli
-    (tomocupy)$ cd tomocupy-cli
+    
+    (tomocupy)$ git clone https://github.com/nikitinvv/tomocupy
+    (tomocupy)$ cd tomocupy
     (tomocupy)$ python setup.py install 
 
 
 Update
 ======
 
-**tomocupy-cli** is constantly updated to include new features. To update your locally installed version::
+**tomocupy** is constantly updated to include new features. To update your locally installed version
 
-    (tomocupy)$ cd tomocupy-cli
+::
+
+    (tomocupy)$ cd tomocupy
     (tomocupy)$ git pull
     (tomocupy)$ python setup.py install

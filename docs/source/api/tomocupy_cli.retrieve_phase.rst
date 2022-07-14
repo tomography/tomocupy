@@ -1,7 +1,7 @@
-:mod:`tomocupy_cli.retrieve_phase`
+:mod:`tomocupy.retrieve_phase`
 ==================================
 
-.. automodule:: tomocupy_cli.retrieve_phase
+.. automodule:: tomocupy.retrieve_phase
    :members:
    :show-inheritance:
    :undoc-members:

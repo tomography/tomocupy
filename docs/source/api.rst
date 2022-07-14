@@ -1,17 +1,17 @@
 API reference
 =============
 
-.. rubric:: **tomocupy_cli Modules:**
+.. rubric:: **tomocupy Modules:**
 
 .. toctree::
 
-   api/tomocupy_cli.find_rotation
-   api/tomocupy_cli.rec
-   api/tomocupy_cli.rec_steps
-   api/tomocupy_cli.remove_stripe
-   api/tomocupy_cli.retrieve_phase
+   api/tomocupy.find_rotation
+   api/tomocupy.rec
+   api/tomocupy.rec_steps
+   api/tomocupy.remove_stripe
+   api/tomocupy.retrieve_phase
 
-.. automodule:: tomocupy_cli
+.. automodule:: tomocupy
    :members:
    :undoc-members:
    :show-inheritance: 

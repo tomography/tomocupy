@@ -1,7 +1,7 @@
-:mod:`tomocupy_cli.rec`
+:mod:`tomocupy.rec`
 =======================
 
-.. automodule:: tomocupy_cli.rec
+.. automodule:: tomocupy.rec
    :members:
    :show-inheritance:
    :undoc-members:

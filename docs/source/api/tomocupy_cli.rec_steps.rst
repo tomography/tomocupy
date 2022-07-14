@@ -1,7 +1,7 @@
-:mod:`tomocupy_cli.rec_steps`
+:mod:`tomocupy.rec_steps`
 =============================
 
-.. automodule:: tomocupy_cli.rec_steps
+.. automodule:: tomocupy.rec_steps
    :members:
    :show-inheritance:
    :undoc-members:
