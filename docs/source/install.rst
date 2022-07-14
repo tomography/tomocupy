@@ -28,6 +28,14 @@ Install
     (tomocupy)$ cd tomocupy
     (tomocupy)$ python setup.py install 
 
+==========
+Unit tests
+==========
+Run the following to check all functionality
+::
+
+    (tomocupy)$ cd tests; bash test_all.sh
+
 
 Update
 ======
