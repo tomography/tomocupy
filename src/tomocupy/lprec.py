@@ -1,7 +1,11 @@
 from tomocupy import cfunc_lprec
 from tomocupy import cfunc_lprecfp16
+from tomocupy import cfunc_lprec
+from tomocupy import logging
 import cupy as cp
 import numpy as np
+
+log = logging.getLogger(__name__)
 
 class Pgl:
     def __init__(self, Nspan, N, Nproj, Ntheta, Nrho, proj, s, thsp, rhosp, aR, beta, am, g, B3com):
@@ -216,9 +220,15 @@ def fzeta_loop_weights_adj(Ntheta, Nrho, betas, rhos, a, osthlarge):
 
 class LpRec():
     def __init__(self, n, nproj, nz, theta, dtype):        
+
+        # check angles 
+        nproj_test = int(np.round(np.pi/(theta[1]-theta[0])))
+        if nproj != nproj_test:
+            log.error('lprec method works only with equally spaced angles in the interval [0,180) deg.')
+            exit(1)
         ntheta = 2**int(cp.round(cp.log2(nproj)))
         nrho = 2*2**int(cp.round(cp.log2(n)))
-        print(f'{ntheta=},{nrho=}')
+        log.info(f'Log-polar grid sizes: {ntheta=},{nrho=}')
         # precompute parameters for the lp method
         self.Pgl = create_gl(n, nproj, ntheta, nrho)
         self.Padj = create_adj(self.Pgl)

@@ -187,8 +187,8 @@ class GPURec():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                self.write_threads[ithread].run(self.cl_conf.write_data,(rec_pinned[ithread,:lzchunk[k-2]], k-2))
-
+                self.write_threads[ithread].run(self.cl_conf.write_data,(rec_pinned[ithread], k-2))
+                
             self.stream1.synchronize()
             self.stream2.synchronize()
 
