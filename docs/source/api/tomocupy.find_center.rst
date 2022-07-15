@@ -1,5 +1,5 @@
-:mod:`tomocupy.find_rotation`
-=================================
+:mod:`tomocupy.find_center`
+===========================
 
 .. automodule:: tomocupy.find_center
    :members:

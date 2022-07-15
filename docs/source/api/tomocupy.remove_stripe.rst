@@ -1,5 +1,5 @@
 :mod:`tomocupy.remove_stripe`
-=================================
+=============================
 
 .. automodule:: tomocupy.remove_stripe
    :members:

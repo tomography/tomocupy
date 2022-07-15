@@ -1,5 +1,5 @@
 :mod:`tomocupy.rec_steps`
-=============================
+=========================
 
 .. automodule:: tomocupy.rec_steps
    :members:

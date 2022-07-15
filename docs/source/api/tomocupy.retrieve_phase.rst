@@ -1,5 +1,5 @@
 :mod:`tomocupy.retrieve_phase`
-==================================
+==============================
 
 .. automodule:: tomocupy.retrieve_phase
    :members:
