@@ -330,6 +330,7 @@ autodoc_mock_imports = [
     'threading',
     'torch',
     'traceback',
-    'warnings'
+    'warnings',
+    'tifffile'
 ]
 

@@ -5,7 +5,7 @@ API reference
 
 .. toctree::
 
-   api/tomocupy.find_rotation
+   api/tomocupy.find_center
    api/tomocupy.rec
    api/tomocupy.rec_steps
    api/tomocupy.remove_stripe
