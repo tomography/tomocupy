@@ -205,7 +205,7 @@ SECTIONS['reconstruction-types'] = {
         'default': 'fourierrec',
         'type': str,
         'help': "Reconstruction algorithm",
-        'choices': ['fourierrec']},
+        'choices': ['fourierrec','lprec','linesummation']},
 }
 
 SECTIONS['reconstruction-steps-types'] = {

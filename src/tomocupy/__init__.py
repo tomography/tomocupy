@@ -7,6 +7,7 @@ except DistributionNotFound:
     pass
     
 from tomocupy.config import *
+from tomocupy.lprec import *
 from tomocupy.fourierrec import *
 from tomocupy.line_summation import *
 from tomocupy.logging import *

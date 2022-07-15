@@ -23,6 +23,13 @@ set_target_properties(cfunc_fourierrec PROPERTIES CUDA_ARCHITECTURES "60;72;75;8
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_fourierrec.py" DESTINATION tomocupy)
 install(TARGETS cfunc_fourierrec LIBRARY DESTINATION tomocupy)
 
+set_source_files_properties(cfunc_lprec.i PROPERTIES CPLUSPLUS ON)
+swig_add_library(cfunc_lprec LANGUAGE python SOURCES cfunc_lprec.i cfunc_lprec.cu)
+swig_link_libraries(cfunc_lprec cudart cufft)
+set_target_properties(cfunc_lprec PROPERTIES CUDA_ARCHITECTURES "60;72;75;80")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_lprec.py" DESTINATION tomocupy)
+install(TARGETS cfunc_lprec LIBRARY DESTINATION tomocupy)
+
 set_source_files_properties(cfunc_filter.i PROPERTIES CPLUSPLUS ON)
 swig_add_library(cfunc_filter LANGUAGE python SOURCES cfunc_filter.i cfunc_filter.cu)
 swig_link_libraries(cfunc_filter cudart cufft)
@@ -37,6 +44,14 @@ set_target_properties(cfunc_fourierrecfp16 PROPERTIES CUDA_ARCHITECTURES "60;72;
 target_compile_definitions(cfunc_fourierrecfp16 PRIVATE HALF)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_fourierrecfp16.py" DESTINATION tomocupy)
 install(TARGETS cfunc_fourierrecfp16 LIBRARY DESTINATION tomocupy)
+
+set_source_files_properties(cfunc_lprecfp16.i PROPERTIES CPLUSPLUS ON)
+swig_add_library(cfunc_lprecfp16 LANGUAGE python SOURCES cfunc_lprecfp16.i cfunc_lprec.cu)
+swig_link_libraries(cfunc_lprecfp16 cudart cufft)
+set_target_properties(cfunc_lprecfp16 PROPERTIES CUDA_ARCHITECTURES "60;72;75;80")
+target_compile_definitions(cfunc_lprecfp16 PRIVATE HALF)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_lprecfp16.py" DESTINATION tomocupy)
+install(TARGETS cfunc_lprecfp16 LIBRARY DESTINATION tomocupy)
 
 set_source_files_properties(cfunc_filterfp16.i PROPERTIES CPLUSPLUS ON)
 swig_add_library(cfunc_filterfp16 LANGUAGE python SOURCES cfunc_filterfp16.i cfunc_filter.cu)
