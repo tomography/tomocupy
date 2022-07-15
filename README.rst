@@ -20,6 +20,7 @@ Features
 * Saving data in tiff and h5 formats
 
 
+`Performance results <https://tomocupy.readthedocs.io/en/latest/source/performance.html>`_
 
 Contribute
 ----------
@@ -31,3 +32,4 @@ Contribute
 
 **Tomocupy**  documentation is available here `here <https://tomocupy.readthedocs.io/en/latest/>`_
 (under construction)
+
