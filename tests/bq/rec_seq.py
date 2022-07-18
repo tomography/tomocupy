@@ -63,7 +63,7 @@ pinned_memory_pool = cp.cuda.PinnedMemoryPool()
 cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 log = logging.getLogger(__name__)
-
+        
 class GPURec():
     '''
     Class for tomographic reconstruction on GPU with conveyor data processing by sinogram chunks (in z direction).
@@ -92,15 +92,11 @@ class GPURec():
         self.stream1 = cp.cuda.Stream(non_blocking=False)
         self.stream2 = cp.cuda.Stream(non_blocking=False)
         self.stream3 = cp.cuda.Stream(non_blocking=False)
-
-        # threads for data writing to disk
+        
+        #threads for data writing to disk
         self.write_threads = []
         for k in range(cl_conf.args.max_write_threads):
-            self.write_threads.append(utils.WRThread())
-        # threads for data reading from disk
-        self.read_threads = []
-        for k in range(cl_conf.args.max_read_threads):
-            self.read_threads.append(utils.WRThread())
+            self.write_threads.append(utils.WriteThread())            
 
         # queue for streaming projections
         self.data_queue = Queue()
@@ -112,9 +108,9 @@ class GPURec():
         """Reconstruction of data from an h5file by splitting into sinogram chunks"""
 
         # start reading data to a queue
-        main_read_thread = Thread(
-            target=self.cl_conf.read_data_to_queue, args=(self.data_queue, self.read_threads))
-        main_read_thread.start()
+        # read_proc = Thread(
+        #     target=self.cl_conf.read_data_to_queue, args=(self.data_queue,))
+        # read_proc.start()
 
         # refs for faster access
         dtype = self.cl_conf.dtype
@@ -122,7 +118,7 @@ class GPURec():
         nzchunk = self.cl_conf.nzchunk
         lzchunk = self.cl_conf.lzchunk
         ncz = self.cl_conf.ncz
-
+        
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
@@ -146,17 +142,36 @@ class GPURec():
             np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
-
-        # chunk ids with parallel read
-        ids = []
         
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
+        data0 = self.cl_conf.file_in['exchange/data']
+        dark0 = self.cl_conf.file_in['exchange/data_dark']
+        flat0 = self.cl_conf.file_in['exchange/data_white']
+
+        
+                
         for k in range(nzchunk+2):
             utils.printProgressBar(
                 k, nzchunk+1, self.data_queue.qsize(), length=40)
+            if k<nzchunk:
+                item0 = {}
+                st = self.cl_conf.args.start_row+k*self.cl_conf.ncz*2**self.cl_conf.args.binning
+                end = self.cl_conf.args.start_row + \
+                    (k*self.cl_conf.ncz+self.cl_conf.lzchunk[k])*2**self.cl_conf.args.binning
+                item0['data'] = self.cl_conf.downsample(data0[:,  st:end, self.cl_conf.stn:self.cl_conf.endn])[
+                    self.cl_conf.ids_proj]
+                item0['flat'] = self.cl_conf.downsample(
+                    flat0[:,  st:end, self.cl_conf.stn:self.cl_conf.endn])
+                item0['dark'] = self.cl_conf.downsample(
+                    dark0[:,  st:end, self.cl_conf.stn:self.cl_conf.endn])
+
+                self.data_queue.put(item0)
+
+
+            # self.cl_conf.read_data_to_queue(self.data_queue)
             if(k > 0 and k < nzchunk+1):
-                with self.stream2:  # reconstruction
+                with self.stream1:  # reconstruction
                     data = item_gpu['data'][(k-1) % 2]
                     dark = item_gpu['dark'][(k-1) % 2]
                     flat = item_gpu['flat'][(k-1) % 2]
@@ -168,32 +183,36 @@ class GPURec():
                     sht = cp.tile(np.float32(0), data.shape[0])
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
                     self.cl_tomo_func.cl_rec.backprojection(
-                        rec, data, self.stream2)
+                        rec, data, self.stream1)
+
             if(k > 1):
-                with self.stream3:  # gpu->cpu copy
+                with self.stream1:  # gpu->cpu copy
                     # find free thread
-                    ithread = utils.find_free_thread(self.write_threads)
+                    ithread = 0                
+                    while True:
+                        if not self.write_threads[ithread].is_alive():
+                            break                       
+                        ithread=(ithread+1)%self.cl_conf.args.max_write_threads
+
                     rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
             if(k < nzchunk):
                 # copy to pinned memory
                 item = self.data_queue.get()
-                ids.append(item['id'])
-                item_pinned['data'][k % 2, :, :lzchunk[ids[k]]] = item['data']
-                item_pinned['dark'][k % 2, :, :lzchunk[ids[k]]] = item['dark']
-                item_pinned['flat'][k % 2, :, :lzchunk[ids[k]]] = item['flat']
-
+                item_pinned['data'][k % 2, :, :lzchunk[k]] = item['data']
+                item_pinned['dark'][k % 2, :, :lzchunk[k]] = item['dark']
+                item_pinned['flat'][k % 2, :, :lzchunk[k]] = item['flat']
                 with self.stream1:  # cpu->gpu copy
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
-            self.stream3.synchronize()
+            self.stream1.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                self.write_threads[ithread].run(
-                    self.cl_conf.write_data_chunk, (rec_pinned[ithread], ids[k-2]))
-
+                #self.write_threads[ithread].run(self.cl_conf.write_data,(rec_pinned[ithread], k-2))
+                self.cl_conf.write_data(rec_pinned[ithread],k-2)
+                
             self.stream1.synchronize()
-            self.stream2.synchronize()
+            self.stream1.synchronize()
 
         for t in self.write_threads:
             t.join()
@@ -241,15 +260,19 @@ class GPURec():
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     # find free thread
-                    ithread = utils.find_free_thread(self.write_threads)                    
+                    ithread = 0                
+                    while True:
+                        if not self.write_threads[ithread].is_alive():
+                            break                       
+                        ithread=(ithread+1)%self.cl_conf.args.max_write_threads
+
                     rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
             self.stream3.synchronize()
             if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)
+                # add a new thread for writing to hard disk (after gpu->cpu copy is done)                
                 for kk in range(lschunk[k-2]):
-                    self.write_threads[ithread].run(self.cl_conf.write_data_try, (
-                        rec_pinned[ithread, kk], self.cl_conf.save_centers[(k-2)*ncz+kk]))
-
+                    self.write_threads[ithread].run(self.cl_conf.write_data_try,(rec_pinned[ithread, kk],self.cl_conf.save_centers[(k-2)*ncz+kk]))
+                    
             self.stream1.synchronize()
             self.stream2.synchronize()
 

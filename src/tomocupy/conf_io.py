@@ -1,5 +1,6 @@
 from tomocupy import config
 from tomocupy import logging
+from tomocupy import utils
 import numpy as np
 import numexpr as ne
 import h5py
@@ -30,22 +31,24 @@ class ConfIO():
         """Calculating and adjusting sizes for reconstruction by chunks"""
 
         file_in = h5py.File(self.args.file_name)
-        # determine sizes
-        nz, ni = file_in['/exchange/data'].shape[1:]
-        ndark = file_in['/exchange/data_dark'].shape[0]
-        nflat = file_in['/exchange/data_white'].shape[0]
+        data = file_in['/exchange/data']
+        dark = file_in['/exchange/data_dark']
+        flat = file_in['/exchange/data_white']
         theta = file_in['/exchange/theta'][:].astype('float32')/180*np.pi
+        # determine sizes
+        nz, ni = data.shape[1:]
+        ndark = dark.shape[0]
+        nflat = flat.shape[0]
 
-        
-        if self.args.binning>0:
+        if self.args.binning > 0:
             in_dtype = self.args.dtype
         else:
-            in_dtype = file_in['/exchange/data'].dtype
-        
+            in_dtype = data.dtype
+
         if (self.args.end_row == -1):
-            self.args.end_row = file_in['/exchange/data'].shape[1]
+            self.args.end_row = data.shape[1]
         if (self.args.end_proj == -1):
-            self.args.end_proj = file_in['/exchange/data'].shape[0]
+            self.args.end_proj = data.shape[0]
 
         # define chunk size for processing
         ncz = self.args.nsino_per_chunk
@@ -72,7 +75,7 @@ class ConfIO():
             center = centeri
 
         stn = 0
-        endn = file_in['/exchange/data'].shape[-1]
+        endn = data.shape[-1]
 
         if self.args.dtype == 'float16':
             center += (2**int(np.log2(ni))-ni)/2
@@ -129,11 +132,13 @@ class ConfIO():
         self.lzchunk = lzchunk
         self.ntchunk = ntchunk
         self.ltchunk = ltchunk
-        self.file_in = file_in
         self.dtype = self.args.dtype
         self.in_dtype = in_dtype
         self.stn = stn
         self.endn = endn
+        self.data = data
+        self.dark = dark
+        self.flat = flat
 
     def init_sizes_try(self):
         if self.args.reconstruction_type == 'try':
@@ -169,7 +174,7 @@ class ConfIO():
         self.nrchunk = nrchunk
         self.lrchunk = lrchunk
         self.rh = rh
-        self.lamino_angle = self.args.lamino_angle        
+        self.lamino_angle = self.args.lamino_angle
 
     def init_output_files_try(self):
         """Constructing output file names and initiating the actual files"""
@@ -207,7 +212,7 @@ class ConfIO():
             fnameout += '.h5'
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
-                self.file_in['exchange/data'].shape[1]//2**self.args.binning, self.n, self.n), dtype=self.dtype)
+                self.data.shape[1]//2**self.args.binning, self.n, self.n), dtype=self.dtype)
             os.system(f'mkdir -p {fnameout[:-3]}_parts')
             for k in range(self.nzchunk):
                 filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
@@ -250,49 +255,9 @@ class ConfIO():
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
-    def read_data_to_queue(self, data_queue):
-        """Reading data from hard disk and putting it to a queue"""
-
-        # init references to data, no reading at this point
-        data = self.file_in['exchange/data']
-        dark = self.file_in['exchange/data_dark']
-        flat = self.file_in['exchange/data_white']
-
-        for k in range(self.nzchunk):
-            item = {}
-            st = self.args.start_row+k*self.ncz*2**self.args.binning
-            end = self.args.start_row + \
-                (k*self.ncz+self.lzchunk[k])*2**self.args.binning
-            item['data'] = self.downsample(data[:,  st:end, self.stn:self.endn])[
-                self.ids_proj]
-            item['flat'] = self.downsample(
-                flat[:,  st:end, self.stn:self.endn])
-            item['dark'] = self.downsample(
-                dark[:,  st:end, self.stn:self.endn])
-
-            data_queue.put(item)
-
-    
-    def write_data(self, rec, k):
-        """Writing the kth data chunk to hard disk"""
-        if self.args.crop > 0:
-            rec = rec[:, self.args.crop:-
-                      self.args.crop, self.args.crop:-self.args.crop]
-
-        if self.args.save_format == 'tiff':
-            st = k*self.ncz+self.args.start_row//2**self.args.binning
-            for kk in range(rec.shape[0]):
-                fid = st+kk
-                tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff',rec[kk])
-        elif self.args.save_format == 'h5':
-            filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
-            with h5py.File(filename, "w") as fid:
-                fid.create_dataset("/exchange/data", data=rec,
-                                   chunks=(1, self.n, self.n))        
-
     def downsample(self, data):
         """Downsample data"""
-        
+
         data = data.astype(self.in_dtype, copy=False)
         for j in range(self.args.binning):
             x = data[:, :, ::2]
@@ -304,26 +269,57 @@ class ConfIO():
             data = ne.evaluate('x + y')
         return data
 
-    def write_h5(self, data, filename):
-        """Save data to an hdf5"""
+    def read_data_chunk(self, data_queue, k):
+        """Reading the kth data chunk from hard disk"""
 
-        with h5py.File(filename, "w") as fid:
-            fid.create_dataset("/exchange/data", data=data,
-                               chunks=(1, self.n, self.n))
+        item = {}
+        st = self.args.start_row+k*self.ncz*2**self.args.binning
+        end = self.args.start_row + \
+            (k*self.ncz+self.lzchunk[k])*2**self.args.binning
+        item['data'] = self.downsample(
+            self.data[:,  st:end, self.stn:self.endn])
+        if len(self.theta) != item['data'].shape[0]:
+            item['data'] = item['data'][self.ids_proj]
+        item['flat'] = self.downsample(
+            self.flat[:,  st:end, self.stn:self.endn])
+        item['dark'] = self.downsample(
+            self.dark[:,  st:end, self.stn:self.endn])
+        item['id'] = k
+        data_queue.put(item)
+
+    def write_data_chunk(self, rec, k):
+        """Writing the kth data chunk to hard disk"""
+
+        if self.args.crop > 0:
+            rec = rec[:, self.args.crop:-
+                      self.args.crop, self.args.crop:-self.args.crop]
+
+        if self.args.save_format == 'tiff':
+            st = k*self.ncz+self.args.start_row//2**self.args.binning
+            for kk in range(rec.shape[0]):
+                fid = st+kk
+                tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
+        elif self.args.save_format == 'h5':
+            filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
+            with h5py.File(filename, "w") as fid:
+                fid.create_dataset("/exchange/data", data=rec,
+                                   chunks=(1, self.n, self.n))
+
+    def read_data_to_queue(self, data_queue, read_threads):
+        """Reading data from hard disk and putting it to a queue"""
+        for k in range(self.nzchunk):
+            ithread = utils.find_free_thread(read_threads)
+            read_threads[ithread].run(self.read_data_chunk, (data_queue, k))
 
     def read_data_try(self):
         """Read one slice for try reconstruction"""
 
-        fid = h5py.File(self.args.file_name, 'r')
-        data = fid['exchange/data']
-        dark = fid['exchange/data_dark']
-        flat = fid['exchange/data_white']
         log.info(
             f'Try rotation center reconstruction for slice {self.idslice}')
-        data = data[:, self.idslice:self.idslice +
-                    2**self.args.binning][self.ids_proj]
-        dark = dark[:, self.idslice:self.idslice+2**self.args.binning]
-        flat = flat[:, self.idslice:self.idslice+2**self.args.binning]
+        data = self.data[:, self.idslice:self.idslice +
+                         2**self.args.binning][self.ids_proj]
+        dark = self.dark[:, self.idslice:self.idslice+2**self.args.binning]
+        flat = self.flat[:, self.idslice:self.idslice+2**self.args.binning]
         data = self.downsample(data)
         flat = self.downsample(flat)
         dark = self.downsample(dark)
@@ -335,26 +331,30 @@ class ConfIO():
         if self.args.crop > 0:
             rec = rec[self.args.crop:-self.args.crop,
                       self.args.crop:-self.args.crop]
-        tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff',rec)
+        tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff', rec)
 
     def read_data(self, data, k, lchunk):
-        """Read a chunk of projection with binning"""
-        d = self.file_in['exchange/data'][self.args.start_proj+k*lchunk:self.args.start_proj +
-                                          (k+1)*lchunk, self.args.start_row:self.args.end_row, self.stn:self.endn]
+        """Read a chunk of projections with binning"""
+
+        d = self.data[self.args.start_proj+k*lchunk:self.args.start_proj +
+                      (k+1)*lchunk, self.args.start_row:self.args.end_row, self.stn:self.endn]
         data[k*lchunk:(k+1)*lchunk] = self.downsample(d)
 
     def read_flat_dark(self):
         """Read flat and dark"""
         # read dark and flat, binning
-        dark = self.file_in['exchange/data_dark'][:, self.args.start_row:self.args.end_row,self.stn:self.endn]
-        flat = self.file_in['exchange/data_white'][:,self.args.start_row:self.args.end_row,self.stn:self.endn]
+        dark = self.dark[:, self.args.start_row:self.args.end_row,
+                         self.stn:self.endn]
+        flat = self.flat[:, self.args.start_row:self.args.end_row,
+                         self.stn:self.endn]
         flat = self.downsample(flat)
         dark = self.downsample(dark)
         return flat, dark
-        
+
     def read_pairs(self, pairs):
         """Read pairs for checking rotation center"""
 
-        d = self.file_in['exchange/data'][pairs, self.args.start_row:self.args.end_row,self.stn:self.endn]
+        d = self.data[pairs, self.args.start_row:self.args.end_row,
+                      self.stn:self.endn]
         data = self.downsample(d)
         return data

@@ -105,7 +105,7 @@ class GPURecSteps():
         # threads for data writing to disk
         self.write_threads = []
         for k in range(cl_conf.args.max_write_threads):
-            self.write_threads.append(utils.WriteThread())
+            self.write_threads.append(utils.WRThread())
 
         # additional refs
         self.cl_conf = cl_conf
@@ -311,12 +311,7 @@ class GPURecSteps():
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     # find free thread
-                    ithread = 0
-                    while True:
-                        if not self.write_threads[ithread].is_alive():
-                            break
-                        ithread = (
-                            ithread+1) % self.cl_conf.args.max_write_threads
+                    ithread = utils.find_free_thread(self.write_threads)
                     rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
 
             if(k < nzchunk):
@@ -329,7 +324,7 @@ class GPURecSteps():
             if(k > 1):
                 # add a new proc for writing to hard disk (after gpu->cpu copy is done)
                 self.write_threads[ithread].run(
-                    self.cl_conf.write_data, (rec_pinned[ithread, :lzchunk[k-2]], k-2))
+                    self.cl_conf.write_data_chunk, (rec_pinned[ithread, :lzchunk[k-2]], k-2))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -403,7 +398,7 @@ class GPURecSteps():
                 if (kr > 1 and kt == 0):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                     self.write_threads[ithread].run(
-                        self.cl_conf.write_data, (rec_pinned[ithread, :lrchunk[kr-2]], kr-2))
+                        self.cl_conf.write_data_chunk, (rec_pinned[ithread, :lrchunk[kr-2]], kr-2))
 
                 self.stream1.synchronize()
                 self.stream2.synchronize()
@@ -450,7 +445,6 @@ class GPURecSteps():
                                            * ncproj+ltchunk[(kt-1)]]
                         rec = rec_gpu[(ks-1) % 2]
                         data0 = data_gpu[(kt-1) % 2]
-
                         data0 = cp.ascontiguousarray(data0.swapaxes(0, 1))
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
@@ -462,13 +456,7 @@ class GPURecSteps():
                     with self.stream3:  # gpu->cpu copy
                         rec_gpu[(ks-2) % 2] = rec_gpu[(ks-2) % 2, :, ::-1]
                         # find free thread
-                        ithread = 0
-                        while True:
-                            if not self.write_threads[ithread].is_alive():
-                                break
-                            ithread = (
-                                ithread+1) % self.cl_conf.args.max_write_threads
-
+                        ithread = utils.find_free_thread(self.write_threads)
                         rec_gpu[(ks-2) % 2].get(out=rec_pinned[ithread])
                 if(kt < ntchunk):
                     # copy to pinned memory
@@ -538,12 +526,7 @@ class GPURecSteps():
                     with self.stream3:  # gpu->cpu copy
                         rec_gpu[(ks-2) % 2] = rec_gpu[(ks-2) % 2, :, ::-1]
                         # find free thread
-                        ithread = 0
-                        while True:
-                            if not self.write_threads[ithread].is_alive():
-                                break
-                            ithread = (
-                                ithread+1) % self.cl_conf.args.max_write_threads
+                        ithread = utils.find_free_thread(self.write_threads)
                         rec_gpu[(ks-2) % 2].get(out=rec_pinned[ithread])
                 if(kt < ntchunk):
                     # copy to pinned memory

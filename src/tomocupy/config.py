@@ -205,7 +205,7 @@ SECTIONS['reconstruction-types'] = {
         'default': 'fourierrec',
         'type': str,
         'help': "Reconstruction algorithm",
-        'choices': ['fourierrec','lprec','linesummation']},
+        'choices': ['fourierrec', 'lprec', 'linesummation']},
 }
 
 SECTIONS['reconstruction-steps-types'] = {
@@ -270,15 +270,15 @@ SECTIONS['reconstruction'] = {
         'default': 'read_auto',
         'type': str,
         'help': "How to get rotation axis auto calculate ('auto'), or manually ('manual')",
-        'choices': ['manual', 'auto',]},
+        'choices': ['manual', 'auto', ]},
     'rotation-axis-pairs': {
         'default': '[0,0]',
         'type': str,
-        'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.",},        
+        'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.", },
     'rotation-axis-sift-threshold': {
         'default': '0.5',
         'type': float,
-        'help': "SIFT threshold for rotation search.",},        
+        'help': "SIFT threshold for rotation search.", },
     'dtype': {
         'default': 'float32',
         'type': str,
@@ -304,8 +304,12 @@ SECTIONS['reconstruction'] = {
         'help': "Radius for removing outliers"},
     'max-write-threads': {
         'type': int,
-        'default': 8,
-        'help': "Max number of threads for writing by chunks"},    
+        'default': 4,
+        'help': "Max number of threads for writing by chunks"},
+    'max-read-threads': {
+        'type': int,
+        'default': 1,
+        'help': "Max number of threads for reading by chunks"},
 }
 
 

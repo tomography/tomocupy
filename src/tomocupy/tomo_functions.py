@@ -35,7 +35,7 @@ class TomoFunctions():
                 self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
         else:
             self.cl_filter = fbp_filter.FBPFilter(
-                self.n, self.nproj, self.nz, self.args.dtype) # note ncproj,ncz!
+                self.n, self.ncproj, self.nz, self.args.dtype) # note ncproj,nz!
             self.cl_rec = line_summation.LineSummation(
                 self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
 
@@ -79,10 +79,31 @@ class TomoFunctions():
         elif self.args.fbp_filter == 'shepp':
             w = t * cp.sinc(t)
 
+        
+        # beta = 0.007
+        # beta = beta*((1-beta)/(1+beta))**cp.arange(len(t))
+        # beta = beta.astype('float32')
+        # import matplotlib.pyplot as plt
+        # plt.plot(w.get())
+        # plt.show()
+        # exit()
+        # beta*=0
+        # beta[-1]=1
+        # print(beta)
+        # alpha = 0.001
+        # alpha = 4*beta**2/(1-beta**2)
+        # print(alpha)
+        # exit()
+        # alpha = alpha/cp.sqrt(alpha*(4+alpha))*((2+alpha-cp.sqrt(alpha*(4+alpha)))/2)**cp.arange(len(t))
+        # alpha = alpha.astype('float32')
+        # print(alpha)
+        # exit(1)
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center +
                      sht[:, cp.newaxis]+self.n/2))  # center fix
         tmp = cp.pad(
             data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
+        # tmp = cp.fft.irfft(
+            # beta*cp.fft.rfft(tmp, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
         data[:] = tmp[:, :, ne//2-self.n//2:ne//2+self.n//2]
 
@@ -115,6 +136,7 @@ class TomoFunctions():
         if(self.args.remove_stripe_method == 'fw'):
             res[:] = remove_stripe.remove_stripe_fw(
                 res, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
+            
         return res
 
     def proc_proj(self, data, res=None):

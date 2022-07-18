@@ -57,7 +57,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(st, 0, f"{cmd} failed to run")
         with h5py.File('data_rec/test_data_rec.h5', 'r') as fid:
             data = fid['exchange/data']
-            ssum = np.sum(data)
+            ssum = np.sum(data[:])
         self.assertAlmostEqual(ssum, 1449.0039, places=1)
 
     def test_full_recon_binning_h5(self):
@@ -68,7 +68,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(st, 0, f"{cmd} failed to run")
         with h5py.File('data_rec/test_data_rec.h5', 'r') as fid:
             data = fid['exchange/data']
-            ssum = np.sum(data)
+            ssum = np.sum(data[:])
             self.assertAlmostEqual(ssum, 362.4355, places=1)
 
     def test_full_recon_double_fov(self):
