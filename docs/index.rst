@@ -16,7 +16,7 @@ Features
 * Manual rotation center search and automatic rotation center search with using SIFT algorithm
 * Manual search of the laminographic tilting angle
 * Additional preprocessing steps: ring removal with wavelets, phase retrieval procedure with Paganin filter, dezinger filtering
-* Fourier-based method or direct discretization of the back-proejection operator for reconstruction
+* Back-projection is implemented with 3 different methods (Fourier-based, Log-polar-based, and direct discretization of the line intergral)
 * Saving data in tiff and h5 formats
 
 
