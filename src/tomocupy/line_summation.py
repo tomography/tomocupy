@@ -48,7 +48,7 @@ extern "C" {
                         data[ur+1+t*n+(vr+1)*n*nproj]*(0+u)*(0+v);
             }
         }
-        f[tx + ty * n + tz * n * n] += f0*c;        
+        f[tx + (n-ty-1) * n + tz * n * n] += f0*c;        
     }    
 
     void __global__ backprojection_try(float *f, float *data, float *theta, float phi, int sz, float* sh, float c, int ncz, int n, int nz, int nproj)
@@ -94,7 +94,7 @@ extern "C" {
                         
             }
         }
-        f[tx + ty * n + tz * n * n] += f0*c;        
+        f[tx + (n-ty-1) * n + tz * n * n] += f0*c;        
     }  
 
     void __global__ backprojection_try_lamino(float *f, float *data, float *theta, float* phi, int sz, float c, int ncz, int n, int nz, int nproj)    
@@ -140,7 +140,7 @@ extern "C" {
                         
             }
         }
-        f[tx + ty * n + tz * n * n] += f0*c;        
+        f[tx + (n-ty-1) * n + tz * n * n] += f0*c;        
     }    
 }
 """
@@ -154,15 +154,19 @@ backprojection_try_lamino_kernel = module.get_function('backprojection_try_lamin
 class LineSummation():
     """Backprojection by summation over lines"""
 
-    def __init__(self, nproj, ncproj, nz, ncz, n, dtype):
+    def __init__(self, theta, nproj, ncproj, nz, ncz, n, dtype):
         self.nproj = nproj
         self.ncproj = ncproj
         self.nz = nz
         self.ncz = ncz
         self.n = n
+        self.theta = theta
         self.dtype = dtype
 
-    def backprojection(self, f, data, theta, lamino_angle, sz):
+    def backprojection(self, f, data, stream=0, theta=None, lamino_angle=0, sz=0):
+        if theta==None:
+            theta = self.theta
+            f[:]=0
         f0 = f.astype('float32', copy=False)  # TODO: implement for float16
         data = data.astype('float32', copy=False)
         phi = cp.float32(cp.pi/2+(lamino_angle)/180*cp.pi)
@@ -170,7 +174,9 @@ class LineSummation():
                               (f0, data, theta, phi, sz, cp.float32(1.0/self.nproj), self.ncz, self.n, self.nz, self.ncproj))
         f[:] = f0.astype(self.dtype, copy=False)
 
-    def backprojection_try(self, f, data, theta, lamino_angle, sz, sh):
+    def backprojection_try(self, f, data, sh, stream=0, theta=None, lamino_angle=0, sz=0):
+        if theta==None:
+            theta = self.theta
         f0 = f.astype('float32', copy=False)  # TODO: implement for float16
         data = data.astype('float32', copy=False)
         theta = theta.astype('float32', copy=False)
@@ -179,7 +185,9 @@ class LineSummation():
                                   (f0, data, theta, phi, sz, sh, cp.float32(1.0/self.nproj), self.ncz, self.n, self.nz, self.ncproj))
         f[:] = f0.astype(self.dtype, copy=False)
 
-    def backprojection_try_lamino(self, f, data, theta, lamino_angle, sz, sh):
+    def backprojection_try_lamino(self, f, data, sh, stream=0, theta=None, lamino_angle=0, sz=0):
+        if theta==None:
+            theta = self.theta
         f0 = f.astype('float32', copy=False)  # TODO: implement for float16
         data = data.astype('float32', copy=False)
         # init lamino angle

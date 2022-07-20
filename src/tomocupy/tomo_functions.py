@@ -23,21 +23,25 @@ class TomoFunctions():
         self.centeri = cl_conf.centeri
         self.center = cl_conf.center
 
-        if self.args.reconstruction_algorithm == 'fourierrec':
+        if self.args.lamino_angle==0:
             self.cl_filter = fbp_filter.FBPFilter(
-                self.n, self.nproj, self.ncz, self.args.dtype)
-            self.cl_rec = fourierrec.FourierRec(
-                self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
-        elif self.args.reconstruction_algorithm == 'lprec':            
-            self.cl_filter = fbp_filter.FBPFilter(
-                self.n, self.nproj, self.ncz, self.args.dtype)
-            self.cl_rec = lprec.LpRec(
-                self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
+                self.n, self.nproj, self.ncz, self.args.dtype)        
+            if self.args.reconstruction_algorithm == 'fourierrec':
+                self.cl_rec = fourierrec.FourierRec(
+                    self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
+            elif self.args.reconstruction_algorithm == 'lprec':      
+                self.centeri+=0.5      # consistence with the Fourier based method
+                self.center+=0.5      
+                self.cl_rec = lprec.LpRec(
+                    self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
+            elif self.args.reconstruction_algorithm == 'linesummation':      
+                self.cl_rec = line_summation.LineSummation(
+                    cp.array(cl_conf.theta),self.nproj, self.nproj, self.ncz, self.ncz, self.n, self.args.dtype)
         else:
             self.cl_filter = fbp_filter.FBPFilter(
                 self.n, self.ncproj, self.nz, self.args.dtype) # note ncproj,nz!
             self.cl_rec = line_summation.LineSummation(
-                self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
+                cp.array(cl_conf.theta),self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
@@ -80,24 +84,14 @@ class TomoFunctions():
             w = t * cp.sinc(t)
 
         
-        # beta = 0.007
-        # beta = beta*((1-beta)/(1+beta))**cp.arange(len(t))
-        # beta = beta.astype('float32')
-        # import matplotlib.pyplot as plt
-        # plt.plot(w.get())
-        # plt.show()
-        # exit()
-        # beta*=0
-        # beta[-1]=1
-        # print(beta)
-        # alpha = 0.001
-        # alpha = 4*beta**2/(1-beta**2)
-        # print(alpha)
-        # exit()
-        # alpha = alpha/cp.sqrt(alpha*(4+alpha))*((2+alpha-cp.sqrt(alpha*(4+alpha)))/2)**cp.arange(len(t))
-        # alpha = alpha.astype('float32')
-        # print(alpha)
-        # exit(1)
+        # beta = 0.022
+        # beta = beta*((1-beta)/(1+beta))**np.abs(np.fft.fftfreq(ne)*ne)
+        # beta[0]-=1        
+        # v = cp.mean(data,axis=0)
+        # vRing = -cp.diff(v,append=v[-1])        
+        # vRing = cp.fft.irfft(cp.fft.rfft(vRing)*cp.fft.rfft(beta))
+        # data -= vRing
+                
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center +
                      sht[:, cp.newaxis]+self.n/2))  # center fix
         tmp = cp.pad(

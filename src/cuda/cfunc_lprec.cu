@@ -123,6 +123,8 @@ void cfunc_lprec::backprojection(size_t f_, size_t g_, size_t stream_)
     GS1 = (uint)ceil(ceil(sqrt(nwids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nwids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid2(GS1,GS2,GS3);int step2d2 = BS1*GS1;      
     GS1 = (uint)ceil((ntheta/2+1)/(float)BS1); GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid3(GS1,GS2,GS3);int step2d3 = BS1*GS1;      
     GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid4(GS1,GS2,GS3);int step2d4 = BS1*GS1;  	
+    GS1 = (uint)ceil(n/(float)BS1);GS2 = (uint)ceil(n/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid11(GS1,GS2,GS3); 
+    GS1 = (uint)ceil(ntheta/(float)BS1);GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid12(GS1,GS2,GS3); 
 
     ////// Prefilter for cubic interpolation in polar coordinates //////
 	//transpose for optimal cache usage
@@ -150,9 +152,11 @@ void cfunc_lprec::backprojection(size_t f_, size_t g_, size_t stream_)
         mul<<<dimGrid3, dimBlock, 0, stream>>>(flc,fz,ntheta/2+1,nrho,nz);
 		//Inverse FFT
         cufftXtExec(plan_inverse,flc,fl,CUFFT_INVERSE);        
-        //copy to binded texture 
+        mulc<<<dimGrid12,dimBlock,0,stream>>>(fl, 2/(float)(nrho*ntheta), ntheta, nrho, nz);
+        // //copy to binded texture 
         copy3DDeviceToArray(fla,fl,make_cudaExtent(ntheta, nrho, nz),stream);
-        //interp from log-polar to Cartesian grid
+        // //interp from log-polar to Cartesian grid
         interp<<<dimGrid4, dimBlock, 0, stream>>>(texfl, f,&C2lp1[k*ncids],&C2lp2[k*ncids],step2d4,ncids,ntheta,nrho,nz,cids,n*n);                    
     }
+    
 }

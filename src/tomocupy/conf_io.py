@@ -24,7 +24,7 @@ class ConfIO():
             self.init_output_files_try()
         else:
             self.init_output_files()
-        if self.args.reconstruction_algorithm == 'linesummation':
+        if self.args.lamino_angle!=0:
             self.init_sizes_lamino()
 
     def init_sizes(self):
@@ -296,7 +296,7 @@ class ConfIO():
 
         if self.args.save_format == 'tiff':
             st = k*self.ncz+self.args.start_row//2**self.args.binning
-            for kk in range(rec.shape[0]):
+            for kk in range(self.lzchunk[k]):
                 fid = st+kk
                 tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
         elif self.args.save_format == 'h5':

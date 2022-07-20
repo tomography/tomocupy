@@ -97,4 +97,6 @@ void cfunc_fourierrec::backprojection(size_t f_, size_t g_, size_t stream_) {
     fftshiftc <<<GS3d2, dimBlock, 0, stream>>> (fde, 2 * n + 2 * m, nz);
     
     divphi <<<GS3d0, dimBlock, 0, stream>>> (fde, f, mu, n, nz, nproj, m);        
+    circ <<<GS3d0, dimBlock, 0, stream>>> (f, 0, n, nz);  
+
 }

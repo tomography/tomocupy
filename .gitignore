@@ -160,3 +160,5 @@ script
 #
 *.jpg
 .loglogin
+*.png
+*.tiff

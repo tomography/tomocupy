@@ -103,7 +103,7 @@ class GPURec():
             self.read_threads.append(utils.WRThread())
 
         # queue for streaming projections
-        self.data_queue = Queue()
+        self.data_queue = Queue(32)
 
         # additional refs
         self.cl_conf = cl_conf

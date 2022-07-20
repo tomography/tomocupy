@@ -103,13 +103,15 @@ def splineB3(x2, r):
 def create_adj(P):
     # convolution function
     fZ = cp.fft.fftshift(fzeta_loop_weights_adj(
-        P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))
+        P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))*np.pi/6
 
     # (C2lp1,C2lp2), transformed Cartesian to log-polar coordinates
     [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N), cp.linspace(-1, 1, P.N))
     x1 = x1.flatten()
     x2 = x2.flatten()
-    x2 = x2*(-1)  # adjust for tomopy
+    x2 = x2*(-1)  # adjust for tomocupy
+    x1-=1/P.N
+    x2-=1/P.N
     cids = cp.where(x1**2+x2**2 <= 1)[0].astype('int32')
     C2lp1 = cp.zeros([P.Nspan,len(cids)],dtype='float32')
     C2lp2 = cp.zeros([P.Nspan,len(cids)],dtype='float32')
@@ -227,7 +229,7 @@ class LpRec():
             log.error('lprec method works only with equally spaced angles in the interval [0,180) deg.')
             exit(1)
         ntheta = 2**int(cp.round(cp.log2(nproj)))
-        nrho = 2*2**int(cp.round(cp.log2(n)))
+        nrho = 2*2**int(cp.round(cp.log2(n)))        
         log.info(f'Log-polar grid sizes: {ntheta=},{nrho=}')
         # precompute parameters for the lp method
         self.Pgl = create_gl(n, nproj, ntheta, nrho)

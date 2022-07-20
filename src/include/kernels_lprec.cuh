@@ -164,3 +164,14 @@ __global__ void mul(real2* y,real2* x,int n1,int n2, int nz)
 	y[tz*n1*n2+ty*n1+tx].x=y0.x*x0.x-y0.y*x0.y;
 	y[tz*n1*n2+ty*n1+tx].y=y0.x*x0.y+y0.y*x0.x;
 }
+
+void __global__ mulc(real *f, float c, int n1, int n2, int n3)
+{
+  int tx = blockDim.x * blockIdx.x + threadIdx.x;
+  int ty = blockDim.y * blockIdx.y + threadIdx.y;
+  int tz = blockDim.z * blockIdx.z + threadIdx.z;
+  if (tx >= n1 || ty >= n2 || tz >= n3)
+    return;
+  int f_ind = tx + ty * n1 + tz * n1 * n2;
+  f[f_ind] = static_cast<real>((float)f[f_ind] * c);  
+}
