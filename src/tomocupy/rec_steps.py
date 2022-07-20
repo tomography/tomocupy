@@ -125,10 +125,10 @@ class GPURecSteps():
         data = self.proc_proj_parallel(data)
 
         if self.cl_conf.args.reconstruction_type == 'full':
-            if self.cl_conf.args.reconstruction_algorithm == 'fourierrec':
+            if self.cl_conf.args.lamino_angle==0:
                 log.info('Step 4. Reconstruction by chunks in z.')
                 self.recon_sino_parallel(data)
-            if self.cl_conf.args.reconstruction_algorithm == 'linesummation':
+            else:
                 log.info('Step 4. Reconstruction by chunks in z and angles.')
                 self.recon_sino_proj_parallel(data)
         elif self.cl_conf.args.reconstruction_type == 'try':
@@ -374,12 +374,12 @@ class GPURecSteps():
                         data0 = cp.ascontiguousarray(data0.swapaxes(0, 1))
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
-                        self.cl_tomo_func.cl_rec.backprojection(
-                            rec, data0, theta0, self.cl_conf.lamino_angle, (kr-1)*ncz)
+                        self.cl_tomo_func.cl_rec.backprojection(                            
+                            rec, data0, self.stream2, theta0, self.cl_conf.lamino_angle, (kr-1)*ncz)
 
                 if (kr > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
-                        rec_gpu[(kr-2) % 2, :] = rec_gpu[(kr-2) % 2, :, ::-1]
+                        rec_gpu[(kr-2) % 2, :] = rec_gpu[(kr-2) % 2]
                         ithread = 0
                         while True:
                             if not self.write_threads[ithread].is_alive():
@@ -450,11 +450,11 @@ class GPURecSteps():
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
 
                         self.cl_tomo_func.cl_rec.backprojection_try(
-                            rec, data0, theta0, self.cl_conf.lamino_angle, self.cl_conf.idslice, sht)
+                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.idslice)
 
                 if (ks > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
-                        rec_gpu[(ks-2) % 2] = rec_gpu[(ks-2) % 2, :, ::-1]
+                        rec_gpu[(ks-2) % 2] = rec_gpu[(ks-2) % 2]
                         # find free thread
                         ithread = utils.find_free_thread(self.write_threads)
                         rec_gpu[(ks-2) % 2].get(out=rec_pinned[ithread])
@@ -520,11 +520,11 @@ class GPURecSteps():
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
                         self.cl_tomo_func.cl_rec.backprojection_try_lamino(
-                            rec, data0, theta0, self.cl_conf.lamino_angle, self.cl_conf.idslice, sht)
+                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.idslice)
 
                 if (ks > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
-                        rec_gpu[(ks-2) % 2] = rec_gpu[(ks-2) % 2, :, ::-1]
+                        rec_gpu[(ks-2) % 2] = rec_gpu[(ks-2) % 2]
                         # find free thread
                         ithread = utils.find_free_thread(self.write_threads)
                         rec_gpu[(ks-2) % 2].get(out=rec_pinned[ithread])
