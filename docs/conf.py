@@ -331,6 +331,12 @@ autodoc_mock_imports = [
     'torch',
     'traceback',
     'warnings',
-    'tifffile'
+    'tifffile',
+    'tomocupy._cfunc_fourierrec',
+    'tomocupy._cfunc_fourierrecfp16',
+    'tomocupy._cfunc_lprec',
+    'tomocupy._cfunc_lprecfp16',
+    'tomocupy._cfunc_filter',
+    'tomocupy._cfunc_filterfp16',    
 ]
 
