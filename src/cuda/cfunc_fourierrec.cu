@@ -85,7 +85,7 @@ void cfunc_fourierrec::backprojection(size_t f_, size_t g_, size_t stream_) {
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);
     cufftXtExec(plan1d, g, g, CUFFT_FORWARD);
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);    
-    mulc <<<GS3d3, dimBlock, 0, stream>>> (g, 1/(float)n, n, nproj, nz);
+    mulc <<<GS3d3, dimBlock, 0, stream>>> (g, 4/(float)n, n, nproj, nz);
     
     gather <<<GS3d3, dimBlock, 0, stream>>> (g, fde, x, y, m, mu, n, nproj, nz);    
     

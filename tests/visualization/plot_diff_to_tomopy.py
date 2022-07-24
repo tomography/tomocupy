@@ -9,16 +9,16 @@ circ = x1**2+x2**2<1-8/2048
 fig = plt.figure(constrained_layout=True, figsize=(7.2, 5.8))
 grid = fig.add_gridspec(2, 2, height_ratios=[1,1])
 fp32f = dxchange.read_tiff('res/fp32.tiff').astype('float32')
-fp32l = dxchange.read_tiff('res/lfp32.tiff').astype('float32')/2048/2048
-fp32t = dxchange.read_tiff('res/tfp32.tiff').astype('float32')/4
+fp32l = dxchange.read_tiff('res/lfp32.tiff').astype('float32')
+fp32t = dxchange.read_tiff('res/tfp32.tiff').astype('float32')
 fp32line = dxchange.read_tiff('res/linefp32.tiff').astype('float32')
 # fp32l = np.roll(fp32l,1,axis=0)
 # fp32line = np.roll(fp32line,1,axis=0)
 
 
 
-mmin = -0.0003
-mmax = 0.0003
+mmin = -0.001
+mmax = 0.001
 
 stx = 1024-50-150-200
 endx = 1024+50-150-200
@@ -91,8 +91,8 @@ cb.remove()
 
 
 
-mmin = -0.00003
-mmax = 0.00003
+mmin = -0.0001
+mmax = 0.0001
 
 ax0 = fig.add_subplot(grid[1])
 ax0.set_title('Difference between Tomopy Gridrec \n and Tomocupy Fourier ', fontsize=9.5)
@@ -115,8 +115,8 @@ cb.remove()
 
 
 
-mmin = -0.00003
-mmax = 0.00003
+mmin = -0.0001
+mmax = 0.0001
 
 ax0 = fig.add_subplot(grid[2])
 ax0.set_title('Difference between Tomocupy Log-polar \n and Tomocupy Fourier ', fontsize=9.5)

@@ -7,13 +7,13 @@ import h5py
 
 prefix = 'tomocupy recon_steps --file-name data/test_data.h5 --rotation-axis 782.5 --nsino-per-chunk 4 --reconstruction-type full'
 cmd_dict = {
-    f'{prefix}': 6.90,
-    f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 ': 5.13,
-    f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --dtype float16 ': 4.29,
-    f'{prefix} --reconstruction-algorithm linesummation': 6.91,
-    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linesummation': 5.94,
-    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linesummation --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001': 4.40,        
-    f'{prefix} --lamino-angle 1 --save-format h5': 5.94
+    f'{prefix}': 27.6,
+    f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 ': 20.5,
+    f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --dtype float16 ': 17.2,
+    f'{prefix} --reconstruction-algorithm linesummation': 27.6,
+    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linesummation': 23.8,
+    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linesummation --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001': 17.60,        
+    f'{prefix} --lamino-angle 1 --save-format h5': 23.75
 }
 
 
@@ -45,7 +45,7 @@ class Tests(unittest.TestCase):
                         f'data_rec/test_data_rec/recon_{k:05}.tiff'))
                 except:
                     pass
-            self.assertAlmostEqual(ssum, cmd[1], places=1)
+            self.assertAlmostEqual(ssum, cmd[1], places=0)
 
 
 if __name__ == '__main__':
