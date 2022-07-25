@@ -20,17 +20,18 @@ import os
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 # sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, os.path.abspath('../src'))
+sys.path.insert(0, os.path.abspath('../../src'))
 
 # -- General configuration ------------------------------------------------
 
-# If your documentation needs a minimal Sphinx version, state it here.
-#needs_sphinx = '1.0'
+# We require sphinx >=2 because of sphinxcontrib.bibtex,
+needs_sphinx = '2.0'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'nbsphinx',
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.todo',
@@ -38,11 +39,11 @@ extensions = [
     'sphinx.ext.napoleon',
     'sphinxcontrib.bibtex',
     'sphinx.ext.viewcode',
-    'sphinx.ext.autosectionlabel',]
+]
 
 bibtex_bibfiles = [
-    'source/bibtex/cite.bib',
-    'source/bibtex/ref.bib',
+    'bibtex/cite.bib',
+    'bibtex/ref.bib',
     ]
 
 # Napoleon settings
@@ -81,7 +82,7 @@ copyright = u'2022, ' + Affiliation
 # built documents.
 #
 # The short X.Y version.
-version = open(os.path.join('..', 'VERSION')).read().strip()
+version = open(os.path.join('../..', 'VERSION')).read().strip()
 # The full version, including alpha/beta/rc tags.
 release = version
 
