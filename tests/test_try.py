@@ -6,13 +6,13 @@ import inspect
 
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type try --rotation-axis 782.5 --nsino-per-chunk 4'
 cmd_dict = {
-    f'{prefix} ': 3.41,
-    f'{prefix} --reconstruction-algorithm lprec ': 2.68,
-    f'{prefix} --reconstruction-algorithm linesummation ': 3.41,
+    f'{prefix} ': 13.5,
+    f'{prefix} --reconstruction-algorithm lprec ': 13.5,
+    f'{prefix} --reconstruction-algorithm linesummation ': 13.5,
     # f'{prefix} --dtype float16': 5.96,# to implement
-    f'{prefix} --binning 1': 1.32,
-    f'{prefix} --nsino-per-chunk 2 --double_fov True': 3.41,
-    f'{prefix} --center-search-width 30 --center-search-step 2': 3.1
+    f'{prefix} --binning 1': 5.29,
+    f'{prefix} --nsino-per-chunk 2 --double_fov True': 13.5,
+    f'{prefix} --center-search-width 30 --center-search-step 2': 12.4
 }
 
 
@@ -39,7 +39,7 @@ class Tests(unittest.TestCase):
                         f'data_rec/try_center/test_data/recon_{k:05.2f}.tiff'))
                 except:
                     pass
-            self.assertAlmostEqual(ssum, cmd[1], places=1)
+            self.assertAlmostEqual(ssum, cmd[1], places=0)
 
 
 if __name__ == '__main__':

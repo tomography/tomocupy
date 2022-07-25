@@ -21,8 +21,8 @@ fp32 = dxchange.read_tiff('res/fp32.tiff').astype('float32')
 fig = plt.figure(constrained_layout=True, figsize=(10.7, 2.8))
 grid = fig.add_gridspec(1, 3, height_ratios=[1])
 
-mmin = -0.0005
-mmax = 0.0005
+mmin = -0.001
+mmax = 0.001
 
 stx = 1024-50-150-200
 endx = 1024+50-150-200
@@ -89,8 +89,8 @@ cb.remove()
 
 
 
-mmin = -0.00005
-mmax = 0.00005
+mmin = -0.0001
+mmax = 0.0001
 
 ax0 = fig.add_subplot(grid[2])
 ax0.set_title('Fourier, difference')

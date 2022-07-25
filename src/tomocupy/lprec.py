@@ -6,6 +6,7 @@ import cupy as cp
 import numpy as np
 
 log = logging.getLogger(__name__)
+#cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
 
 class Pgl:
     def __init__(self, Nspan, N, Nproj, Ntheta, Nrho, proj, s, thsp, rhosp, aR, beta, am, g, B3com):
@@ -103,7 +104,7 @@ def splineB3(x2, r):
 def create_adj(P):
     # convolution function
     fZ = cp.fft.fftshift(fzeta_loop_weights_adj(
-        P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))*np.pi/6
+        P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))
 
     # (C2lp1,C2lp2), transformed Cartesian to log-polar coordinates
     [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N), cp.linspace(-1, 1, P.N))
@@ -185,7 +186,7 @@ def create_adj(P):
         C2lp1[k] = (C2lp1[k]-P.thsp[0])/(P.thsp[-1]-P.thsp[0])*(P.Ntheta-1)
         C2lp2[k] = (C2lp2[k]-P.rhosp[0])/(P.rhosp[-1]-P.rhosp[0])*(P.Nrho-1)
 
-    const = (P.N+1)*(P.N-1)/P.N**2/2*np.sqrt(P.Nproj/P.N/2)
+    const = (P.N+1)*(P.N-1)/P.N**2/2/np.sqrt(2)*np.pi/6*0.86*4 # to understand where this is coming from
     fZ = cp.ascontiguousarray(fZ[:, :P.Ntheta//2+1]/(P.B3com[:, :P.Ntheta//2+1]))*const  
     
                     

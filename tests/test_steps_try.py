@@ -6,8 +6,8 @@ import inspect
 
 prefix = 'tomocupy recon_steps --file-name data/test_data.h5 --rotation-axis 782.5 --nsino-per-chunk 4 --lamino-angle 1'
 cmd_dict = {
-    f'{prefix} --reconstruction-type try --reconstruction-algorithm linesummation': 3.43,
-    f'{prefix} --reconstruction-type try_lamino --reconstruction-algorithm linesummation': 9.08,
+    f'{prefix} --reconstruction-type try --reconstruction-algorithm linesummation': 13.7,
+    f'{prefix} --reconstruction-type try_lamino --reconstruction-algorithm linesummation': 36.3,
 }
 
 
