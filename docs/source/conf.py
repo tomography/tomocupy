@@ -20,7 +20,7 @@ import os
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 # sys.path.insert(0, os.path.abspath('..'))
-sys.path.insert(0, os.path.abspath('../src'))
+sys.path.insert(0, os.path.abspath('../../src'))
 
 # -- General configuration ------------------------------------------------
 
@@ -41,8 +41,8 @@ extensions = [
     'sphinx.ext.autosectionlabel',]
 
 bibtex_bibfiles = [
-    'source/bibtex/cite.bib',
-    'source/bibtex/ref.bib',
+    'bibtex/cite.bib',
+    'bibtex/ref.bib',
     ]
 
 # Napoleon settings
@@ -81,7 +81,7 @@ copyright = u'2022, ' + Affiliation
 # built documents.
 #
 # The short X.Y version.
-version = open(os.path.join('..', 'VERSION')).read().strip()
+version = open(os.path.join('../..', 'VERSION')).read().strip()
 # The full version, including alpha/beta/rc tags.
 release = version
 

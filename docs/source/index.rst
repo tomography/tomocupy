@@ -34,8 +34,8 @@ Content
 .. toctree::
    :maxdepth: 2
 
-   source/install
-   source/usage
-   source/performance
-   source/api
-   source/credits
+   install
+   usage
+   performance
+   api
+   credits
