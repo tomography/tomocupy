@@ -2,7 +2,7 @@ import h5py
 import numpy as np
 import sys
 sizes = [512,1024,2048,4096,8192,16384]
-nz = [512,1024,2048,2048,512,128]
+nz = [512,1024,2048,4096,1024,256]
 # muls = [1,1,1,2,32,256]
 for i,n in enumerate(sizes):
     print(n)

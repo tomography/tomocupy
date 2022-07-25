@@ -59,8 +59,6 @@ __docformat__ = 'restructuredtext en'
 __all__ = ['GPURec', ]
 
 
-pinned_memory_pool = cp.cuda.PinnedMemoryPool()
-cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
 
 log = logging.getLogger(__name__)
 
@@ -71,14 +69,24 @@ class GPURec():
     The implemented reconstruction method is Fourier-based with exponential functions for interpoaltion in the frequency domain (implemented with CUDA C).
     '''
 
-    def __init__(self, args):
+    def __init__(self, args):        
+
         # Set ^C, ^Z interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTSTP, utils.signal_handler)
 
         # configure sizes and output files
         cl_conf = conf_io.ConfIO(args)
-
+        
+        pinned_memory_pool = cp.cuda.PinnedMemoryPool()
+        cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
+        
+        # estimate whether managed memory is needed   
+        gpu_mem = cp.cuda.Device().mem_info[1] #(used,total), use total        
+        if (cl_conf.ncz*max(cl_conf.n,cl_conf.nproj)*cl_conf.n*160>gpu_mem):     
+            log.warning('Data/chunk is too big, switching to managed GPU memory')
+            cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
+        
         # chunks for processing
         self.shape_data_chunk = (cl_conf.nproj, cl_conf.ncz, cl_conf.ni)
         self.shape_recon_chunk = (cl_conf.ncz, cl_conf.n, cl_conf.n)

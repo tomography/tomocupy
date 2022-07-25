@@ -52,6 +52,9 @@ class ConfIO():
 
         # define chunk size for processing
         ncz = self.args.nsino_per_chunk
+        if ncz==1 and self.args.reconstruction_algorithm=='fourierrec':
+            ncz = 2
+            
         ncproj = self.args.nproj_per_chunk
         # take center
         centeri = self.args.rotation_axis

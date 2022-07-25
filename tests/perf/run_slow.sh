@@ -1,8 +1,8 @@
-nz=(64 32 8 4 2)
-nzt=(512 256 256 128 128)
-size=(512 1024 2048 4096 8192)
+nz=(64 32 8 4 2 1)
+nzt=(512 256 256 128 64 32)
+size=(512 1024 2048 4096 8192 16384)
 
-for iz in {0..4}; do
+for iz in {0..5}; do
     for ir in {0..3}; do
         rm -rf /local/data_rec/*; 
         sleep 5
@@ -14,7 +14,7 @@ for iz in {0..4}; do
 done
 
 source ~/.bashrc; conda activate tomopy;
-for iz in {0..4}; do
+for iz in {0..5}; do
     for ir in {0..3}; do
         rm -rf /local/data_rec/*; 
         sleep 5
@@ -25,7 +25,7 @@ for iz in {0..4}; do
 done
 
 source ~/.bashrc; conda activate tomopy;
-for iz in {0..4}; do
+for iz in {0..5}; do
     for ir in {0..3}; do
         rm -rf /local/data_rec/*; 
         sleep 5

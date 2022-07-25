@@ -3,7 +3,7 @@
 
 cfunc_fourierrec::cfunc_fourierrec(size_t nproj, size_t nz, size_t n, size_t theta_)
     : nproj(nproj), nz(nz), n(n) {
-    float eps = 1e-2;
+    float eps = 1e-3;
     mu = -log(eps) / (2 * n * n);
     #ifndef HALF
         ne = 3*n/2;        
