@@ -6,6 +6,11 @@ Tomocupy
 
 Tomocupy implements an efficient data processing conveyor allowing to overlap all data transfers with computations. First, independent Python threads are started for reading data chunks from the hard disk into a Python data queue and for writing reconstructed chunks from the Python queue to the hard disk. Second, CPU-GPU data transfers are overlapped with GPU computations by using CUDA streams. 
 
+
+:cite:`Paganin:02`
+:cite:`Gursoy:14a`
+
+
 Features
 --------
 
