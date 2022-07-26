@@ -26,8 +26,6 @@ Performance tests for `tomopy cli <https://tomopycli.readthedocs.io/en/latest/>`
 +-----------+--------------+---------------+-----------------+---------------------------------+----------------------+
 
  
-
-
 Tests 2022-07
 =============
 **Data: 2048x2048x2048,  ring removal off** 
@@ -37,15 +35,19 @@ Tests 2022-07
 +-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 |    Method                           |      Time |  Command                                                                                                                                                                                              |
 +-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| tomopy                              |     146s  |  tomopy recon --file-name /local/data/tmp.h5 --reconstruction-type full --rotation-axis-auto manual --gridrec-padding True                                                                            |
+| tomocupy lprec float16              |  7.5e+00s |  tomocupy recon --file-name /local/data/tmp2048.h5 --reconstruction-type full --reconstruction-method lprec --dtype float16                                                                           |
 +-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| tomocupy lprec float16              |     7.1s  |  tomocupy recon --file-name /local/data/tmp.h5 --reconstruction-type full --reconstruction-method lprec --dtype float16                                                                               |
+| tomocupy fourierrec float16         |  1.1e+01s |  tomocupy recon --file-name /local/data/tmp2048.h5 --reconstruction-type full --reconstruction-algorithm fourierrec --dtype float16                                                                   |
 +-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| tomocupy fourierrec float16         |     10.6s |  tomocupy recon --file-name /local/data/tmp.h5 --reconstruction-type full --reconstruction-algorithm fourierrec --dtype float16                                                                       |
+| tomocupy linerec float16            |  7.9e+00s |  tomocupy recon --file-name /local/data/tmp2048.h5 --reconstruction-type full --reconstruction-method linerec --dtype float16                                                                         |
 +-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| tomocupy lprec float32              |     8.2s  |  tomocupy recon --file-name /local/data/tmp.h5 --reconstruction-type full --reconstruction-method lprec                                                                                               |
+| tomocupy lprec float32              |  8.5e+00s |  tomocupy recon --file-name /local/data/tmp2048.h5 --reconstruction-type full --reconstruction-method lprec                                                                                           |
 +-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| tomocupy fourierrec float32         |     15.2s |  tomocupy recon --file-name /local/data/tmp.h5 --reconstruction-type full --reconstruction-algorithm fourierrec                                                                                       |
+| tomocupy fourierrec float32         |  1.5e+01s |  tomocupy recon --file-name /local/data/tmp2048.h5 --reconstruction-type full --reconstruction-algorithm fourierrec                                                                                   |
++-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| tomocupy linerec float32            |  8.3e+01s |  tomocupy recon --file-name /local/data/tmp2048.h5 --reconstruction-type full --reconstruction-algorithm linerec                                                                                      |
++-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| tomopy                              |  1.5e+02s |  tomopy recon --file-name /local/data/tmp2048.h5 --reconstruction-type full --rotation-axis-auto manual --gridrec-padding True                                                                        |
 +-------------------------------------+-----------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 
