@@ -10,9 +10,9 @@ cmd_dict = {
     f'{prefix}': 27.6,
     f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 ': 20.5,
     f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --dtype float16 ': 17.2,
-    f'{prefix} --reconstruction-algorithm linesummation': 27.6,
-    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linesummation': 23.8,
-    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linesummation --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001': 17.60,        
+    f'{prefix} --reconstruction-algorithm linerec': 27.6,
+    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linerec': 23.8,
+    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linerec --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001': 17.60,        
     f'{prefix} --lamino-angle 1 --save-format h5': 23.75
 }
 

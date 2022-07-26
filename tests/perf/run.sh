@@ -2,10 +2,10 @@ nz=(64 32 8 4 2 1)
 size=(512 1024 2048 4096 8192 16384)
 methods=(fourierrec lprec)
 dtypes=(float16 float32)
-for iz in {0..5}; do
-    for im in {0..1}; do
+for iz in 5; do
+    for im in 1; do
         for id in {0..1}; do
-            for ir in {0..2}; do
+            for ir in 1; do
                 rm -rf /local/data_rec/*; 
                 sleep 5
                 echo ${size[$iz]} ${nz[$iz]} ${methods[$im]} ${dtypes[$id]}
