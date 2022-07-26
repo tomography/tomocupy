@@ -49,7 +49,7 @@
 from tomocupy import fourierrec
 from tomocupy import lprec
 from tomocupy import fbp_filter
-from tomocupy import line_summation
+from tomocupy import linerec
 from tomocupy import retrieve_phase, remove_stripe
 
 
@@ -82,13 +82,13 @@ class TomoFunctions():
                 self.center+=0.5      
                 self.cl_rec = lprec.LpRec(
                     self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
-            elif self.args.reconstruction_algorithm == 'linesummation':      
-                self.cl_rec = line_summation.LineSummation(
+            elif self.args.reconstruction_algorithm == 'linerec':      
+                self.cl_rec = linerec.LineRec(
                     cp.array(cl_conf.theta),self.nproj, self.nproj, self.ncz, self.ncz, self.n, self.args.dtype)
         else:
             self.cl_filter = fbp_filter.FBPFilter(
                 self.n, self.ncproj, self.nz, self.args.dtype) # note ncproj,nz!
-            self.cl_rec = line_summation.LineSummation(
+            self.cl_rec = linerec.LineRec(
                 cp.array(cl_conf.theta),self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
 
     def darkflat_correction(self, data, dark, flat):

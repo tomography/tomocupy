@@ -46,27 +46,45 @@
 # POSSIBILITY OF SUCH DAMAGE.                                             #
 # #########################################################################
 
-from pkg_resources import get_distribution, DistributionNotFound
 
-__version__ = '0.8'
+from tomocupy import cfunc_linerec
+from tomocupy import cfunc_linerecfp16
+import cupy as cp
 
-try:
-    __version__ = get_distribution(__name__).version
-except DistributionNotFound:
-    # package is not installed
-    pass
-    
-from tomocupy.config import *
-from tomocupy.lprec import *
-from tomocupy.fourierrec import *
-from tomocupy.linerec import *
-from tomocupy.logging import *
-from tomocupy.rec import *
-from tomocupy.rec_steps import *
-from tomocupy.find_center import *
-from tomocupy.remove_stripe import *
-from tomocupy.retrieve_phase import *
-from tomocupy.utils import *
-from tomocupy.conf_io import *
-from tomocupy.tomo_functions import *
 
+class LineRec():
+    """Backprojection by summation over lines"""
+
+    def __init__(self, theta, nproj, ncproj, nz, ncz, n, dtype):
+        self.nproj = nproj
+        self.ncproj = ncproj
+        self.nz = nz
+        self.ncz = ncz
+        self.n = n        
+        self.dtype = dtype
+        self.theta = cp.array(theta)
+        
+        if dtype == 'float16':
+            self.fslv = cfunc_linerecfp16.cfunc_linerec(nproj, nz, n, ncproj, ncz)
+        else:
+            self.fslv = cfunc_linerec.cfunc_linerec(nproj, nz, n, ncproj, ncz)
+        
+
+    def backprojection(self, f, data, stream=0, theta=[], lamino_angle=0, sz=0):
+        if len(theta)==0:
+            theta = self.theta
+            f[:]=0
+        phi = cp.float(cp.pi/2+(lamino_angle)/180*cp.pi)
+        self.fslv.backprojection(f.data.ptr, data.data.ptr, theta.data.ptr, phi, sz, stream.ptr)
+        
+    def backprojection_try(self, f, data, sh, stream=0, theta=[], lamino_angle=0, sz=0):
+        if len(theta)==0:
+            theta = self.theta
+        phi = cp.float(cp.pi/2+(lamino_angle)/180*cp.pi)
+        self.fslv.backprojection_try(f.data.ptr, data.data.ptr, theta.data.ptr, sh.data.ptr, phi, sz, stream.ptr)
+
+    def backprojection_try_lamino(self, f, data, sh, stream=0, theta=[], lamino_angle=0, sz=0):
+        if len(theta)==0:
+            theta = self.theta
+        phi = (cp.pi/2+(lamino_angle+sh)/180*cp.pi).astype('float32')
+        self.fslv.backprojection_try_lamino(f.data.ptr, data.data.ptr, theta.data.ptr, phi.data.ptr, sz, stream.ptr)

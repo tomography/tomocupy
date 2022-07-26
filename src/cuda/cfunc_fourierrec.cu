@@ -3,19 +3,11 @@
 
 cfunc_fourierrec::cfunc_fourierrec(size_t nproj, size_t nz, size_t n, size_t theta_)
     : nproj(nproj), nz(nz), n(n) {
-    float eps = 1e-2;
-    mu = -log(eps) / (2 * n * n);
-    #ifndef HALF
-        ne = 3*n/2;        
-    #else
-        ne = pow(2,ceil(log2(3*n/2)));
-    #endif
-        
+    float eps = 1e-3;
+    mu = -log(eps) / (2 * n * n);        
     m = ceil(2 * n * 1 / PI * sqrt(-mu * log(eps) + (mu * n) * (mu * n) / 4));    
     cudaMalloc((void **)&fde,
             (2 * n + 2 * m) * (2 * n + 2 * m) * nz * sizeof(real2));
-    cudaMalloc((void **)&ge,
-            (ne/2+1) * nproj * 2 * nz * sizeof(real2));
     cudaMalloc((void **)&x, n * nproj * sizeof(float));
     cudaMalloc((void **)&y, n * nproj * sizeof(float));
     
@@ -53,7 +45,6 @@ cfunc_fourierrec::~cfunc_fourierrec() { free(); }
 void cfunc_fourierrec::free() {
   if (!is_free) {
     cudaFree(fde);
-    cudaFree(ge);
     cudaFree(x);
     cudaFree(y);
     cufftDestroy(plan2d);

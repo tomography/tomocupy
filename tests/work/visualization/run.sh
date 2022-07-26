@@ -7,7 +7,7 @@ cp /local/ssd/data_rec/glass_beads_1x_119_rec/recon*1024.tiff res/fp32.tiff
 # cp /local/ssd/data_rec/glass_beads_1x_119_rec/recon*1024.tiff res/lfp32.tiff
 # tomocupy recon --file-name /local/ssd/data//glass_beads_1x_119.h5 --reconstruction-type full --rotation-axis 1035.5 --dtype float16 --remove-stripe-method fw --reconstruction-algorithm lprec --nsino-per-chunk 4 --start-row 1020 --end-row 1028
 # cp /local/ssd/data_rec/glass_beads_1x_119_rec/recon*1024.tiff res/lfp16.tiff
-# tomocupy recon --file-name /local/ssd/data//glass_beads_1x_119.h5 --reconstruction-type full --rotation-axis 1035.5 --dtype float32 --remove-stripe-method fw --reconstruction-algorithm linesummation --nsino-per-chunk 4 --start-row 1020 --end-row 1028
+# tomocupy recon --file-name /local/ssd/data//glass_beads_1x_119.h5 --reconstruction-type full --rotation-axis 1035.5 --dtype float32 --remove-stripe-method fw --reconstruction-algorithm linerec --nsino-per-chunk 4 --start-row 1020 --end-row 1028
 # cp /local/ssd/data_rec/glass_beads_1x_119_rec/recon*1024.tiff res/linefp32.tiff
 # source ~/.bashrc;conda activate tomopy;
 # tomopy recon --file-name /local/ssd/data//glass_beads_1x_119.h5 --reconstruction-type full --rotation-axis 1035.5 --rotation-axis-auto manual --remove-stripe-method fw --start-row 1020 --end-row 1028

@@ -3,10 +3,10 @@ import matplotlib.pyplot as plt
 
 nz=[64,32,8,4,2,1]
 size=[512,1024,2048,4096,8192,16384]
-methods=['fourierrec','lprec','linesummation']
+methods=['fourierrec','lprec','linerec']
 dtypes=['float16','float32']
 times = np.zeros([7,4,3])
-for iz in range(0,6):
+for iz in range(0,7):
     for im in range(0,3):
         for id in range(0,2):
             try:

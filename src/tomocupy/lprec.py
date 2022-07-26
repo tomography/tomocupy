@@ -52,9 +52,8 @@ from tomocupy import cfunc_lprec
 from tomocupy import logging
 import cupy as cp
 import numpy as np
-
+# import time
 log = logging.getLogger(__name__)
-#cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
 
 class Pgl:
     def __init__(self, Nspan, N, Nproj, Ntheta, Nrho, proj, s, thsp, rhosp, aR, beta, am, g, B3com):
@@ -99,7 +98,7 @@ def create_gl(N, Nproj, Ntheta, Nrho):
     thsp = (cp.arange(-Ntheta/2, Ntheta/2) *
             cp.float32(dtheta)).astype('float32')
     rhosp = (cp.arange(-Nrho, 0)*drho).astype('float32')
-    erho = cp.tile(cp.exp(rhosp)[..., cp.newaxis], [1, Ntheta])
+    #erho = cp.tile(cp.exp(rhosp)[..., cp.newaxis], [1, Ntheta])
     # compensation for cubic interpolation
     B3th = splineB3(thsp, 1)
     B3th = cp.fft.fft(cp.fft.ifftshift(B3th))
@@ -153,9 +152,8 @@ def create_adj(P):
     # convolution function
     fZ = cp.fft.fftshift(fzeta_loop_weights_adj(
         P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))
-
     # (C2lp1,C2lp2), transformed Cartesian to log-polar coordinates
-    [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N), cp.linspace(-1, 1, P.N))
+    [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N, dtype='float32'), cp.linspace(-1, 1, P.N, dtype='float32'))
     x1 = x1.flatten()
     x2 = x2.flatten()
     x2 = x2*(-1)  # adjust for tomocupy
@@ -171,7 +169,6 @@ def create_adj(P):
                    x2[cids]*cp.cos(k*P.beta+P.beta/2))
         C2lp1[k] = cp.arctan2(z2, z1)
         C2lp2[k] = cp.log(cp.sqrt(z1**2+z2**2))
-    
     # (lp2p1,lp2p2), transformed log-polar to polar coordinates
     [z1, z2] = cp.meshgrid(P.thsp, cp.exp(P.rhosp))
     z1 = z1.flatten()
@@ -244,26 +241,30 @@ def create_adj(P):
 
 
 def fzeta_loop_weights_adj(Ntheta, Nrho, betas, rhos, a, osthlarge):
-    krho = cp.arange(-Nrho/2, Nrho/2, dtype='float32')
-    Nthetalarge = osthlarge*Ntheta
-    thsplarge = cp.arange(-Nthetalarge/2, Nthetalarge/2,
-                          dtype='float32') / Nthetalarge*betas
+    
+    Nthetalarge = osthlarge*Ntheta    
+    krho = cp.linspace(-Nrho/2,Nrho/2,Nrho,endpoint=False,dtype='float32')
+    thsplarge = cp.linspace(-1/2,1/2,Nthetalarge,endpoint=False,dtype='float32')*betas
+    
     fZ = cp.zeros([Nrho, Nthetalarge], dtype='complex64')
     h = cp.ones(Nthetalarge, dtype='float32')
+    # discretization weights
     # correcting = 1+[-3 4 -1]/24correcting(1) = 2*(correcting(1)-0.5)
     # correcting = 1+array([-23681,55688,-66109,57024,-31523,9976,-1375])/120960.0correcting[0] = 2*(correcting[0]-0.5)
     correcting = 1+cp.array([-216254335, 679543284, -1412947389, 2415881496, -3103579086,
                              2939942400, -2023224114, 984515304, -321455811, 63253516, -5675265])/958003200.0
     correcting[0] = 2*(correcting[0]-0.5)
-    h[0] = h[0]*(correcting[0])
+    h[0] = h[0]*correcting[0]
     for j in range(1, len(correcting)):
         h[j] = h[j]*correcting[j]
         h[-1-j+1] = h[-1-j+1]*(correcting[j])
+    # fast fftshift multiplier
+    s = 1-2*(cp.arange(1,Nthetalarge+1)%2)
+    h *= s
     for j in range(len(krho)):
-        fcosa = pow(cp.cos(thsplarge), (2*cp.pi*1j*krho[j]/rhos-a))
-        fZ[j, :] = cp.fft.fftshift(cp.fft.fft(cp.fft.fftshift(h*fcosa)))
-    fZ = fZ[:, Nthetalarge//2-Ntheta//2:Nthetalarge//2+Ntheta//2]
-    fZ = fZ*(thsplarge[1]-thsplarge[0])
+        fcosa = pow(cp.cos(thsplarge), (2*cp.pi*1j*krho[j]/rhos-a))        
+        fZ[j, :] = s*cp.fft.fft(h*fcosa)
+    fZ = fZ[:, Nthetalarge//2-Ntheta//2:Nthetalarge//2+Ntheta//2]*(thsplarge[1]-thsplarge[0])
     # put imag to 0 for the border
     fZ[0] = 0
     fZ[:, 0] = 0
@@ -271,7 +272,7 @@ def fzeta_loop_weights_adj(Ntheta, Nrho, betas, rhos, a, osthlarge):
 
 class LpRec():
     def __init__(self, n, nproj, nz, theta, dtype):        
-
+        # ts = time.time()
         # check angles 
         nproj_test = int(np.round(np.pi/(theta[1]-theta[0])))
         if nproj != nproj_test:
@@ -289,13 +290,10 @@ class LpRec():
         lp2p2w = self.Padj.lp2p2w.data.ptr
         C2lp1 = self.Padj.C2lp1.data.ptr
         C2lp2 = self.Padj.C2lp2.data.ptr
-        # conevrt fZ from complex to float.. coudl be improved..
-        fZn = cp.zeros(
-            [self.Padj.fZ.shape[0], self.Padj.fZ.shape[1]*2], dtype=dtype)
-        fZn[:, ::2] = self.Padj.fZ.real
-        fZn[:, 1::2] = self.Padj.fZ.imag
-        self.fZn = fZn  # keep in class, otherwise collector will remove it
-        fZnptr = cp.ascontiguousarray(self.fZn).data.ptr
+        fZ = self.Padj.fZ.view('float32').astype(dtype)
+        
+        self.fZ = fZ  # keep in class, otherwise collector will remove it
+        fZptr = self.fZ.data.ptr
         lpids = self.Padj.lpids.data.ptr
         wids = self.Padj.wids.data.ptr
         cids = self.Padj.cids.data.ptr
@@ -307,10 +305,11 @@ class LpRec():
         else:
             self.fslv = cfunc_lprec.cfunc_lprec(nproj, nz, n, ntheta, nrho)
 
-        self.fslv.setgrids(fZnptr, lp2p1, lp2p2, lp2p1w, lp2p2w,
+        self.fslv.setgrids(fZptr, lp2p1, lp2p2, lp2p1w, lp2p2w,
                          C2lp1, C2lp2, lpids, wids, cids,
                          nlpids, nwids, ncids)
-
+        # print(time.time()-ts)
+                
     def backprojection(self,obj, data, stream):
         data = cp.ascontiguousarray(data)###????
         self.fslv.backprojection(obj.data.ptr, data.data.ptr,stream.ptr)

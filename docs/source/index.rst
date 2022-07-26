@@ -42,5 +42,6 @@ Content
    install
    usage
    performance
+   tested_gpus
    api
    credits

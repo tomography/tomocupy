@@ -30,6 +30,13 @@ set_target_properties(cfunc_lprec PROPERTIES CUDA_ARCHITECTURES "60;72;75;80")
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_lprec.py" DESTINATION tomocupy)
 install(TARGETS cfunc_lprec LIBRARY DESTINATION tomocupy)
 
+set_source_files_properties(cfunc_linerec.i PROPERTIES CPLUSPLUS ON)
+swig_add_library(cfunc_linerec LANGUAGE python SOURCES cfunc_linerec.i cfunc_linerec.cu)
+swig_link_libraries(cfunc_linerec cudart)
+set_target_properties(cfunc_linerec PROPERTIES CUDA_ARCHITECTURES "60;72;75;80")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_linerec.py" DESTINATION tomocupy)
+install(TARGETS cfunc_linerec LIBRARY DESTINATION tomocupy)
+
 set_source_files_properties(cfunc_filter.i PROPERTIES CPLUSPLUS ON)
 swig_add_library(cfunc_filter LANGUAGE python SOURCES cfunc_filter.i cfunc_filter.cu)
 swig_link_libraries(cfunc_filter cudart cufft)
@@ -52,6 +59,14 @@ set_target_properties(cfunc_lprecfp16 PROPERTIES CUDA_ARCHITECTURES "60;72;75;80
 target_compile_definitions(cfunc_lprecfp16 PRIVATE HALF)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_lprecfp16.py" DESTINATION tomocupy)
 install(TARGETS cfunc_lprecfp16 LIBRARY DESTINATION tomocupy)
+
+set_source_files_properties(cfunc_linerecfp16.i PROPERTIES CPLUSPLUS ON)
+swig_add_library(cfunc_linerecfp16 LANGUAGE python SOURCES cfunc_linerecfp16.i cfunc_linerec.cu)
+swig_link_libraries(cfunc_linerecfp16 cudart)
+set_target_properties(cfunc_linerecfp16 PROPERTIES CUDA_ARCHITECTURES "60;72;75;80")
+target_compile_definitions(cfunc_linerecfp16 PRIVATE HALF)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/cfunc_linerecfp16.py" DESTINATION tomocupy)
+install(TARGETS cfunc_linerecfp16 LIBRARY DESTINATION tomocupy)
 
 set_source_files_properties(cfunc_filterfp16.i PROPERTIES CPLUSPLUS ON)
 swig_add_library(cfunc_filterfp16 LANGUAGE python SOURCES cfunc_filterfp16.i cfunc_filter.cu)
