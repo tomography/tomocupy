@@ -358,6 +358,10 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 1,
         'help': "Max number of threads for reading by chunks"},
+    'minus-log': {
+        'default': 'True',
+        'help': "take -log or not"
+        },
 }
 
 

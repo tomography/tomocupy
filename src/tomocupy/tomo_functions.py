@@ -192,7 +192,8 @@ class TomoFunctions():
             data[:] = retrieve_phase.paganin_filter(
                 data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, self.args.retrieve_phase_alpha)
         # minus log
-        data[:] = self.minus_log(data)
+        if self.args.minus_log=='True':
+            data[:] = self.minus_log(data)
         # padding for 360 deg recon
         if(self.args.file_type == 'double_fov'):
             res[:] = self.pad360(data)
