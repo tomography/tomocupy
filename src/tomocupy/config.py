@@ -168,8 +168,8 @@ SECTIONS['remove-stripe'] = {
     'remove-stripe-method': {
         'default': 'none',
         'type': str,
-        'help': "Remove stripe method: none, fourier-wavelet",
-        'choices': ['none', 'fw']},
+        'help': "Remove stripe method: none, fourier-wavelet, titarenko",
+        'choices': ['none', 'fw', 'ti']},
 }
 
 
@@ -191,6 +191,14 @@ SECTIONS['fw'] = {
         'default': True,
         'help': "When set, Fourier-Wavelet remove stripe extend the size of the sinogram by padding with zeros",
         'action': 'store_true'},
+}
+
+
+SECTIONS['ti'] = {
+    'ti-beta': {
+        'default': 0.022, #as in the paper
+        'type': float,
+        'help': "Parameter for ring removal (0,1)"},    
 }
 
 SECTIONS['retrieve-phase'] = {
@@ -350,16 +358,20 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 1,
         'help': "Max number of threads for reading by chunks"},
+    'minus-log': {
+        'default': 'True',
+        'help': "take -log or not"
+        },
 }
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'blocked-views', 'fw', 'reconstruction-types')
+                'reconstruction', 'blocked-views', 'fw', 'ti', 'reconstruction-types')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe',
-                      'reconstruction', 'blocked-views', 'retrieve-phase', 'fw', 'lamino', 'reconstruction-steps-types')
+                      'reconstruction', 'blocked-views', 'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
-              'Remove stripe FW', 'Retrieve phase', 'Blocked views', 'Reconstruction')
+              'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Blocked views', 'Reconstruction')
 
 
 def get_config_name():

@@ -47,7 +47,6 @@ from tomocupy import retrieve_phase, remove_stripe
 
 import cupy as cp
 import numpy as np
-import numexpr as ne
 from cupyx.scipy import ndimage
 
 class TomoFunctions():
@@ -123,19 +122,11 @@ class TomoFunctions():
         elif self.args.fbp_filter == 'shepp':
             w = t * cp.sinc(t)
 
-        
-        # beta = 0.022
-        # beta = beta*((1-beta)/(1+beta))**np.abs(np.fft.fftfreq(ne)*ne)
-        # beta[0]-=1        
-        # v = cp.mean(data,axis=0)
-        # vRing = -cp.diff(v,append=v[-1])        
-        # vRing = cp.fft.irfft(cp.fft.rfft(vRing)*cp.fft.rfft(beta))
-        # data -= vRing
-                
-        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center +
-                     sht[:, cp.newaxis]+self.n/2))  # center fix
         tmp = cp.pad(
             data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
+        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center +
+                    sht[:, cp.newaxis]+self.n/2))  # center fix
+    
         # tmp = cp.fft.irfft(
             # beta*cp.fft.rfft(tmp, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
@@ -167,10 +158,13 @@ class TomoFunctions():
         res[:] = self.darkflat_correction(data, dark, flat)
         res[:] = self.remove_outliers(res)
         # remove stripes
-        if(self.args.remove_stripe_method == 'fw'):
+        if self.args.remove_stripe_method == 'fw':
             res[:] = remove_stripe.remove_stripe_fw(
                 res, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
-            
+        elif self.args.remove_stripe_method == 'ti':
+            res[:] = remove_stripe.remove_stripe_ti(
+                res, self.args.ti_beta)
+
         return res
 
     def proc_proj(self, data, res=None):
@@ -184,7 +178,8 @@ class TomoFunctions():
             data[:] = retrieve_phase.paganin_filter(
                 data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, self.args.retrieve_phase_alpha)
         # minus log
-        data[:] = self.minus_log(data)
+        if self.args.minus_log=='True':
+            data[:] = self.minus_log(data)
         # padding for 360 deg recon
         if(self.args.file_type == 'double_fov'):
             res[:] = self.pad360(data)

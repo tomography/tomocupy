@@ -85,3 +85,15 @@ def remove_stripe_fw(data, sigma, wname, level):
     data = data.swapaxes(0, 1)
 
     return data
+
+def remove_stripe_ti(data,beta):
+    """Remove stripes with a new method by V. Titareno """
+    gamma = beta*((1-beta)/(1+beta))**cp.abs(cp.fft.fftfreq(data.shape[-1])*data.shape[-1])
+    gamma[0] -= 1        
+    v = cp.mean(data,axis=0)
+    v = v-v[:,0:1]
+    v = cp.fft.irfft(cp.fft.rfft(v)*cp.fft.rfft(gamma))                
+    data[:] += v
+    return data
+    
+    
