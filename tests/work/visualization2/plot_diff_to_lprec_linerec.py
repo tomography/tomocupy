@@ -6,19 +6,19 @@ import dxchange
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 [x1,x2] = np.meshgrid(np.arange(-1024,1024)/1024,np.arange(-1024,1024)/1024)
-
 circ = x1**2+x2**2<1-8/2048
 fig = plt.figure(constrained_layout=True, figsize=(7.2, 5.8))
 grid = fig.add_gridspec(2, 2, height_ratios=[1,1])
 fp32f = dxchange.read_tiff('res/fp32.tiff').astype('float32')
-fp32t = dxchange.read_tiff('res/tfp32.tiff').astype('float32')
-fp32tpad = dxchange.read_tiff('res/tfppad32.tiff').astype('float32')#*1.0713234
+fp32t = dxchange.read_tiff('res/lfp32.tiff').astype('float32')
+fp32tpad = dxchange.read_tiff('res/linefp32.tiff').astype('float32')
 fp32tine = dxchange.read_tiff('res/linefp32.tiff').astype('float32')
 # fp32t = np.roll(fp32t,1,axis=0)
 # fp32tine = np.roll(fp32tine,1,axis=0)
 
-s1 = ssim(fp32f*circ*1000,fp32t*circ*1000)
-s2 = ssim(fp32f*circ*1000,fp32tpad*circ*1000)
+s1 = ssim(fp32f*1000,fp32t*1000)
+s2 = ssim(fp32f*1000,fp32tpad*1000)
+
 mmin = -0.001
 mmax = 0.001
 
@@ -36,6 +36,8 @@ fp32tpad0 = fp32tpad[sty:endy,stx:endx].copy()
 fp32t0 = fp32t[sty:endy,stx:endx].copy()
 fp32tine0 = fp32tine[sty:endy,stx:endx].copy()
 #print(np.linalg.norm(fp32f0)/np.linalg.norm(fp32tpad0))
+# print(ssim(fp32f0*1000,fp32t0*1000))
+# print(ssim(fp32f0*1000,fp32tpad0*1000))
 
 diff0 = fp32f0-fp32t0
 diff10 = fp32f0-fp32tpad0
@@ -74,14 +76,14 @@ diff2[sty:endy,stx-w:stx+w+1] = mmin
 diff2[sty:endy,endx-w:endx+w+1] = mmin
 
 ax0 = fig.add_subplot(grid[0])
-ax0.text(-350,-100,'a)',fontsize=20)
+
 im = ax0.imshow(fp32t*circ, cmap='gray',vmin=mmin, vmax=mmax)
 scalebar = ScaleBar(3.13, "um", length_fraction=0.25)
 ax0.add_artist(scalebar)
 divider = make_axes_locatable(ax0)
 cax = divider.append_axes("right", size="5%", pad=0.1)
 plt.colorbar(im, cax=cax,format='%.0e')
-ax0.set_title('Tomopy Gridrec')
+ax0.set_title('Tomocupy LpRec')
 
 ax = ax0.inset_axes([0.255,0.05,0.6,0.6])
 im = ax.imshow(fp32t0, cmap='gray',vmin=mmin, vmax=mmax)
@@ -101,8 +103,9 @@ cb.remove()
 mmin = -0.0001
 mmax = 0.0001
 ax0 = fig.add_subplot(grid[1])
+ax0.text(-350,-100,'b)',fontsize=20)
 ax0.text(65,1955,f'SSIM: {s1:.3}',fontsize=11.5,backgroundcolor='0.5')
-ax0.set_title('Difference to \n Tomocupy FourierRec ', fontsize=9.5)
+ax0.set_title('Difference between \n LpRec and FourierRec ', fontsize=9.5)
 im = ax0.imshow(diff*circ, cmap='gray',vmin=mmin, vmax=mmax)
 scalebar = ScaleBar(3.13, "um", length_fraction=0.25)
 ax0.add_artist(scalebar)
@@ -126,7 +129,7 @@ mmin = -0.001
 mmax = 0.001
 
 ax0 = fig.add_subplot(grid[2])
-ax0.set_title('Tomopy Gridrec, padded ')
+ax0.set_title('Tomocupy LineRec')
 im = ax0.imshow(fp32tpad*circ, cmap='gray',vmin=mmin, vmax=mmax)
 scalebar = ScaleBar(3.13, "um", length_fraction=0.25)
 ax0.add_artist(scalebar)
@@ -150,7 +153,7 @@ mmin = -0.0001
 mmax = 0.0001
 
 ax0 = fig.add_subplot(grid[3])
-ax0.set_title('Difference to \n Tomocupy FourierRec ', fontsize=9.5)
+ax0.set_title('Difference between \n LineRec and FourierRec ', fontsize=9.5)
 ax0.text(65,1955,f'SSIM: {s2:.3}',fontsize=11.5,backgroundcolor='0.5')
 im = ax0.imshow(diff1*circ, cmap='gray',vmin=mmin, vmax=mmax)
 scalebar = ScaleBar(3.13, "um", length_fraction=0.25)
@@ -173,4 +176,4 @@ cb.remove()
 
 plt.colorbar(im, cax=cax,format='%.0e')
 
-plt.savefig('difference_to_tomopy.png',dpi=300,bbox_inches='tight')
+plt.savefig('difference_to_lprec_linerec.png',dpi=300,bbox_inches='tight')
