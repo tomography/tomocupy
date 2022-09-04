@@ -1,24 +1,24 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-nz=[64,32,8,4,2,1]
+nz=[64,32,16,4,2,1]
 size=[512,1024,2048,4096,8192,16384]
 methods=['fourierrec','lprec','linerec']
 dtypes=['float16','float32']
 times = np.zeros([7,4,3])
-for iz in range(0,2):
-    for im in range(0,2):
+for iz in range(0,6):
+    for im in range(0,3):
         for id in range(0,2):
             try:
-                for ir in range(1,3):
-                    t = np.load(f'times/time_{size[iz]}_{nz[iz]}_{methods[im]}_{dtypes[id]}_{ir}.npy')*size[iz]#/size[iz]
+                print(f'{size[iz]}_{methods[im]}_{dtypes[id]}')
+                for ir in range(0,3):                    
+                    t = np.load(f'times/time_{size[iz]}_{nz[iz]}_{methods[im]}_{dtypes[id]}_{ir}.npy')#*size[iz]#/size[iz]
                     times[iz,im,id] +=t
                     print(t,end=' ')
+                print('\n')
             except:
-                pass
-            print('\n')
-
-times/=2
+                pass            
+# times/=2
 # plt.figure(figsize=(12,3))
 # for im in range(0,3):
 #     for id in range(0,2):

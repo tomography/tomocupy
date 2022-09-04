@@ -62,9 +62,7 @@ class TomoFunctions():
         self.centeri = cl_conf.centeri
         self.center = cl_conf.center
 
-        if self.args.lamino_angle==0:
-            self.cl_filter = fbp_filter.FBPFilter(
-                self.n, self.nproj, self.ncz, self.args.dtype)        
+        if self.args.lamino_angle==0:            
             if self.args.reconstruction_algorithm == 'fourierrec':
                 self.cl_rec = fourierrec.FourierRec(
                     self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
@@ -76,6 +74,8 @@ class TomoFunctions():
             elif self.args.reconstruction_algorithm == 'linerec':      
                 self.cl_rec = linerec.LineRec(
                     cp.array(cl_conf.theta),self.nproj, self.nproj, self.ncz, self.ncz, self.n, self.args.dtype)
+            self.cl_filter = fbp_filter.FBPFilter(
+                self.n, self.nproj, self.ncz, self.args.dtype)        
         else:
             self.cl_filter = fbp_filter.FBPFilter(
                 self.n, self.ncproj, self.nz, self.args.dtype) # note ncproj,nz!

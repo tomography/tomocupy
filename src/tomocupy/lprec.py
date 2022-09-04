@@ -44,7 +44,6 @@ from tomocupy import cfunc_lprec
 from tomocupy import logging
 import cupy as cp
 import numpy as np
-# import time
 log = logging.getLogger(__name__)
 
 class Pgl:
@@ -144,6 +143,10 @@ def create_adj(P):
     # convolution function
     fZ = cp.fft.fftshift(fzeta_loop_weights_adj(
         P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))
+    fZ = cp.ascontiguousarray(fZ[:, :P.Ntheta//2+1]/(P.B3com[:, :P.Ntheta//2+1]))
+    const = (P.N+1)*(P.N-1)/P.N**2/2/np.sqrt(2)*np.pi/6*0.86*4 # to understand where this is coming from
+    fZ = fZ*const
+
     # (C2lp1,C2lp2), transformed Cartesian to log-polar coordinates
     [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N, dtype='float32'), cp.linspace(-1, 1, P.N, dtype='float32'))
     x1 = x1.flatten()
@@ -161,7 +164,7 @@ def create_adj(P):
                    x2[cids]*cp.cos(k*P.beta+P.beta/2))
         C2lp1[k] = cp.arctan2(z2, z1)
         C2lp2[k] = cp.log(cp.sqrt(z1**2+z2**2))
-    # (lp2p1,lp2p2), transformed log-polar to polar coordinates
+    # (lp2p1,lp2p2), transformed log-polar to polar coordinates    
     [z1, z2] = cp.meshgrid(P.thsp, cp.exp(P.rhosp))
     z1 = z1.flatten()
     z2 = z2.flatten()
@@ -176,13 +179,13 @@ def create_adj(P):
     # (lp2p1w,lp2p2w), transformed log-polar to polar coordinates (wrapping)
     # right side
     wids = cp.where(cp.log(z2) > +P.g)[0].astype('int32')
-    
     z2n = cp.exp(cp.log(z2[wids])+cp.log(P.am)-P.g)-(1-P.aR)*cp.cos(z1[wids])
     z2n = z2n/P.aR
     lpidsw = cp.where((z1[wids] >= -P.beta/2) &
                       (z1[wids] < P.beta/2) & (abs(z2n) <= 1))[0]
     # left side
     wids2 = cp.where(cp.log(z2) < cp.log(P.am)-P.g+(P.rhosp[1]-P.rhosp[0]))[0].astype('int32')
+
     z2n2 = cp.exp(cp.log(z2[wids2])-cp.log(P.am)+P.g) - \
         (1-P.aR)*cp.cos(z1[wids2])
     z2n2 = z2n2/P.aR
@@ -222,13 +225,10 @@ def create_adj(P):
         lp2p2w[k] = (lp2p2w[k]+1)/2*(P.N-1)
         C2lp1[k] = (C2lp1[k]-P.thsp[0])/(P.thsp[-1]-P.thsp[0])*(P.Ntheta-1)
         C2lp2[k] = (C2lp2[k]-P.rhosp[0])/(P.rhosp[-1]-P.rhosp[0])*(P.Nrho-1)
-
-    const = (P.N+1)*(P.N-1)/P.N**2/2/np.sqrt(2)*np.pi/6*0.86*4 # to understand where this is coming from
-    fZ = cp.ascontiguousarray(fZ[:, :P.Ntheta//2+1]/(P.B3com[:, :P.Ntheta//2+1]))*const  
     
-                    
     Padj0 = Padj(fZ, lp2p1, lp2p2, lp2p1w, lp2p2w,
-                 C2lp1, C2lp2, cids, lpids, wids)
+                 C2lp1, C2lp2, cids, lpids, wids)        
+    
     return Padj0
 
 
@@ -276,22 +276,24 @@ class LpRec():
         # precompute parameters for the lp method
         self.Pgl = create_gl(n, nproj, ntheta, nrho)
         self.Padj = create_adj(self.Pgl)
+        self.Pgl = 0 # Free
+        cp._default_memory_pool.free_all_blocks() # helps to work with 2^16  
+        
         lp2p1 = self.Padj.lp2p1.data.ptr
         lp2p2 = self.Padj.lp2p2.data.ptr
         lp2p1w = self.Padj.lp2p1w.data.ptr
         lp2p2w = self.Padj.lp2p2w.data.ptr
         C2lp1 = self.Padj.C2lp1.data.ptr
         C2lp2 = self.Padj.C2lp2.data.ptr
-        fZ = self.Padj.fZ.view('float32').astype(dtype)
-        
-        self.fZ = fZ  # keep in class, otherwise collector will remove it
-        fZptr = self.fZ.data.ptr
+        self.Padj.fZ = self.Padj.fZ.view('float32').astype(dtype)
+        fZptr = self.Padj.fZ.data.ptr
         lpids = self.Padj.lpids.data.ptr
         wids = self.Padj.wids.data.ptr
         cids = self.Padj.cids.data.ptr
         nlpids = len(self.Padj.lpids)
         nwids = len(self.Padj.wids)
         ncids = len(self.Padj.cids)
+        
         if dtype == 'float16':
             self.fslv = cfunc_lprecfp16.cfunc_lprec(nproj, nz, n, ntheta, nrho)
         else:
@@ -300,7 +302,7 @@ class LpRec():
         self.fslv.setgrids(fZptr, lp2p1, lp2p2, lp2p1w, lp2p2w,
                          C2lp1, C2lp2, lpids, wids, cids,
                          nlpids, nwids, ncids)
-        # print(time.time()-ts)
+        
                 
     def backprojection(self,obj, data, stream):
         data = cp.ascontiguousarray(data)###????

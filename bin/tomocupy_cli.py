@@ -35,10 +35,11 @@ def run_rec(args):
         args.lamino_angle=0
         if args.rotation_axis_auto == 'auto':            
             clrotthandle = FindCenter(args)        
-            args.rotation_axis = clrotthandle.find_center()
+            args.rotation_axis = clrotthandle.find_center()*2**args.binning
             log.warning(f'set rotaion  axis {args.rotation_axis}')       
-        
+        # t1=time.time()
         clpthandle = GPURec(args)                                             
+        # init_time=time.time()-t1
         if(args.reconstruction_type == 'full'):                        
             clpthandle.recon_all()
         if(args.reconstruction_type == 'try'):            
@@ -46,10 +47,11 @@ def run_rec(args):
     else:
         log.error("File Name does not exist: %s" % args.file_name)
     
-    rec_time = time.time()-t
+    rec_time = (time.time()-t)#-init_time
     log.warning(f'Reconstruction time {rec_time:.1e}s')  
-    with h5py.File(file_name) as fid:            
-        np.save('time',rec_time/fid['exchange/data'].shape[1])      
+    # log.warning(f'Init time {init_time:.1e}s')  
+    # with h5py.File(file_name) as fid:            
+        # np.save('time',rec_time/fid['exchange/data'].shape[1]*fid['exchange/data'].shape[2]+init_time)              
 
 def run_recstep(args):
     # config.show_config(args)

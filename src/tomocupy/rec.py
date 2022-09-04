@@ -72,25 +72,28 @@ class GPURec():
 
         # configure sizes and output files
         cl_conf = conf_io.ConfIO(args)
-        
-        pinned_memory_pool = cp.cuda.PinnedMemoryPool()
-        cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
-        
-        # estimate whether managed memory is needed   
-        gpu_mem = cp.cuda.Device().mem_info[1] #(used,total), use total        
-        if (cl_conf.ncz*max(cl_conf.n,cl_conf.nproj)*cl_conf.n*160>gpu_mem):     
-            log.warning('Data/chunk is too big, switching to managed GPU memory')
-            cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
-        
+                
         # chunks for processing
         self.shape_data_chunk = (cl_conf.nproj, cl_conf.ncz, cl_conf.ni)
         self.shape_recon_chunk = (cl_conf.ncz, cl_conf.n, cl_conf.n)
         self.shape_dark_chunk = (cl_conf.ndark, cl_conf.ncz, cl_conf.ni)
         self.shape_flat_chunk = (cl_conf.nflat, cl_conf.ncz, cl_conf.ni)
 
-        # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
 
+        gpu_mem = cp.cuda.Device().mem_info[1] #(used,total), use total
+        if args.dtype=='float32':
+            dtype_size = 4
+        else:
+            dtype_size = 2
+        if (cl_conf.ncz*max(cl_conf.n,cl_conf.nproj)*cl_conf.n*50*dtype_size>gpu_mem):     
+            log.warning('Data/chunk is too big, switching to managed GPU memory')
+            cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
+        else:
+            cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
+            
+        # init tomo functions        
+        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)        
+               
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
         self.stream2 = cp.cuda.Stream(non_blocking=False)
@@ -100,6 +103,7 @@ class GPURec():
         self.write_threads = []
         for k in range(cl_conf.args.max_write_threads):
             self.write_threads.append(utils.WRThread())
+        
         # threads for data reading from disk
         self.read_threads = []
         for k in range(cl_conf.args.max_read_threads):
