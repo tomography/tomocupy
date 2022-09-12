@@ -60,5 +60,7 @@ from tomocupy.remove_stripe import *
 from tomocupy.retrieve_phase import *
 from tomocupy.utils import *
 from tomocupy.conf_io import *
+from tomocupy.reader import *
+from tomocupy.writer import *
 from tomocupy.tomo_functions import *
 

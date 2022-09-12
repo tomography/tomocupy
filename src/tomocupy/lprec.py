@@ -276,8 +276,8 @@ class LpRec():
         # precompute parameters for the lp method
         self.Pgl = create_gl(n, nproj, ntheta, nrho)
         self.Padj = create_adj(self.Pgl)
-        self.Pgl = 0 # Free
-        cp._default_memory_pool.free_all_blocks() # helps to work with 2^16  
+        # self.Pgl = 0 # Free
+        # cp._default_memory_pool.free_all_blocks() # helps to work with 2^16  
         
         lp2p1 = self.Padj.lp2p1.data.ptr
         lp2p2 = self.Padj.lp2p2.data.ptr

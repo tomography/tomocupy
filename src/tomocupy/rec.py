@@ -42,6 +42,8 @@ from tomocupy import utils
 from tomocupy import logging
 from tomocupy import conf_io
 from tomocupy import tomo_functions
+from tomocupy import reader
+from tomocupy import writer
 from threading import Thread
 from queue import Queue
 import cupy as cp
@@ -71,7 +73,9 @@ class GPURec():
         signal.signal(signal.SIGTSTP, utils.signal_handler)
 
         # configure sizes and output files
-        cl_conf = conf_io.ConfIO(args)
+        cl_reader = reader.Reader(args)
+        cl_conf = conf_io.ConfIO(args,cl_reader)        
+        cl_writer = writer.Writer(args,cl_conf)
                 
         # chunks for processing
         self.shape_data_chunk = (cl_conf.nproj, cl_conf.ncz, cl_conf.ni)
@@ -113,14 +117,46 @@ class GPURec():
         self.data_queue = Queue(32)
 
         # additional refs
+        self.args = args
         self.cl_conf = cl_conf
+        self.cl_reader = cl_reader
+        self.cl_writer = cl_writer
+
+    def read_data_to_queue(self, data_queue, read_threads):
+        """Reading data from hard disk and putting it to a queue"""
+        
+        in_dtype = self.cl_conf.in_dtype
+        nzchunk = self.cl_conf.nzchunk
+        lzchunk = self.cl_conf.lzchunk
+        ncz = self.cl_conf.ncz
+        ids_proj = self.cl_conf.ids_proj
+        st_n = self.cl_conf.st_n
+        end_n = self.cl_conf.end_n
+
+        for k in range(nzchunk):
+            st_z = self.args.start_row+k*ncz*2**self.args.binning
+            end_z = self.args.start_row + (k*ncz+lzchunk[k])*2**self.args.binning
+            ithread = utils.find_free_thread(read_threads)
+            read_threads[ithread].run(self.cl_reader.read_data_chunk, (data_queue, ids_proj, st_z, end_z, st_n, end_n, k, in_dtype))   
+
+    def read_data_try(self,data_queue):
+        in_dtype = self.cl_conf.in_dtype
+        id_slice = self.cl_conf.id_slice
+        ids_proj = self.cl_conf.ids_proj
+        st_n = self.cl_conf.st_n
+        end_n = self.cl_conf.end_n
+
+        st_z = id_slice
+        end_z = id_slice + 2**self.args.binning
+        
+        self.cl_reader.read_data_chunk(data_queue, ids_proj, st_z, end_z, st_n, end_n, 0, in_dtype)
 
     def recon_all(self):
         """Reconstruction of data from an h5file by splitting into sinogram chunks"""
 
         # start reading data to a queue
         main_read_thread = Thread(
-            target=self.cl_conf.read_data_to_queue, args=(self.data_queue, self.read_threads))
+            target=self.read_data_to_queue, args=(self.data_queue, self.read_threads))
         main_read_thread.start()
 
         # refs for faster access
@@ -169,13 +205,14 @@ class GPURec():
                     flat = item_gpu['flat'][(k-1) % 2]
                     rec = rec_gpu[(k-1) % 2]
 
-                    data = self.cl_tomo_func.proc_sino(data, dark, flat)
+                    data = self.cl_tomo_func.proc_sino(data, dark, flat)                    
                     data = self.cl_tomo_func.proc_proj(data)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
                     self.cl_tomo_func.cl_rec.backprojection(
                         rec, data, self.stream2)
+                    
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     # find free thread
@@ -195,9 +232,9 @@ class GPURec():
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
             self.stream3.synchronize()
             if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)
+                # add a new thread for writing to hard disk (after gpu->cpu copy is done)                
                 self.write_threads[ithread].run(
-                    self.cl_conf.write_data_chunk, (rec_pinned[ithread], ids[k-2]))
+                    self.cl_writer.write_data_chunk, (rec_pinned[ithread, :lzchunk[k-2]], ids[k-2]))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -208,13 +245,14 @@ class GPURec():
     def recon_try(self):
         """GPU reconstruction of 1 slice for different centers"""
 
+        self.read_data_try(self.data_queue)
         # read slice
-        data, flat, dark = self.cl_conf.read_data_try()
+        item = self.data_queue.get()
 
         # copy to gpu
-        data = cp.array(data)
-        dark = cp.array(dark)
-        flat = cp.array(flat)
+        data = cp.array(item['data'])
+        dark = cp.array(item['dark'])
+        flat = cp.array(item['flat'])
 
         # preprocessing
         data = self.cl_tomo_func.proc_sino(data, dark, flat)
@@ -254,7 +292,7 @@ class GPURec():
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 for kk in range(lschunk[k-2]):
-                    self.write_threads[ithread].run(self.cl_conf.write_data_try, (
+                    self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                         rec_pinned[ithread, kk], self.cl_conf.save_centers[(k-2)*ncz+kk]))
 
             self.stream1.synchronize()
