@@ -113,7 +113,8 @@ class Writer():
                 self.nzi/2**self.args.binning, self.n, self.n), dtype=self.dtype)
             os.system(f'mkdir -p {fnameout[:-3]}_parts')
             for k in range(self.nzchunk):
-                filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
+                sk = (self.args.start_row//2**self.args.binning)//self.ncz
+                filename = f"{fnameout[:-3]}_parts/p{sk:04d}.h5"
                 vsource = h5py.VirtualSource(
                     filename, "/exchange/data", shape=(self.lzchunk[k], self.n, self.n), dtype=self.dtype)
                 st = self.args.start_row//2**self.args.binning+k*self.ncz
