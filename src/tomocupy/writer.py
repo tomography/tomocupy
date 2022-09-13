@@ -113,46 +113,43 @@ class Writer():
                 self.nzi/2**self.args.binning, self.n, self.n), dtype=self.dtype)
             os.system(f'mkdir -p {fnameout[:-3]}_parts')
             for k in range(self.nzchunk):
-                sk = (self.args.start_row//2**self.args.binning)//self.ncz+k
-                filename = f"{fnameout[:-3]}_parts/p{sk:04d}.h5"                
+                filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                 vsource = h5py.VirtualSource(
                     filename, "/exchange/data", shape=(self.lzchunk[k], self.n, self.n), dtype=self.dtype)
                 st = self.args.start_row//2**self.args.binning+k*self.ncz
                 layout[st:st+self.lzchunk[k]] = vsource
 
             # Add virtual dataset to output file
-            if self.args.h5init == 'True':
-                rec_virtual = h5py.File(fnameout, "w")
-                dset_rec = rec_virtual.create_virtual_dataset(
-                    "/exchange/data", layout)
+            rec_virtual = h5py.File(fnameout, "w")
+            dset_rec = rec_virtual.create_virtual_dataset(
+                "/exchange/data", layout)
 
-                # saving command line to repeat the reconstruction as attribute of /exchange/data
-                
-                rec_line = sys.argv
-                # remove full path to the file
-                rec_line[0] = os.path.basename(rec_line[0])
-                s = ' '.join(rec_line).encode("utf-8")
-                dset_rec.attrs["command"] = np.array(
-                    s, dtype=h5py.string_dtype('utf-8', len(s)))
-                dset_rec.attrs["axes"] = 'z:y:x'
-                dset_rec.attrs["description"] = 'ReconData'
-                dset_rec.attrs["units"] = 'counts'
+            # saving command line to repeat the reconstruction as attribute of /exchange/data
+            rec_line = sys.argv
+            # remove full path to the file
+            rec_line[0] = os.path.basename(rec_line[0])
+            s = ' '.join(rec_line).encode("utf-8")
+            dset_rec.attrs["command"] = np.array(
+                s, dtype=h5py.string_dtype('utf-8', len(s)))
+            dset_rec.attrs["axes"] = 'z:y:x'
+            dset_rec.attrs["description"] = 'ReconData'
+            dset_rec.attrs["units"] = 'counts'
 
-                try:  # trying to copy meta
-                    import meta
-                    tree, meta_dict = meta.read_hdf(self.args.file_name)
-                    for key, value in meta_dict.items():
-                        # print(key, value)
-                        dset = rec_virtual.create_dataset(key, data=value[0])
-                        if value[1] is not None:
-                            dset.attrs['units'] = value[1]
-                except:
-                    log.info('Skip copying meta')
-                    pass
+            try:  # trying to copy meta
+                import meta
+                tree, meta_dict = meta.read_hdf(self.args.file_name)
+                for key, value in meta_dict.items():
+                    # print(key, value)
+                    dset = rec_virtual.create_dataset(key, data=value[0])
+                    if value[1] is not None:
+                        dset.attrs['units'] = value[1]
+            except:
+                log.info('Skip copying meta')
+                pass
 
-                rec_virtual.close()
-                config.update_hdf_process(fnameout, self.args, sections=(
-                    'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
+            rec_virtual.close()
+            config.update_hdf_process(fnameout, self.args, sections=(
+                'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
@@ -169,8 +166,7 @@ class Writer():
                 fid = st+kk
                 tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
         elif self.args.save_format == 'h5':
-            sk = (self.args.start_row//2**self.args.binning)//self.ncz+k
-            filename = f"{self.fnameout[:-3]}_parts/p{sk:04d}.h5"
+            filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))

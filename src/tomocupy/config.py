@@ -337,10 +337,6 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Output format",
         'choices': ['tiff', 'h5']},
-    'h5init': {
-        'default': 'True',
-        'type': str,
-        'help': "Init h5 layout"},
     'fbp-filter': {
         'default': 'parzen',
         'type': str,
