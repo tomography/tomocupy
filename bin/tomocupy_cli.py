@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 import numpy as np
 import h5py
+import subprocess
 
 from tomocupy import logging
 from tomocupy import config
