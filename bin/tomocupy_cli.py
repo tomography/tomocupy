@@ -79,7 +79,7 @@ def run_recmulti(args):
     line = ' '.join(sys.argv[2:])
     if(args.end_row == -1):
         with h5py.File(args.file_name, 'r') as fid:
-            args.end_row = fid['/exchange/data/'].shape[0]
+            args.end_row = fid['/exchange/data/'].shape[1]
 
     cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\'\""
     cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'\""
