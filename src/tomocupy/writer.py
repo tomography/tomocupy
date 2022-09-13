@@ -125,8 +125,9 @@ class Writer():
                 "/exchange/data", layout)
 
             # saving command line to repeat the reconstruction as attribute of /exchange/data
-            print(rec_line)
+            
             rec_line = sys.argv
+            print(rec_line)
             # remove full path to the file
             rec_line[0] = os.path.basename(rec_line[0])
             s = ' '.join(rec_line).encode("utf-8")
