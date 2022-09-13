@@ -125,33 +125,33 @@ class Writer():
                 dset_rec = rec_virtual.create_virtual_dataset(
                     "/exchange/data", layout)
 
-            # saving command line to repeat the reconstruction as attribute of /exchange/data
-            
-            rec_line = sys.argv
-            # remove full path to the file
-            rec_line[0] = os.path.basename(rec_line[0])
-            s = ' '.join(rec_line).encode("utf-8")
-            dset_rec.attrs["command"] = np.array(
-                s, dtype=h5py.string_dtype('utf-8', len(s)))
-            dset_rec.attrs["axes"] = 'z:y:x'
-            dset_rec.attrs["description"] = 'ReconData'
-            dset_rec.attrs["units"] = 'counts'
+                # saving command line to repeat the reconstruction as attribute of /exchange/data
+                
+                rec_line = sys.argv
+                # remove full path to the file
+                rec_line[0] = os.path.basename(rec_line[0])
+                s = ' '.join(rec_line).encode("utf-8")
+                dset_rec.attrs["command"] = np.array(
+                    s, dtype=h5py.string_dtype('utf-8', len(s)))
+                dset_rec.attrs["axes"] = 'z:y:x'
+                dset_rec.attrs["description"] = 'ReconData'
+                dset_rec.attrs["units"] = 'counts'
 
-            try:  # trying to copy meta
-                import meta
-                tree, meta_dict = meta.read_hdf(self.args.file_name)
-                for key, value in meta_dict.items():
-                    # print(key, value)
-                    dset = rec_virtual.create_dataset(key, data=value[0])
-                    if value[1] is not None:
-                        dset.attrs['units'] = value[1]
-            except:
-                log.info('Skip copying meta')
-                pass
+                try:  # trying to copy meta
+                    import meta
+                    tree, meta_dict = meta.read_hdf(self.args.file_name)
+                    for key, value in meta_dict.items():
+                        # print(key, value)
+                        dset = rec_virtual.create_dataset(key, data=value[0])
+                        if value[1] is not None:
+                            dset.attrs['units'] = value[1]
+                except:
+                    log.info('Skip copying meta')
+                    pass
 
-            rec_virtual.close()
-            config.update_hdf_process(fnameout, self.args, sections=(
-                'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
+                rec_virtual.close()
+                config.update_hdf_process(fnameout, self.args, sections=(
+                    'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
