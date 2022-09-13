@@ -120,7 +120,7 @@ class Writer():
                 layout[st:st+self.lzchunk[k]] = vsource
 
             # Add virtual dataset to output file
-            if self.args.h5init == 'True'
+            if self.args.h5init == 'True':
                 rec_virtual = h5py.File(fnameout, "w")
                 dset_rec = rec_virtual.create_virtual_dataset(
                     "/exchange/data", layout)
