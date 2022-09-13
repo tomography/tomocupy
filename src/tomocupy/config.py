@@ -196,9 +196,9 @@ SECTIONS['fw'] = {
 
 SECTIONS['ti'] = {
     'ti-beta': {
-        'default': 0.022, #as in the paper
+        'default': 0.022,  # as in the paper
         'type': float,
-        'help': "Parameter for ring removal (0,1)"},    
+        'help': "Parameter for ring removal (0,1)"},
 }
 
 SECTIONS['retrieve-phase'] = {
@@ -361,7 +361,7 @@ SECTIONS['reconstruction'] = {
     'minus-log': {
         'default': 'True',
         'help': "take -log or not"
-        },
+    },
 }
 
 

@@ -63,7 +63,7 @@ class Writer():
 
     def __init__(self, args, cl_conf):
         self.args = args
-        self.n = cl_conf.n        
+        self.n = cl_conf.n
         self.nzi = cl_conf.nzi
         self.dtype = cl_conf.dtype
         self.nzchunk = cl_conf.nzchunk
@@ -72,8 +72,8 @@ class Writer():
         if self.args.reconstruction_type[:3] == 'try':
             self.init_output_files_try()
         else:
-            self.init_output_files()        
-        
+            self.init_output_files()
+
     def init_output_files_try(self):
         """Constructing output file names and initiating the actual files"""
 
@@ -105,7 +105,7 @@ class Writer():
             with open(fname_rec_line, 'w') as f:
                 f.write(' '.join(rec_line))
 
-        elif self.args.save_format == 'h5':            
+        elif self.args.save_format == 'h5':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
             # Assemble virtual dataset
@@ -153,7 +153,6 @@ class Writer():
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
-   
     def write_data_chunk(self, rec, k):
         """Writing the kth data chunk to hard disk"""
 
@@ -170,7 +169,7 @@ class Writer():
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
-                                   chunks=(1, self.n, self.n))         
+                                   chunks=(1, self.n, self.n))
 
     def write_data_try(self, rec, cid):
         """Write tiff reconstruction with a given name"""
@@ -178,4 +177,4 @@ class Writer():
         if self.args.crop > 0:
             rec = rec[self.args.crop:-self.args.crop,
                       self.args.crop:-self.args.crop]
-        tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff', rec)    
+        tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff', rec)

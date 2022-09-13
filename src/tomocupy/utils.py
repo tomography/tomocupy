@@ -47,6 +47,8 @@ import time
 import numexpr as ne
 
 # Print iterations progress
+
+
 def printProgressBar(iteration, total, qsize, prefix='', suffix='', decimals=1, length=100, fill='█', printEnd="\r"):
     """
     Call in a loop to create terminal progress bar
@@ -134,6 +136,7 @@ def find_free_thread(threads):
             ithread = 0
             time.sleep(0.01)
     return ithread
+
 
 def downsample(data, binning):
     """Downsample data"""

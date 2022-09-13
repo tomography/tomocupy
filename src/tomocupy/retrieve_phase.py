@@ -82,7 +82,7 @@ def paganin_filter(
     ndarray
         Approximated 3D tomographic phase data.
     """
-    
+
     # New dimensions and pad value after padding.
     py, pz, val = _calc_pad(data, pixel_size, dist, energy, pad)
 

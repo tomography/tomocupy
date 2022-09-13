@@ -46,6 +46,7 @@ import cupy as cp
 import numpy as np
 log = logging.getLogger(__name__)
 
+
 class Pgl:
     def __init__(self, Nspan, N, Nproj, Ntheta, Nrho, proj, s, thsp, rhosp, aR, beta, am, g, B3com):
         self.Nspan = Nspan
@@ -63,6 +64,7 @@ class Pgl:
         self.g = g
         self.B3com = B3com
 
+
 class Padj:
     def __init__(self, fZ, lp2p1, lp2p2, lp2p1w, lp2p2w, C2lp1, C2lp2, cids, lpids, wids):
         self.fZ = fZ
@@ -75,7 +77,8 @@ class Padj:
         self.cids = cids
         self.lpids = lpids
         self.wids = wids
-           
+
+
 def create_gl(N, Nproj, Ntheta, Nrho):
     Nspan = 3
     beta = cp.pi/Nspan
@@ -95,12 +98,13 @@ def create_gl(N, Nproj, Ntheta, Nrho):
     B3th = cp.fft.fft(cp.fft.ifftshift(B3th))
     B3rho = splineB3(rhosp, 1)
     B3rho = (cp.fft.fft(cp.fft.ifftshift(B3rho)))
-    B3com = cp.outer(B3rho,B3th)
-    
+    B3com = cp.outer(B3rho, B3th)
+
     # struct with global parameters
     P = Pgl(Nspan, N, Nproj, Ntheta, Nrho, proj,
             s, thsp, rhosp, aR, beta, am, g, B3com)
     return P
+
 
 def getparameters(beta, dtheta, ds, N, Nproj, Ntheta, Nrho):
     aR = cp.sin(beta/2)/(1+cp.sin(beta/2))
@@ -112,11 +116,13 @@ def getparameters(beta, dtheta, ds, N, Nproj, Ntheta, Nrho):
     drho = (g-cp.log(am))/Nrho
     return (dtheta, drho, aR, am, g)
 
+
 def osg(aR, theta):
     t = cp.linspace(-cp.pi/2, cp.pi/2, 1000)
     w = aR*cp.cos(t)+(1-aR)+1j*aR*cp.sin(t)
     g = max(cp.log(abs(w))+cp.log(cp.cos(theta-cp.arctan2(w.imag, w.real))))
     return g
+
 
 def splineB3(x2, r):
     sizex = len(x2)
@@ -138,25 +144,29 @@ def splineB3(x2, r):
     B3f = x2*0
     B3f[int(cp.ceil((sizex+1)/2.0)-ri-1):int(cp.ceil((sizex+1)/2.0)+ri)] = B3
     return B3f
- 
+
+
 def create_adj(P):
     # convolution function
     fZ = cp.fft.fftshift(fzeta_loop_weights_adj(
         P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))
-    fZ = cp.ascontiguousarray(fZ[:, :P.Ntheta//2+1]/(P.B3com[:, :P.Ntheta//2+1]))
-    const = (P.N+1)*(P.N-1)/P.N**2/2/np.sqrt(2)*np.pi/6*0.86*4 # to understand where this is coming from
+    fZ = cp.ascontiguousarray(
+        fZ[:, :P.Ntheta//2+1]/(P.B3com[:, :P.Ntheta//2+1]))
+    const = (P.N+1)*(P.N-1)/P.N**2/2/np.sqrt(2)*np.pi/6 * \
+        0.86*4  # to understand where this is coming from
     fZ = fZ*const
 
     # (C2lp1,C2lp2), transformed Cartesian to log-polar coordinates
-    [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N, dtype='float32'), cp.linspace(-1, 1, P.N, dtype='float32'))
+    [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N, dtype='float32'),
+                           cp.linspace(-1, 1, P.N, dtype='float32'))
     x1 = x1.flatten()
     x2 = x2.flatten()
     x2 = x2*(-1)  # adjust for tomocupy
-    x1-=1/P.N
-    x2-=1/P.N
+    x1 -= 1/P.N
+    x2 -= 1/P.N
     cids = cp.where(x1**2+x2**2 <= 1)[0].astype('int32')
-    C2lp1 = cp.zeros([P.Nspan,len(cids)],dtype='float32')
-    C2lp2 = cp.zeros([P.Nspan,len(cids)],dtype='float32')
+    C2lp1 = cp.zeros([P.Nspan, len(cids)], dtype='float32')
+    C2lp2 = cp.zeros([P.Nspan, len(cids)], dtype='float32')
     for k in range(0, P.Nspan):
         z1 = P.aR*(x1[cids]*cp.cos(k*P.beta+P.beta/2)+x2[cids]
                    * cp.sin(k*P.beta+P.beta/2))+(1-P.aR)
@@ -164,15 +174,16 @@ def create_adj(P):
                    x2[cids]*cp.cos(k*P.beta+P.beta/2))
         C2lp1[k] = cp.arctan2(z2, z1)
         C2lp2[k] = cp.log(cp.sqrt(z1**2+z2**2))
-    # (lp2p1,lp2p2), transformed log-polar to polar coordinates    
+    # (lp2p1,lp2p2), transformed log-polar to polar coordinates
     [z1, z2] = cp.meshgrid(P.thsp, cp.exp(P.rhosp))
     z1 = z1.flatten()
     z2 = z2.flatten()
     z2n = z2-(1-P.aR)*cp.cos(z1)
     z2n = z2n/P.aR
-    lpids = cp.where((z1 >= -P.beta/2) & (z1 < P.beta/2) & (abs(z2n) <= 1))[0].astype('int32')
-    lp2p1 = cp.zeros([P.Nspan,len(lpids)],dtype='float32')
-    lp2p2 = cp.zeros([P.Nspan,len(lpids)],dtype='float32')    
+    lpids = cp.where((z1 >= -P.beta/2) & (z1 < P.beta/2)
+                     & (abs(z2n) <= 1))[0].astype('int32')
+    lp2p1 = cp.zeros([P.Nspan, len(lpids)], dtype='float32')
+    lp2p2 = cp.zeros([P.Nspan, len(lpids)], dtype='float32')
     for k in range(P.Nspan):
         lp2p1[k] = (z1[lpids]+k*P.beta)
         lp2p2[k] = z2n[lpids]
@@ -184,21 +195,22 @@ def create_adj(P):
     lpidsw = cp.where((z1[wids] >= -P.beta/2) &
                       (z1[wids] < P.beta/2) & (abs(z2n) <= 1))[0]
     # left side
-    wids2 = cp.where(cp.log(z2) < cp.log(P.am)-P.g+(P.rhosp[1]-P.rhosp[0]))[0].astype('int32')
+    wids2 = cp.where(cp.log(z2) < cp.log(P.am)-P.g +
+                     (P.rhosp[1]-P.rhosp[0]))[0].astype('int32')
 
     z2n2 = cp.exp(cp.log(z2[wids2])-cp.log(P.am)+P.g) - \
         (1-P.aR)*cp.cos(z1[wids2])
     z2n2 = z2n2/P.aR
     lpidsw2 = cp.where((z1[wids2] >= -P.beta/2) &
                        (z1[wids2] < P.beta/2) & (abs(z2n2) <= 1))[0]
-    lp2p1w = cp.zeros([P.Nspan,len(lpidsw)+len(lpidsw2)],dtype='float32')
-    lp2p2w = cp.zeros([P.Nspan,len(lpidsw)+len(lpidsw2)],dtype='float32')    
+    lp2p1w = cp.zeros([P.Nspan, len(lpidsw)+len(lpidsw2)], dtype='float32')
+    lp2p2w = cp.zeros([P.Nspan, len(lpidsw)+len(lpidsw2)], dtype='float32')
     for k in range(P.Nspan):
         lp2p1w[k] = (z1[cp.concatenate((lpidsw, lpidsw2))]+k*P.beta)
         lp2p2w[k] = cp.concatenate((z2n[lpidsw], z2n2[lpidsw2]))
     # join for saving
     wids = cp.concatenate((wids[lpidsw], wids2[lpidsw2])).astype('int32')
-    
+
     # pids, index in polar grids after splitting by spans
     pids = [None]*P.Nspan
     for k in range(P.Nspan):
@@ -225,19 +237,20 @@ def create_adj(P):
         lp2p2w[k] = (lp2p2w[k]+1)/2*(P.N-1)
         C2lp1[k] = (C2lp1[k]-P.thsp[0])/(P.thsp[-1]-P.thsp[0])*(P.Ntheta-1)
         C2lp2[k] = (C2lp2[k]-P.rhosp[0])/(P.rhosp[-1]-P.rhosp[0])*(P.Nrho-1)
-    
+
     Padj0 = Padj(fZ, lp2p1, lp2p2, lp2p1w, lp2p2w,
-                 C2lp1, C2lp2, cids, lpids, wids)        
-    
+                 C2lp1, C2lp2, cids, lpids, wids)
+
     return Padj0
 
 
 def fzeta_loop_weights_adj(Ntheta, Nrho, betas, rhos, a, osthlarge):
-    
-    Nthetalarge = osthlarge*Ntheta    
-    krho = cp.linspace(-Nrho/2,Nrho/2,Nrho,endpoint=False,dtype='float32')
-    thsplarge = cp.linspace(-1/2,1/2,Nthetalarge,endpoint=False,dtype='float32')*betas
-    
+
+    Nthetalarge = osthlarge*Ntheta
+    krho = cp.linspace(-Nrho/2, Nrho/2, Nrho, endpoint=False, dtype='float32')
+    thsplarge = cp.linspace(-1/2, 1/2, Nthetalarge,
+                            endpoint=False, dtype='float32')*betas
+
     fZ = cp.zeros([Nrho, Nthetalarge], dtype='complex64')
     h = cp.ones(Nthetalarge, dtype='float32')
     # discretization weights
@@ -251,34 +264,37 @@ def fzeta_loop_weights_adj(Ntheta, Nrho, betas, rhos, a, osthlarge):
         h[j] = h[j]*correcting[j]
         h[-1-j+1] = h[-1-j+1]*(correcting[j])
     # fast fftshift multiplier
-    s = 1-2*(cp.arange(1,Nthetalarge+1)%2)
+    s = 1-2*(cp.arange(1, Nthetalarge+1) % 2)
     h *= s
     for j in range(len(krho)):
-        fcosa = pow(cp.cos(thsplarge), (2*cp.pi*1j*krho[j]/rhos-a))        
+        fcosa = pow(cp.cos(thsplarge), (2*cp.pi*1j*krho[j]/rhos-a))
         fZ[j, :] = s*cp.fft.fft(h*fcosa)
-    fZ = fZ[:, Nthetalarge//2-Ntheta//2:Nthetalarge//2+Ntheta//2]*(thsplarge[1]-thsplarge[0])
+    fZ = fZ[:, Nthetalarge//2-Ntheta//2:Nthetalarge //
+            2+Ntheta//2]*(thsplarge[1]-thsplarge[0])
     # put imag to 0 for the border
     fZ[0] = 0
     fZ[:, 0] = 0
     return fZ
 
+
 class LpRec():
-    def __init__(self, n, nproj, nz, theta, dtype):        
+    def __init__(self, n, nproj, nz, theta, dtype):
         # ts = time.time()
-        # check angles 
+        # check angles
         nproj_test = int(np.round(np.pi/(theta[1]-theta[0])))
         if nproj != nproj_test:
-            log.error('lprec method works only with equally spaced angles in the interval [0,180) deg.')
+            log.error(
+                'lprec method works only with equally spaced angles in the interval [0,180) deg.')
             exit(1)
         ntheta = 2**int(cp.round(cp.log2(nproj)))
-        nrho = 2*2**int(cp.round(cp.log2(n)))        
+        nrho = 2*2**int(cp.round(cp.log2(n)))
         log.info(f'Log-polar grid sizes: {ntheta=},{nrho=}')
         # precompute parameters for the lp method
         self.Pgl = create_gl(n, nproj, ntheta, nrho)
         self.Padj = create_adj(self.Pgl)
-        # self.Pgl = 0 # Free
-        # cp._default_memory_pool.free_all_blocks() # helps to work with 2^16  
-        
+        self.Pgl = 0  # Free
+        cp._default_memory_pool.free_all_blocks()  # helps to work with 2^16
+
         lp2p1 = self.Padj.lp2p1.data.ptr
         lp2p2 = self.Padj.lp2p2.data.ptr
         lp2p1w = self.Padj.lp2p1w.data.ptr
@@ -293,19 +309,16 @@ class LpRec():
         nlpids = len(self.Padj.lpids)
         nwids = len(self.Padj.wids)
         ncids = len(self.Padj.cids)
-        
+
         if dtype == 'float16':
             self.fslv = cfunc_lprecfp16.cfunc_lprec(nproj, nz, n, ntheta, nrho)
         else:
             self.fslv = cfunc_lprec.cfunc_lprec(nproj, nz, n, ntheta, nrho)
 
         self.fslv.setgrids(fZptr, lp2p1, lp2p2, lp2p1w, lp2p2w,
-                         C2lp1, C2lp2, lpids, wids, cids,
-                         nlpids, nwids, ncids)
-        
-                
-    def backprojection(self,obj, data, stream):
-        data = cp.ascontiguousarray(data)###????
-        self.fslv.backprojection(obj.data.ptr, data.data.ptr,stream.ptr)
+                           C2lp1, C2lp2, lpids, wids, cids,
+                           nlpids, nwids, ncids)
 
-
+    def backprojection(self, obj, data, stream):
+        data = cp.ascontiguousarray(data)  # ????
+        self.fslv.backprojection(obj.data.ptr, data.data.ptr, stream.ptr)
