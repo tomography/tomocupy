@@ -169,8 +169,8 @@ class Writer():
                 fid = st+kk
                 tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
         elif self.args.save_format == 'h5':
-            filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
-            print(filename)
+            sk = (self.args.start_row//2**self.args.binning)//self.ncz+k
+            filename = f"{self.fnameout[:-3]}_parts/p{sk:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
