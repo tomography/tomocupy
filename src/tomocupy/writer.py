@@ -105,7 +105,7 @@ class Writer():
             with open(fname_rec_line, 'w') as f:
                 f.write(' '.join(rec_line))
 
-        elif self.args.save_format == 'h5' and self.args.h5init == 'True':
+        elif self.args.save_format == 'h5':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
             # Assemble virtual dataset
@@ -120,14 +120,14 @@ class Writer():
                 layout[st:st+self.lzchunk[k]] = vsource
 
             # Add virtual dataset to output file
-            rec_virtual = h5py.File(fnameout, "w")
-            dset_rec = rec_virtual.create_virtual_dataset(
-                "/exchange/data", layout)
+            if self.args.h5init == 'True'
+                rec_virtual = h5py.File(fnameout, "w")
+                dset_rec = rec_virtual.create_virtual_dataset(
+                    "/exchange/data", layout)
 
             # saving command line to repeat the reconstruction as attribute of /exchange/data
             
             rec_line = sys.argv
-            print(rec_line)
             # remove full path to the file
             rec_line[0] = os.path.basename(rec_line[0])
             s = ' '.join(rec_line).encode("utf-8")
