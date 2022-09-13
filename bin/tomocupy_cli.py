@@ -7,6 +7,7 @@ from datetime import datetime
 import numpy as np
 import h5py
 import subprocess
+import time
 
 from tomocupy import logging
 from tomocupy import config
@@ -82,10 +83,11 @@ def run_recmulti(args):
             args.end_row = fid['/exchange/data/'].shape[1]
 
     cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\'\""
-    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'\""
+    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row} --h5init False \'\""
     print(f'Tomo1: {cmd1}')
     print(f'Tomo2: {cmd2}')
     p1 = subprocess.Popen(cmd1, shell=True)
+    time.sleep(1)
     p2 = subprocess.Popen(cmd2, shell=True)
     p1.wait()
     p2.wait()

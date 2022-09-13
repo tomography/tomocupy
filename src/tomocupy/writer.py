@@ -105,7 +105,7 @@ class Writer():
             with open(fname_rec_line, 'w') as f:
                 f.write(' '.join(rec_line))
 
-        elif self.args.save_format == 'h5':
+        elif self.args.save_format == 'h5' and self.args.h5init == 'True':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
             # Assemble virtual dataset
