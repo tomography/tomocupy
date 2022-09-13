@@ -40,7 +40,7 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_io
+from tomocupy import conf_sizes
 from tomocupy import tomo_functions
 from threading import Thread
 from tomocupy import reader
@@ -77,7 +77,7 @@ class GPURecSteps():
 
         # configure sizes and output files
         cl_reader = reader.Reader(args)
-        cl_conf = conf_io.ConfIO(args,cl_reader)        
+        cl_conf = conf_sizes.ConfSizes(args,cl_reader)        
         cl_writer = writer.Writer(args,cl_conf)                
 
         # chunks for processing

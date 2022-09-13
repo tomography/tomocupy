@@ -46,9 +46,9 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 
-class ConfIO():
+class ConfSizes():
     '''
-    Class for configuring processing sizes and read/write oeprations.
+    Class for configuring processing sizes
     '''
 
     def __init__(self, args, reader):

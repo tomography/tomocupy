@@ -136,7 +136,7 @@ class Reader():
             item['id'] = id_z
             data_queue.put(item)
             
-    def read_data(self, data, st_proj, end_proj, st_z, end_z, st_n, end_n):#,k, lchunk):
+    def read_data(self, data, st_proj, end_proj, st_z, end_z, st_n, end_n):
         """Read a chunk of projections with binning"""
         with h5py.File(self.args.file_name) as fid:
             d = fid['/exchange/data'][self.args.start_proj+st_proj:self.args.start_proj+end_proj, st_z:end_z, st_n:end_n]
@@ -144,10 +144,18 @@ class Reader():
 
     def read_flat_dark(self,st_n, end_n):
         """Read flat and dark"""
-        # read dark and flat, binning
+
         with h5py.File(self.args.file_name) as fid:
             dark = fid['/exchange/data_dark'][:, self.args.start_row:self.args.end_row, st_n:end_n]
             flat = fid['/exchange/data_white'][:, self.args.start_row:self.args.end_row, st_n:end_n]
             flat = utils.downsample(flat, self.args.binning)
             dark = utils.downsample(dark, self.args.binning)
             return flat, dark
+
+    def read_pairs(self, pairs, st_z, end_z, st_n, end_n):
+        """Read pairs for checking rotation center"""
+        
+        with h5py.File(self.args.file_name) as fid:
+            d = fid['/exchange/data'][pairs, st_z:end_z, st_n:end_n]
+            data = utils.downsample(d, self.args.binning)
+            return data
