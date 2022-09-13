@@ -114,8 +114,7 @@ class Writer():
             os.system(f'mkdir -p {fnameout[:-3]}_parts')
             for k in range(self.nzchunk):
                 sk = (self.args.start_row//2**self.args.binning)//self.ncz+k
-                filename = f"{fnameout[:-3]}_parts/p{sk:04d}.h5"
-                print(filename)
+                filename = f"{fnameout[:-3]}_parts/p{sk:04d}.h5"                
                 vsource = h5py.VirtualSource(
                     filename, "/exchange/data", shape=(self.lzchunk[k], self.n, self.n), dtype=self.dtype)
                 st = self.args.start_row//2**self.args.binning+k*self.ncz
@@ -171,6 +170,7 @@ class Writer():
                 tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
         elif self.args.save_format == 'h5':
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
+            print(filename)
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
