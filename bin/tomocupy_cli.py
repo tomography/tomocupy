@@ -83,7 +83,7 @@ def run_recmulti(args):
             args.end_row = fid['/exchange/data/'].shape[1]
 
     cmd1 = f"ssh -t tomo@tomo1 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.start_row} --end-row {args.end_row//2}\'\""
-    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row} --h5init False \'\""
+    cmd2 = f"ssh -t tomo@tomo2 \"bash -c 'source ~/.bashrc; conda activate tomocupy; tomocupy recon {line} --start-row {args.end_row//2} --end-row {args.end_row}\'\""
     print(f'Tomo1: {cmd1}')
     print(f'Tomo2: {cmd2}')
     p1 = subprocess.Popen(cmd1, shell=True)
