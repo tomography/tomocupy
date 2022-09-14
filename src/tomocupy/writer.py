@@ -40,9 +40,7 @@
 
 from tomocupy import config
 from tomocupy import logging
-from tomocupy import utils
 import numpy as np
-import numexpr as ne
 import h5py
 import os
 import sys

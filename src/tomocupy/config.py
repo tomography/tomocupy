@@ -38,15 +38,12 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-import os
 import sys
-import shutil
 from copy import copy
 from pathlib import Path
 import argparse
 import configparser
 from collections import OrderedDict
-import contextlib
 import logging
 import warnings
 import inspect

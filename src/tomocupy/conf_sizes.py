@@ -38,9 +38,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy import config
 from tomocupy import logging
-from tomocupy import utils
 import numpy as np
 
 log = logging.getLogger(__name__)
@@ -64,9 +62,9 @@ class ConfSizes():
     def init_sizes(self):
         """Calculating and adjusting sizes for reconstruction by chunks"""
 
+        # read data sizes and projection angles with a reader
         sizes = self.reader.read_sizes()
         theta = self.reader.read_theta()
-
         nproji = sizes['nproji']
         nzi = sizes['nzi']
         ni = sizes['ni']
@@ -74,11 +72,13 @@ class ConfSizes():
         ndark = sizes['ndark']
         dtype = sizes['dtype']
 
+        # adjust data type for input data
         if self.args.binning > 0:
             in_dtype = self.args.dtype
         else:
             in_dtype = dtype
 
+        # adjust the last row and proj ids, so as first and last corrdinates in x
         if (self.args.end_row == -1):
             self.args.end_row = nzi
         if (self.args.end_proj == -1):
@@ -86,19 +86,27 @@ class ConfSizes():
         st_n = 0
         end_n = ni
 
-        # define chunk size for processing
+        # find numebr of rows
+        nz = self.args.end_row-self.args.start_row
+        
+        # define z chunk size for processing        
         ncz = self.args.nsino_per_chunk
         if ncz == 1 and self.args.reconstruction_algorithm == 'fourierrec':
-            ncz = 2
-
+            ncz = 2 # 2 rows are processed at the same time since fourierrec works with complex numbers
+                
+        
+        # define projection chunk size for processing
         ncproj = self.args.nproj_per_chunk
+        
         # take center
         centeri = self.args.rotation_axis
         if centeri == -1:
             centeri = ni/2
+        
         # update sizes wrt binning
         ni //= 2**self.args.binning
         centeri /= 2**self.args.binning
+        nz //= 2**self.args.binning
         self.args.crop = int(self.args.crop/2**self.args.binning)
 
         # change sizes for 360 deg scans with rotation axis at the border
@@ -113,6 +121,7 @@ class ConfSizes():
             n = ni
             center = centeri
 
+        # adjust sizes for 16bit processing
         if self.args.dtype == 'float16':
             center += (2**int(np.log2(ni))-ni)/2
             st_n = (ni-2**int(np.log2(ni)))//2
@@ -134,16 +143,10 @@ class ConfSizes():
                            ((theta-st) % np.pi > end-st))[0]
             theta = theta[ids]
             ids_proj = np.arange(ids_proj[0], ids_proj[1])[ids]
-
         nproj = len(theta)
+        
 
-        if self.args.end_row == -1:
-            nz = nzi-self.args.start_row
-        else:
-            nz = self.args.end_row-self.args.start_row
-
-        nz //= 2**self.args.binning
-
+        # calculate chunks
         nzchunk = int(np.ceil(nz/ncz))
         lzchunk = np.minimum(
             ncz, np.int32(nz-np.arange(nzchunk)*ncz))  # chunk sizes
@@ -188,9 +191,10 @@ class ConfSizes():
                                     self.args.lamino_search_width, self.args.lamino_search_step).astype('float32')
             save_centers = self.args.lamino_angle + shift_array
 
+        # calculate chunks
         nschunk = int(np.ceil(len(shift_array)/self.ncz))
         lschunk = np.minimum(self.ncz, np.int32(
-            len(shift_array)-np.arange(nschunk)*self.ncz))  # chunk sizes
+            len(shift_array)-np.arange(nschunk)*self.ncz)) 
         self.shift_array = shift_array
         self.save_centers = save_centers
         self.nschunk = nschunk
@@ -201,13 +205,14 @@ class ConfSizes():
     def init_sizes_lamino(self):
         """Calculating sizes for laminography reconstruction by chunks"""
 
-        # take reconstruction height
-        rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) * \
-            2**self.args.binning
-        rh //= 2**self.args.binning
+        # calculate reconstruction height
+        rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) 
+        
+        # calculate chunks
         nrchunk = int(np.ceil(rh/self.ncz))
         lrchunk = np.minimum(
             self.ncz, np.int32(rh-np.arange(nrchunk)*self.ncz))
+        
         self.nrchunk = nrchunk
         self.lrchunk = lrchunk
         self.rh = rh

@@ -157,7 +157,7 @@ class GPURecSteps():
             st_proj = k*lchunk
             end_proj = (k+1)*lchunk
             read_thread = Thread(
-                target=self.cl_reader.read_data, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
+                target=self.cl_reader.read_proj_chunk, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
             procs.append(read_thread)
             read_thread.start()
         for proc in procs:

@@ -38,14 +38,10 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy import config
 from tomocupy import logging
 from tomocupy import utils
 import numpy as np
-import numexpr as ne
-import os
 import h5py
-import tifffile
 
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
@@ -57,7 +53,7 @@ log = logging.getLogger(__name__)
 
 class Reader():
     '''
-    Class for configuring read operations.
+    Class for configuring read operations. For constructing readers for other data formats, please implement all functions in this class. 
     '''
 
     def __init__(self, args):
@@ -102,13 +98,13 @@ class Reader():
 
         return theta
 
-    def read_data_chunk(self, data_queue, ids_proj, st_z, end_z, st_n, end_n, id_z, in_dtype):
+    def read_data_chunk_to_queue(self, data_queue, ids_proj, st_z, end_z, st_n, end_n, id_z, in_dtype):
         '''
-        Read a data chunk from the storage to a python queue, with downsampling
+        Read a data chunk (proj, flat,dark) from the storage to a python queue, with downsampling
         Input:
 
         data_queue - a python queue for synchronous read/writes
-        ids_proj - the first and last projection ids for reconstruction (e.g, (0,1500)), or np.array with ids (if angles are blocked),
+        ids_proj - the first and last projection ids for reconstruction (e.g, (0,1500)), or np.array with ids (if some angles are blocked and should be ignored),
         st_z - start row in z
         end_z - end row in z
         st_n - start column in x
@@ -136,8 +132,9 @@ class Reader():
             item['id'] = id_z
             data_queue.put(item)
 
-    def read_data(self, data, st_proj, end_proj, st_z, end_z, st_n, end_n):
+    def read_proj_chunk(self, data, st_proj, end_proj, st_z, end_z, st_n, end_n):
         """Read a chunk of projections with binning"""
+        
         with h5py.File(self.args.file_name) as fid:
             d = fid['/exchange/data'][self.args.start_proj +
                                       st_proj:self.args.start_proj+end_proj, st_z:end_z, st_n:end_n]
@@ -156,7 +153,7 @@ class Reader():
             return flat, dark
 
     def read_pairs(self, pairs, st_z, end_z, st_n, end_n):
-        """Read pairs for checking rotation center"""
+        """Read projection pairs for automatic search of the rotation center. E.g. pairs=[0,1499] for the regular 180 deg dataset [1500,2048,2448]. """
 
         with h5py.File(self.args.file_name) as fid:
             d = fid['/exchange/data'][pairs, st_z:end_z, st_n:end_n]

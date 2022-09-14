@@ -8,13 +8,13 @@ import h5py
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 782.5 --nsino-per-chunk 4'
 cmd_dict = {
     f'{prefix} ': 27.6,
-    # f'{prefix} --reconstruction-algorithm lprec ': 27.6,
+    f'{prefix} --reconstruction-algorithm lprec ': 27.6,
     f'{prefix} --reconstruction-algorithm linerec ': 27.6,
     f'{prefix} --dtype float16': 23.8,
-    # f'{prefix} --reconstruction-algorithm lprec --dtype float16': 23.8,
+    f'{prefix} --reconstruction-algorithm lprec --dtype float16': 23.8,
     f'{prefix} --reconstruction-algorithm linerec --dtype float16': 25.2,
     f'{prefix} --binning 1': 11.9,
-    # f'{prefix} --reconstruction-algorithm lprec --binning 1': 11.9,
+    f'{prefix} --reconstruction-algorithm lprec --binning 1': 11.9,
     f'{prefix} --reconstruction-algorithm linerec --binning 1': 11.9,
     f'{prefix} --start-row 3 --end-row 15 --start-proj 200 --end-proj 700': 17.1,
     f'{prefix} --save-format h5': 27.6,

@@ -140,7 +140,7 @@ class GPURec():
             end_z = self.args.start_row + \
                 (k*ncz+lzchunk[k])*2**self.args.binning
             ithread = utils.find_free_thread(read_threads)
-            read_threads[ithread].run(self.cl_reader.read_data_chunk, (
+            read_threads[ithread].run(self.cl_reader.read_data_chunk_to_queue, (
                 data_queue, ids_proj, st_z, end_z, st_n, end_n, k, in_dtype))
 
     def read_data_try(self, data_queue):
@@ -153,7 +153,7 @@ class GPURec():
         st_z = id_slice
         end_z = id_slice + 2**self.args.binning
 
-        self.cl_reader.read_data_chunk(
+        self.cl_reader.read_data_chunk_to_queue(
             data_queue, ids_proj, st_z, end_z, st_n, end_n, 0, in_dtype)
 
     def recon_all(self):
