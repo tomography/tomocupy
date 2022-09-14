@@ -11,7 +11,7 @@ for im in 0; do
                 pkill -9 tomocupy
                 sleep 5
                 echo ${size[$iz]} ${nz[$iz]} ${methods[$im]} ${dtypes[$id]}
-                tomocupy recon --file-name /local/data/tmp${size[$iz]}.h5 --reconstruction-type full --dtype ${dtypes[$id]} --reconstruction-algorithm ${methods[$im]} --max-write-threads 8 --nsino-per-chunk ${nz[$iz]}                
+                tomocupy recon --file-name /local/data/tmp${size[$iz]}.h5 --reconstruction-type full --dtype ${dtypes[$id]} --reconstruction-algorithm ${methods[$im]} --max-write-threads 8 --nsino-per-chunk ${nz[$iz]} --save-format h5                
                 cp time.npy times/time_${size[$iz]}_${nz[$iz]}_${methods[$im]}_${dtypes[$id]}_$ir.npy                
             done
         done
