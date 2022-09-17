@@ -40,9 +40,11 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_io
+from tomocupy import conf_sizes
 from tomocupy import tomo_functions
 from threading import Thread
+from tomocupy import reader
+from tomocupy import writer
 import signal
 import cupy as cp
 import numpy as np
@@ -74,7 +76,9 @@ class GPURecSteps():
         signal.signal(signal.SIGTSTP, utils.signal_handler)
 
         # configure sizes and output files
-        cl_conf = conf_io.ConfIO(args)
+        cl_reader = reader.Reader(args)
+        cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing
         self.shape_data_chunk_z = (cl_conf.nproj, cl_conf.ncz, cl_conf.ni)
@@ -103,9 +107,12 @@ class GPURecSteps():
             self.write_threads.append(utils.WRThread())
 
         # additional refs
-        self.cl_conf = cl_conf
         self.dtype = cl_conf.dtype
         self.in_dtype = cl_conf.in_dtype
+        self.args = args
+        self.cl_conf = cl_conf
+        self.cl_reader = cl_reader
+        self.cl_writer = cl_writer
 
     def recon_steps_all(self):
         """GPU reconstruction by loading a full dataset in memory and processing by steps """
@@ -120,7 +127,7 @@ class GPURecSteps():
         data = self.proc_proj_parallel(data)
 
         if self.cl_conf.args.reconstruction_type == 'full':
-            if self.cl_conf.args.lamino_angle==0:
+            if self.cl_conf.args.lamino_angle == 0:
                 log.info('Step 4. Reconstruction by chunks in z.')
                 self.recon_sino_parallel(data)
             else:
@@ -139,14 +146,18 @@ class GPURecSteps():
     def read_data_parallel(self, nthreads=8):
         """Reading data in parallel (good for ssd disks)"""
 
-        flat, dark = self.cl_conf.read_flat_dark()
+        st_n = self.cl_conf.st_n
+        end_n = self.cl_conf.end_n
+        flat, dark = self.cl_reader.read_flat_dark(st_n, end_n)
         # parallel read of projections
         data = np.zeros([*self.shape_data_full], dtype=self.in_dtype)
         lchunk = int(np.ceil(data.shape[0]/nthreads))
         procs = []
         for k in range(nthreads):
+            st_proj = k*lchunk
+            end_proj = (k+1)*lchunk
             read_thread = Thread(
-                target=self.cl_conf.read_data, args=(data, k, lchunk))
+                target=self.cl_reader.read_proj_chunk, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
             procs.append(read_thread)
             read_thread.start()
         for proc in procs:
@@ -319,7 +330,7 @@ class GPURecSteps():
             if(k > 1):
                 # add a new proc for writing to hard disk (after gpu->cpu copy is done)
                 self.write_threads[ithread].run(
-                    self.cl_conf.write_data_chunk, (rec_pinned[ithread, :lzchunk[k-2]], k-2))
+                    self.cl_writer.write_data_chunk, (rec_pinned[ithread, :lzchunk[k-2]], k-2))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -369,7 +380,7 @@ class GPURecSteps():
                         data0 = cp.ascontiguousarray(data0.swapaxes(0, 1))
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
-                        self.cl_tomo_func.cl_rec.backprojection(                            
+                        self.cl_tomo_func.cl_rec.backprojection(
                             rec, data0, self.stream2, theta0, self.cl_conf.lamino_angle, (kr-1)*ncz)
 
                 if (kr > 1 and kt == 0):
@@ -393,7 +404,7 @@ class GPURecSteps():
                 if (kr > 1 and kt == 0):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                     self.write_threads[ithread].run(
-                        self.cl_conf.write_data_chunk, (rec_pinned[ithread, :lrchunk[kr-2]], kr-2))
+                        self.cl_writer.write_data_chunk, (rec_pinned[ithread, :lrchunk[kr-2]], kr-2))
 
                 self.stream1.synchronize()
                 self.stream2.synchronize()
@@ -445,7 +456,7 @@ class GPURecSteps():
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
 
                         self.cl_tomo_func.cl_rec.backprojection_try(
-                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.idslice)
+                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.id_slice)
 
                 if (ks > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
@@ -464,7 +475,7 @@ class GPURecSteps():
                 if (ks > 1 and kt == 0):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                     for kk in range(lschunk[ks-2]):
-                        self.write_threads[ithread].run(self.cl_conf.write_data_try, (
+                        self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                             rec_pinned[ithread, kk], self.cl_conf.save_centers[(ks-2)*ncz+kk]))
 
                 self.stream1.synchronize()
@@ -515,7 +526,7 @@ class GPURecSteps():
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
                         self.cl_tomo_func.cl_rec.backprojection_try_lamino(
-                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.idslice)
+                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.id_slice)
 
                 if (ks > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
@@ -534,7 +545,7 @@ class GPURecSteps():
                 if (ks > 1 and kt == 0):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                     for kk in range(lschunk[ks-2]):
-                        self.write_threads[ithread].run(self.cl_conf.write_data_try, (
+                        self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                             rec_pinned[ithread, kk], self.cl_conf.save_centers[(ks-2)*ncz+kk]))
                 self.stream1.synchronize()
                 self.stream2.synchronize()

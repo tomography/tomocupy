@@ -4,19 +4,14 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import dxchange
 import numpy as np
+from skimage.metrics import structural_similarity as ssim
 [x1,x2] = np.meshgrid(np.arange(-1024,1024)/1024,np.arange(-1024,1024)/1024)
 circ = x1**2+x2**2<1
 
 fp16 = dxchange.read_tiff('res/linefp16.tiff').astype('float32')#*0.94
 fp32 = dxchange.read_tiff('res/linefp32.tiff').astype('float32')
-
-# fp16 = dxchange.read_tiff('res/lfp16.tiff').astype('float32')/2048/2048/2
-# fp32 = dxchange.read_tiff('res/lfp32.tiff').astype('float32')/2048/2048/2
-# print(np.sum(fpl32[1024:1024+32,1024:1024+32]))
-# print(np.sum(fp32[1024:1024+32,1024:1024+32]))
-# exit()
-
-
+s1=ssim(fp16*1000,fp32*1000)
+      
 # fp16 = fp16*np.linalg.norm(fp32)/np.linalg.norm(fp16)
 fig = plt.figure(constrained_layout=True, figsize=(10.7, 2.8))
 grid = fig.add_gridspec(1, 3, height_ratios=[1])
@@ -33,6 +28,9 @@ diff = (fp32-fp16)
 
 fp320 = fp32[sty:endy,stx:endx].copy()
 fp160 = fp16[sty:endy,stx:endx].copy()
+
+print(ssim(fp160*1000,fp320*1000))
+
 diff0 = fp320-fp160
 fp32[sty-w:sty+w+1,stx:endx] = mmin
 fp32[endy-w:endy+w+1,stx:endx] = mmin
@@ -94,6 +92,7 @@ mmax = 0.0001
 
 ax0 = fig.add_subplot(grid[2])
 ax0.set_title('LineRec, difference')
+ax0.text(65,1955,f'SSIM: {s1:.04}',fontsize=11.2,backgroundcolor='0.5')
 im = ax0.imshow(diff*circ, cmap='gray',vmin=mmin, vmax=mmax)
 scalebar = ScaleBar(3.13, "um", length_fraction=0.25)
 ax0.add_artist(scalebar)

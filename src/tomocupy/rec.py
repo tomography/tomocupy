@@ -40,8 +40,10 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_io
+from tomocupy import conf_sizes
 from tomocupy import tomo_functions
+from tomocupy import reader
+from tomocupy import writer
 from threading import Thread
 from queue import Queue
 import cupy as cp
@@ -54,8 +56,8 @@ __docformat__ = 'restructuredtext en'
 __all__ = ['GPURec', ]
 
 
-
 log = logging.getLogger(__name__)
+
 
 class GPURec():
     '''
@@ -64,29 +66,36 @@ class GPURec():
     The implemented reconstruction method is Fourier-based with exponential functions for interpoaltion in the frequency domain (implemented with CUDA C).
     '''
 
-    def __init__(self, args):        
+    def __init__(self, args):
 
         # Set ^C, ^Z interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTSTP, utils.signal_handler)
 
         # configure sizes and output files
-        cl_conf = conf_io.ConfIO(args)
-        
-        pinned_memory_pool = cp.cuda.PinnedMemoryPool()
-        cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
-        
-        # estimate whether managed memory is needed   
-        gpu_mem = cp.cuda.Device().mem_info[1] #(used,total), use total        
-        if (cl_conf.ncz*max(cl_conf.n,cl_conf.nproj)*cl_conf.n*160>gpu_mem):     
-            log.warning('Data/chunk is too big, switching to managed GPU memory')
-            cp.cuda.set_allocator(cp.cuda.MemoryPool(cp.cuda.malloc_managed).malloc)
-        
+        cl_reader = reader.Reader(args)
+        cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_writer = writer.Writer(args, cl_conf)
+
         # chunks for processing
         self.shape_data_chunk = (cl_conf.nproj, cl_conf.ncz, cl_conf.ni)
         self.shape_recon_chunk = (cl_conf.ncz, cl_conf.n, cl_conf.n)
         self.shape_dark_chunk = (cl_conf.ndark, cl_conf.ncz, cl_conf.ni)
         self.shape_flat_chunk = (cl_conf.nflat, cl_conf.ncz, cl_conf.ni)
+
+        gpu_mem = cp.cuda.Device().mem_info[1]  # (used,total), use total
+        if args.dtype == 'float32':
+            dtype_size = 4
+        else:
+            dtype_size = 2
+        if (cl_conf.ncz*max(cl_conf.n, cl_conf.nproj)*cl_conf.n*50*dtype_size > gpu_mem):
+            log.warning(
+                'Data/chunk is too big, switching to managed GPU memory')
+            cp.cuda.set_allocator(cp.cuda.MemoryPool(
+                cp.cuda.malloc_managed).malloc)
+        else:
+            cp.cuda.set_pinned_memory_allocator(
+                cp.cuda.PinnedMemoryPool().malloc)
 
         # init tomo functions
         self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
@@ -100,6 +109,7 @@ class GPURec():
         self.write_threads = []
         for k in range(cl_conf.args.max_write_threads):
             self.write_threads.append(utils.WRThread())
+
         # threads for data reading from disk
         self.read_threads = []
         for k in range(cl_conf.args.max_read_threads):
@@ -109,14 +119,49 @@ class GPURec():
         self.data_queue = Queue(32)
 
         # additional refs
+        self.args = args
         self.cl_conf = cl_conf
+        self.cl_reader = cl_reader
+        self.cl_writer = cl_writer
+
+    def read_data_to_queue(self, data_queue, read_threads):
+        """Reading data from hard disk and putting it to a queue"""
+
+        in_dtype = self.cl_conf.in_dtype
+        nzchunk = self.cl_conf.nzchunk
+        lzchunk = self.cl_conf.lzchunk
+        ncz = self.cl_conf.ncz
+        ids_proj = self.cl_conf.ids_proj
+        st_n = self.cl_conf.st_n
+        end_n = self.cl_conf.end_n
+
+        for k in range(nzchunk):
+            st_z = self.args.start_row+k*ncz*2**self.args.binning
+            end_z = self.args.start_row + \
+                (k*ncz+lzchunk[k])*2**self.args.binning
+            ithread = utils.find_free_thread(read_threads)
+            read_threads[ithread].run(self.cl_reader.read_data_chunk_to_queue, (
+                data_queue, ids_proj, st_z, end_z, st_n, end_n, k, in_dtype))
+
+    def read_data_try(self, data_queue):
+        in_dtype = self.cl_conf.in_dtype
+        id_slice = self.cl_conf.id_slice
+        ids_proj = self.cl_conf.ids_proj
+        st_n = self.cl_conf.st_n
+        end_n = self.cl_conf.end_n
+
+        st_z = id_slice
+        end_z = id_slice + 2**self.args.binning
+
+        self.cl_reader.read_data_chunk_to_queue(
+            data_queue, ids_proj, st_z, end_z, st_n, end_n, 0, in_dtype)
 
     def recon_all(self):
         """Reconstruction of data from an h5file by splitting into sinogram chunks"""
 
         # start reading data to a queue
         main_read_thread = Thread(
-            target=self.cl_conf.read_data_to_queue, args=(self.data_queue, self.read_threads))
+            target=self.read_data_to_queue, args=(self.data_queue, self.read_threads))
         main_read_thread.start()
 
         # refs for faster access
@@ -152,7 +197,7 @@ class GPURec():
 
         # chunk ids with parallel read
         ids = []
-        
+
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
@@ -172,6 +217,7 @@ class GPURec():
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
                     self.cl_tomo_func.cl_rec.backprojection(
                         rec, data, self.stream2)
+
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     # find free thread
@@ -193,7 +239,7 @@ class GPURec():
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 self.write_threads[ithread].run(
-                    self.cl_conf.write_data_chunk, (rec_pinned[ithread], ids[k-2]))
+                    self.cl_writer.write_data_chunk, (rec_pinned[ithread, :lzchunk[k-2]], ids[k-2]))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -204,13 +250,14 @@ class GPURec():
     def recon_try(self):
         """GPU reconstruction of 1 slice for different centers"""
 
+        self.read_data_try(self.data_queue)
         # read slice
-        data, flat, dark = self.cl_conf.read_data_try()
+        item = self.data_queue.get()
 
         # copy to gpu
-        data = cp.array(data)
-        dark = cp.array(dark)
-        flat = cp.array(flat)
+        data = cp.array(item['data'])
+        dark = cp.array(item['dark'])
+        flat = cp.array(item['flat'])
 
         # preprocessing
         data = self.cl_tomo_func.proc_sino(data, dark, flat)
@@ -244,13 +291,13 @@ class GPURec():
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     # find free thread
-                    ithread = utils.find_free_thread(self.write_threads)                    
+                    ithread = utils.find_free_thread(self.write_threads)
                     rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 for kk in range(lschunk[k-2]):
-                    self.write_threads[ithread].run(self.cl_conf.write_data_try, (
+                    self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                         rec_pinned[ithread, kk], self.cl_conf.save_centers[(k-2)*ncz+kk]))
 
             self.stream1.synchronize()

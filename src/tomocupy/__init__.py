@@ -40,7 +40,7 @@
 
 from pkg_resources import get_distribution, DistributionNotFound
 
-__version__ = '0.8'
+__version__ = '0.9'
 
 try:
     __version__ = get_distribution(__name__).version
@@ -59,6 +59,8 @@ from tomocupy.find_center import *
 from tomocupy.remove_stripe import *
 from tomocupy.retrieve_phase import *
 from tomocupy.utils import *
-from tomocupy.conf_io import *
+from tomocupy.conf_sizes import *
+from tomocupy.reader import *
+from tomocupy.writer import *
 from tomocupy.tomo_functions import *
 

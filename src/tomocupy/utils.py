@@ -44,6 +44,8 @@ import argparse
 import os
 from threading import Thread
 import time
+import numexpr as ne
+
 # Print iterations progress
 
 
@@ -134,3 +136,16 @@ def find_free_thread(threads):
             ithread = 0
             time.sleep(0.01)
     return ithread
+
+
+def downsample(data, binning):
+    """Downsample data"""
+    for j in range(binning):
+        x = data[:, :, ::2]
+        y = data[:, :, 1::2]
+        data = ne.evaluate('x + y')  # should use multithreading
+    for k in range(binning):
+        x = data[:, ::2]
+        y = data[:, 1::2]
+        data = ne.evaluate('x + y')
+    return data
