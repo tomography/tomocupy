@@ -83,9 +83,9 @@ class ConfSizes():
             self.args.end_row = nzi
         if (self.args.end_proj == -1):
             self.args.end_proj = nproji
-        st_n = 0
-        end_n = ni
-
+        if (self.args.end_column == -1):
+            self.args.end_column = ni
+        
         # find numebr of rows
         nz = self.args.end_row-self.args.start_row
         
@@ -103,12 +103,17 @@ class ConfSizes():
         if centeri == -1:
             centeri = ni/2
         
+        st_n = self.args.start_column
+        end_n = self.args.end_column
+        
+        ni = end_n - st_n        
+        centeri -= st_n
+        
         # update sizes wrt binning
         ni //= 2**self.args.binning
         centeri /= 2**self.args.binning
         nz //= 2**self.args.binning
-        self.args.crop = int(self.args.crop/2**self.args.binning)
-
+        
         # change sizes for 360 deg scans with rotation axis at the border
         if(self.args.file_type == 'double_fov'):
             n = 2*ni

@@ -125,10 +125,7 @@ class GPURecSteps():
 
         log.info('Step 3. Processing by chunks in angles.')
         data = self.proc_proj_parallel(data)
-        import dxchange
-        dxchange.write_tiff_stack(data,'/local/data/tmp/t',overwrite=True)
-        exit()
-
+        
         if self.cl_conf.args.reconstruction_type == 'full':
             if self.cl_conf.args.lamino_angle == 0:
                 log.info('Step 4. Reconstruction by chunks in z.')

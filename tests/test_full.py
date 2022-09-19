@@ -22,6 +22,8 @@ cmd_dict = {
     f'{prefix} --nsino-per-chunk 2 --blocked-views True --blocked-views-start 0.2 --blocked-views-end 1': 30.0,
     f'{prefix} --remove-stripe-method fw': 27.5,
     f'{prefix} --remove-stripe-method fw --dtype float16': 23.6,
+    f'{prefix} --start-column 200 --end-column 1000': 19.2,
+    f'{prefix} --start-column 200 --end-column 1000 --binning 1': 8.49,
 }
 
 

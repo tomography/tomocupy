@@ -154,10 +154,6 @@ class Writer():
     def write_data_chunk(self, rec, st, end, k):
         """Writing the kth data chunk to hard disk"""
 
-        if self.args.crop > 0:
-            rec = rec[:, self.args.crop:-
-                      self.args.crop, self.args.crop:-self.args.crop]
-
         if self.args.save_format == 'tiff':            
             for kk in range(end-st):
                 fid = st+kk
@@ -171,7 +167,4 @@ class Writer():
     def write_data_try(self, rec, cid):
         """Write tiff reconstruction with a given name"""
 
-        if self.args.crop > 0:
-            rec = rec[self.args.crop:-self.args.crop,
-                      self.args.crop:-self.args.crop]
         tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff', rec)

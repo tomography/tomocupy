@@ -230,10 +230,10 @@ SECTIONS['rotate-proj'] = {
     'rotate-proj-angle': {
         'default': 0,
         'type': float,
-        'help': "Rotation angle for projections (e.g. to compensate if the stage is tilted)"},
+        'help': "Rotation angle for projections (counterclockwise)"},
     'rotate-proj-order': {
-        'default': 2,
-        'type': float,
+        'default': 1,
+        'type': int,
         'help': "Interpolation spline order for rotation"},
 }
 
@@ -311,6 +311,14 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': -1,
         'help': "End slice"},
+    'start-column': {
+        'type': int,
+        'default': 0,
+        'help': "Start position in x"},
+    'end-column': {
+        'type': int,
+        'default': -1,
+        'help': "End position in x"},
     'start-proj': {
         'type': int,
         'default': 0,
@@ -351,10 +359,6 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Filter for FBP reconstruction",
         'choices': ['shepp', 'parzen']},
-    'crop': {
-        'type': int,
-        'default': 0,
-        'help': "Crop from each side of the slice"},
     'dezinger': {
         'type': int,
         'default': 0,
