@@ -141,7 +141,6 @@ class ConfSizes():
         # blocked views fix
         ids_proj = [self.args.start_proj, self.args.end_proj]
         theta = theta[ids_proj[0]:ids_proj[1]]
-
         if self.args.blocked_views !='none':            
             tmp = literal_eval(self.args.blocked_views)
             if not isinstance(tmp[0],list):
@@ -153,9 +152,9 @@ class ConfSizes():
                     ((theta-st) % np.pi > end-st))[0])
             theta = theta[ids]
             ids_proj = np.arange(ids_proj[0], ids_proj[1])[ids]
+            log.info(f'angles {theta}')
         nproj = len(theta)        
-        print(theta)
-
+        
         # calculate chunks
         nzchunk = int(np.ceil(nz/ncz))
         lzchunk = np.minimum(
