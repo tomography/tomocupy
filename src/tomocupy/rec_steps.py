@@ -45,7 +45,6 @@ from tomocupy import tomo_functions
 from threading import Thread
 from tomocupy import reader
 from tomocupy import writer
-from ast import literal_eval        
 import signal
 import cupy as cp
 import numpy as np

@@ -144,22 +144,11 @@ SECTIONS['file-reading'] = {
         'help': "Reconstruction binning factor as power(2, choice)",
         'choices': [0, 1, 2, 3]},
     'blocked-views': {
-        'default': False,
-        'help': 'When set, the blocked-views options are used',
-        'action': 'store_true'},
+        'type': str,
+        'default': 'none',
+        'help': "Angles for blocked views. Can be a list (e.g. [[0,1.2],[3,3.14]])"},
 }
 
-
-SECTIONS['blocked-views'] = {
-    'blocked-views-start': {
-        'type': float,
-        'default': 0,
-        'help': "Angle of the first blocked view"},
-    'blocked-views-end': {
-        'type': float,
-        'default': 1,
-        'help': "Angle of the last blocked view"},
-}
 
 SECTIONS['remove-stripe'] = {
     'remove-stripe-method': {
@@ -373,18 +362,17 @@ SECTIONS['reconstruction'] = {
         'help': "Max number of threads for reading by chunks"},
     'minus-log': {
         'default': 'True',
-        'help': "take -log or not"
-    },
+        'help': "take -log or not"},    
 }
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'blocked-views', 'fw', 'ti', 'reconstruction-types')
-RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction', 'blocked-views',
+                'reconstruction', 'fw', 'ti', 'reconstruction-types')
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction', 
                       'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
-              'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Blocked views', 'Reconstruction')
+              'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Reconstruction')
 
 
 def get_config_name():

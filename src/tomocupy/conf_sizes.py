@@ -142,15 +142,19 @@ class ConfSizes():
         ids_proj = [self.args.start_proj, self.args.end_proj]
         theta = theta[ids_proj[0]:ids_proj[1]]
 
-        if self.args.blocked_views:
-            st = self.args.blocked_views_start
-            end = self.args.blocked_views_end
-            ids = np.where(((theta) % np.pi < st) +
-                           ((theta-st) % np.pi > end-st))[0]
+        if self.args.blocked_views !='none':            
+            tmp = literal_eval(self.args.blocked_views)
+            if not isinstance(tmp[0],list):
+                tmp = [tmp]
+            ids = np.arange(len(theta))
+            for pairs in tmp:
+                [st,end] = pairs
+                ids = np.intersect1d(ids,np.where(((theta) % np.pi < st) +
+                    ((theta-st) % np.pi > end-st))[0])
             theta = theta[ids]
             ids_proj = np.arange(ids_proj[0], ids_proj[1])[ids]
-        nproj = len(theta)
-        
+        nproj = len(theta)        
+        print(theta)
 
         # calculate chunks
         nzchunk = int(np.ceil(nz/ncz))
