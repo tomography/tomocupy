@@ -294,7 +294,7 @@ SECTIONS['reconstruction'] = {
     'nsino': {
         'default': '0.5',
         'type': str,
-        'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
+        'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom). Can be given as a list, e.g. [0,0.9].'},
     'nsino-per-chunk': {
         'type': int,
         'default': 8,
@@ -330,9 +330,9 @@ SECTIONS['reconstruction'] = {
     'nproj-per-chunk': {
         'type': int,
         'default': 8,
-        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.", },
+        'help': "Number of sinograms per chunk. Use lower numbers with computers with lower GPU memory.", },
     'rotation-axis-auto': {
-        'default': 'read_auto',
+        'default': 'manual',
         'type': str,
         'help': "How to get rotation axis auto calculate ('auto'), or manually ('manual')",
         'choices': ['manual', 'auto', ]},
