@@ -146,7 +146,7 @@ SECTIONS['file-reading'] = {
     'blocked-views': {
         'type': str,
         'default': 'none',
-        'help': "Angles for blocked views. Can be a list (e.g. [[0,1.2],[3,3.14]])"},
+        'help': "Angle range for blocked views [st,end]. Can be a list of ranges(e.g. [[0,1.2],[3,3.14]])"},
 }
 
 
