@@ -40,7 +40,8 @@
 
 from tomocupy import logging
 import numpy as np
-
+from ast import literal_eval
+        
 log = logging.getLogger(__name__)
 
 
@@ -204,7 +205,10 @@ class ConfSizes():
         self.save_centers = save_centers
         self.nschunk = nschunk
         self.lschunk = lschunk
-        self.id_slice = int(self.args.nsino*(self.nz*2**self.args.binning-1) /
+        tmp = literal_eval(self.args.nsino)
+        if not isinstance(tmp, list):
+            tmp = [tmp]  
+        self.id_slices = np.int32(np.array(tmp)*(self.nz*2**self.args.binning-1) /
                             2**self.args.binning)*2**self.args.binning
 
     def init_sizes_lamino(self):

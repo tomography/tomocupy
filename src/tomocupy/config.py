@@ -292,8 +292,8 @@ SECTIONS['reconstruction'] = {
         'default': 0.5,
         'help': "+/- center search step (pixel). "},
     'nsino': {
-        'default': 0.5,
-        'type': float,
+        'default': '0.5',
+        'type': str,
         'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
     'nsino-per-chunk': {
         'type': int,

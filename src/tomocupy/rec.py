@@ -143,9 +143,8 @@ class GPURec():
             read_threads[ithread].run(self.cl_reader.read_data_chunk_to_queue, (
                 data_queue, ids_proj, st_z, end_z, st_n, end_n, k, in_dtype))
 
-    def read_data_try(self, data_queue):
+    def read_data_try(self, data_queue, id_slice):
         in_dtype = self.cl_conf.in_dtype
-        id_slice = self.cl_conf.id_slice
         ids_proj = self.cl_conf.ids_proj
         st_n = self.cl_conf.st_n
         end_n = self.cl_conf.end_n
@@ -214,10 +213,6 @@ class GPURec():
                     data = self.cl_tomo_func.proc_proj(data)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
-                    # cen01 = 2307/4
-                    # sht = (cp.arange(data.shape[0])+k*ncz-self.cl_conf.nz/2)*(cen01-self.cl_conf.center)/(self.cl_conf.nz/2)
-                    # sht = sht.astype('float32')
-                    # print(sht[0])
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
                     self.cl_tomo_func.cl_rec.backprojection(
                         rec, data, self.stream2)
@@ -256,58 +251,61 @@ class GPURec():
     def recon_try(self):
         """GPU reconstruction of 1 slice for different centers"""
 
-        self.read_data_try(self.data_queue)
-        # read slice
-        item = self.data_queue.get()
+        for id_slice in self.cl_conf.id_slices:
+            log.info(f'Processing slice {id_slice}')
+            self.read_data_try(self.data_queue, id_slice)
+            # read slice
+            item = self.data_queue.get()
 
-        # copy to gpu
-        data = cp.array(item['data'])
-        dark = cp.array(item['dark'])
-        flat = cp.array(item['flat'])
+            # copy to gpu
+            data = cp.array(item['data'])
+            dark = cp.array(item['dark'])
+            flat = cp.array(item['flat'])
 
-        # preprocessing
-        data = self.cl_tomo_func.proc_sino(data, dark, flat)
-        data = self.cl_tomo_func.proc_proj(data)
-        data = cp.ascontiguousarray(data.swapaxes(0, 1))
+            # preprocessing
+            data = self.cl_tomo_func.proc_sino(data, dark, flat)
+            data = self.cl_tomo_func.proc_proj(data)
+            data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
-        # refs for faster access
-        dtype = self.cl_conf.dtype
-        nschunk = self.cl_conf.nschunk
-        lschunk = self.cl_conf.lschunk
-        ncz = self.cl_conf.ncz
+            # refs for faster access
+            dtype = self.cl_conf.dtype
+            nschunk = self.cl_conf.nschunk
+            lschunk = self.cl_conf.lschunk
+            ncz = self.cl_conf.ncz
 
-        # pinned memory for reconstrution
-        rec_pinned = utils.pinned_array(
-            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
-        # gpu memory for reconstrution
-        rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
+            # pinned memory for reconstrution
+            rec_pinned = utils.pinned_array(
+                np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
+            # gpu memory for reconstrution
+            rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
+            
+            
+            # Conveyor for data cpu-gpu copy and reconstruction
+            for k in range(nschunk+2):
+                utils.printProgressBar(
+                    k, nschunk+1, self.data_queue.qsize(), length=40)
+                if(k > 0 and k < nschunk+1):
+                    with self.stream2:  # reconstruction
+                        sht = cp.pad(cp.array(self.cl_conf.shift_array[(
+                            k-1)*ncz:(k-1)*ncz+lschunk[k-1]]), [0, ncz-lschunk[k-1]])
+                        datat = cp.tile(data, [ncz, 1, 1])
+                        datat = self.cl_tomo_func.fbp_filter_center(datat, sht)
+                        self.cl_tomo_func.cl_rec.backprojection(
+                            rec_gpu[(k-1) % 2], datat, self.stream2)
+                if(k > 1):
+                    with self.stream3:  # gpu->cpu copy
+                        # find free thread
+                        ithread = utils.find_free_thread(self.write_threads)
+                        rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
+                self.stream3.synchronize()
+                if(k > 1):
+                    # add a new thread for writing to hard disk (after gpu->cpu copy is done)
+                    for kk in range(lschunk[k-2]):
+                        self.write_threads[ithread].run(self.cl_writer.write_data_try, (
+                            rec_pinned[ithread, kk], self.cl_conf.save_centers[(k-2)*ncz+kk],id_slice))
 
-        # Conveyor for data cpu-gpu copy and reconstruction
-        for k in range(nschunk+2):
-            utils.printProgressBar(
-                k, nschunk+1, self.data_queue.qsize(), length=40)
-            if(k > 0 and k < nschunk+1):
-                with self.stream2:  # reconstruction
-                    sht = cp.pad(cp.array(self.cl_conf.shift_array[(
-                        k-1)*ncz:(k-1)*ncz+lschunk[k-1]]), [0, ncz-lschunk[k-1]])
-                    datat = cp.tile(data, [ncz, 1, 1])
-                    datat = self.cl_tomo_func.fbp_filter_center(datat, sht)
-                    self.cl_tomo_func.cl_rec.backprojection(
-                        rec_gpu[(k-1) % 2], datat, self.stream2)
-            if(k > 1):
-                with self.stream3:  # gpu->cpu copy
-                    # find free thread
-                    ithread = utils.find_free_thread(self.write_threads)
-                    rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
-            self.stream3.synchronize()
-            if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                for kk in range(lschunk[k-2]):
-                    self.write_threads[ithread].run(self.cl_writer.write_data_try, (
-                        rec_pinned[ithread, kk], self.cl_conf.save_centers[(k-2)*ncz+kk]))
+                self.stream1.synchronize()
+                self.stream2.synchronize()
 
-            self.stream1.synchronize()
-            self.stream2.synchronize()
-
-        for t in self.write_threads:
-            t.join()
+            for t in self.write_threads:
+                t.join()

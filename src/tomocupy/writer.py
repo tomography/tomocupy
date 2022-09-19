@@ -164,7 +164,7 @@ class Writer():
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
 
-    def write_data_try(self, rec, cid):
+    def write_data_try(self, rec, cid, id_slice):
         """Write tiff reconstruction with a given name"""
 
-        tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff', rec)
+        tifffile.imwrite(f'{self.fnameout}_slice{id_slice:04d}_center{cid:05.2f}.tiff', rec)
