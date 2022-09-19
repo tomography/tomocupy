@@ -225,6 +225,18 @@ SECTIONS['retrieve-phase'] = {
         'default': 8,
         'help': "Padding with extra slices in z for phase-retrieval filtering"},
 }
+
+SECTIONS['rotate-proj'] = {
+    'rotate-proj-angle': {
+        'default': 0,
+        'type': float,
+        'help': "Rotation angle for projections (e.g. to compensate if the stage is tilted)"},
+    'rotate-proj-order': {
+        'default': 2,
+        'type': float,
+        'help': "Interpolation spline order for rotation"},
+}
+
 SECTIONS['lamino'] = {
     'lamino-search-width': {
         'type': float,
@@ -364,8 +376,8 @@ SECTIONS['reconstruction'] = {
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
                 'reconstruction', 'blocked-views', 'fw', 'ti', 'reconstruction-types')
-RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe',
-                      'reconstruction', 'blocked-views', 'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types')
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction', 'blocked-views',
+                      'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
               'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Blocked views', 'Reconstruction')

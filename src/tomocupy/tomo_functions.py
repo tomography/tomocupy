@@ -42,12 +42,11 @@ from tomocupy import fourierrec
 from tomocupy import lprec
 from tomocupy import fbp_filter
 from tomocupy import linerec
-from tomocupy import retrieve_phase, remove_stripe
+from tomocupy import retrieve_phase, remove_stripe, adjust_projections
 
 
 import cupy as cp
 import numpy as np
-from cupyx.scipy import ndimage
 
 
 class TomoFunctions():
@@ -179,6 +178,8 @@ class TomoFunctions():
         if self.args.retrieve_phase_method == 'paganin':
             data[:] = retrieve_phase.paganin_filter(
                 data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, self.args.retrieve_phase_alpha)
+        if self.args.rotate_proj_angle != 0:
+            data[:] = adjust_projections.rotate(data,self.args.rotate_proj_angle,self.args.rotate_proj_order)
         # minus log
         if self.args.minus_log == 'True':
             data[:] = self.minus_log(data)

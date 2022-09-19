@@ -118,13 +118,16 @@ class GPURecSteps():
         """GPU reconstruction by loading a full dataset in memory and processing by steps """
 
         log.info('Step 1. Reading data.')
-        data, flat, dark = self.read_data_parallel()
+        data, flat, dark = self.read_data_parallel()        
 
         log.info('Step 2. Processing by chunks in z.')
         data = self.proc_sino_parallel(data, dark, flat)
 
         log.info('Step 3. Processing by chunks in angles.')
         data = self.proc_proj_parallel(data)
+        import dxchange
+        dxchange.write_tiff_stack(data,'/local/data/tmp/t',overwrite=True)
+        exit()
 
         if self.cl_conf.args.reconstruction_type == 'full':
             if self.cl_conf.args.lamino_angle == 0:
