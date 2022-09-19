@@ -329,8 +329,10 @@ class GPURecSteps():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new proc for writing to hard disk (after gpu->cpu copy is done)
+                st = (k-2)*ncz+self.args.start_row//2**self.args.binning
+                end = st+lzchunk[k-2]
                 self.write_threads[ithread].run(
-                    self.cl_writer.write_data_chunk, (rec_pinned[ithread, :lzchunk[k-2]], k-2))
+                    self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, k-2))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -403,8 +405,10 @@ class GPURecSteps():
                 self.stream3.synchronize()
                 if (kr > 1 and kt == 0):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
+                    st = (kr-2)*ncz+self.args.start_row//2**self.args.binning
+                    end = st+lrchunk[kr-2]
                     self.write_threads[ithread].run(
-                        self.cl_writer.write_data_chunk, (rec_pinned[ithread, :lrchunk[kr-2]], kr-2))
+                        self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, kr-2))
 
                 self.stream1.synchronize()
                 self.stream2.synchronize()
@@ -454,9 +458,8 @@ class GPURecSteps():
                         data0 = cp.ascontiguousarray(data0.swapaxes(0, 1))
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
-
                         self.cl_tomo_func.cl_rec.backprojection_try(
-                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.id_slice)
+                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.id_slice//2**self.args.binning)
 
                 if (ks > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
@@ -526,7 +529,7 @@ class GPURecSteps():
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
                         self.cl_tomo_func.cl_rec.backprojection_try_lamino(
-                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.id_slice)
+                            rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, self.cl_conf.id_slice//2**self.args.binning)
 
                 if (ks > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy

@@ -214,6 +214,10 @@ class GPURec():
                     data = self.cl_tomo_func.proc_proj(data)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
+                    # cen01 = 2307/4
+                    # sht = (cp.arange(data.shape[0])+k*ncz-self.cl_conf.nz/2)*(cen01-self.cl_conf.center)/(self.cl_conf.nz/2)
+                    # sht = sht.astype('float32')
+                    # print(sht[0])
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
                     self.cl_tomo_func.cl_rec.backprojection(
                         rec, data, self.stream2)
@@ -238,8 +242,10 @@ class GPURec():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
+                st = ids[k-2]*ncz+self.args.start_row//2**self.args.binning
+                end = st+lzchunk[ids[k-2]]
                 self.write_threads[ithread].run(
-                    self.cl_writer.write_data_chunk, (rec_pinned[ithread, :lzchunk[k-2]], ids[k-2]))
+                    self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, ids[k-2]))
 
             self.stream1.synchronize()
             self.stream2.synchronize()

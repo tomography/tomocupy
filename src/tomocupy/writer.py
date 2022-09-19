@@ -151,16 +151,15 @@ class Writer():
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
-    def write_data_chunk(self, rec, k):
+    def write_data_chunk(self, rec, st, end, k):
         """Writing the kth data chunk to hard disk"""
 
         if self.args.crop > 0:
             rec = rec[:, self.args.crop:-
                       self.args.crop, self.args.crop:-self.args.crop]
 
-        if self.args.save_format == 'tiff':
-            st = k*self.ncz+self.args.start_row//2**self.args.binning
-            for kk in range(self.lzchunk[k]):
+        if self.args.save_format == 'tiff':            
+            for kk in range(end-st):
                 fid = st+kk
                 tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
         elif self.args.save_format == 'h5':
