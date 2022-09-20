@@ -3,10 +3,7 @@ Credits
 =======
 
 
-We kindly request that you cite the following article(s):
-
-Cite ....... if you use tomocupy.
-
+If you use tomocupy, we kindly request that you cite :cite:`Nikitin:22`.
 
 Citations
 =========
