@@ -343,6 +343,11 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Output format",
         'choices': ['tiff', 'h5']},
+    'clear-folder': {
+        'default': 'False',
+        'type': str,
+        'help': "Clear output folder before reconstruction",
+        'choices': ['True', 'False']},
     'fbp-filter': {
         'default': 'parzen',
         'type': str,

@@ -80,6 +80,9 @@ class Writer():
         os.system(f'mkdir -p {fnameout}')
         fnameout += '/recon'
         self.fnameout = fnameout
+        if (self.args.clear_folder=='True'):
+            log.info('Clearing the output folder')
+            os.system(f'rm {fnameout}*')
         log.info(f'Output: {fnameout}')
 
     def init_output_files(self):
@@ -92,6 +95,10 @@ class Writer():
             os.system(f'mkdir -p {fnameout}')
         else:
             fnameout = str(self.args.out_path_name)
+
+        if (self.args.clear_folder=='True'):
+            log.info('Clearing the output folder')
+            os.system(f'rm {fnameout}/*')
 
         if self.args.save_format == 'tiff':
             # if save results as tiff
