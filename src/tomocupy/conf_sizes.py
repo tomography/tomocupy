@@ -192,7 +192,7 @@ class ConfSizes():
             # invert shifts for calculations if centeri<ni for double_fov
             shift_array = np.arange(-self.args.center_search_width,
                                     self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
-            save_centers = (self.centeri - shift_array)*2**self.args.binning
+            save_centers = (self.centeri - shift_array + self.st_n)*2**self.args.binning
             if (self.args.file_type == 'double_fov') and (self.centeri < self.ni//2):
                 shift_array = -shift_array
         elif self.args.reconstruction_type == 'try_lamino':
