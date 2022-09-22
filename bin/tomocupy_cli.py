@@ -33,7 +33,8 @@ def run_rec(args):
     t = time.time()
     file_name = Path(args.file_name)
     if file_name.is_file():
-        args.retrieve_phase_method = 'none'  # don not allow phase retrieval here
+        args.retrieve_phase_method = 'none'  # don no allow phase retrieval here
+        args.rotate_proj_angle = 0  # do not allow to rotate projections
         args.lamino_angle = 0
         if args.rotation_axis_auto == 'auto':
             clrotthandle = FindCenter(args)
