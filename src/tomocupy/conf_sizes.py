@@ -40,7 +40,8 @@
 
 from tomocupy import logging
 import numpy as np
-
+from ast import literal_eval
+        
 log = logging.getLogger(__name__)
 
 
@@ -83,9 +84,9 @@ class ConfSizes():
             self.args.end_row = nzi
         if (self.args.end_proj == -1):
             self.args.end_proj = nproji
-        st_n = 0
-        end_n = ni
-
+        if (self.args.end_column == -1):
+            self.args.end_column = ni
+        
         # find numebr of rows
         nz = self.args.end_row-self.args.start_row
         
@@ -103,12 +104,17 @@ class ConfSizes():
         if centeri == -1:
             centeri = ni/2
         
+        st_n = self.args.start_column
+        end_n = self.args.end_column
+        
+        ni = end_n - st_n        
+        centeri -= st_n
+        
         # update sizes wrt binning
         ni //= 2**self.args.binning
         centeri /= 2**self.args.binning
         nz //= 2**self.args.binning
-        self.args.crop = int(self.args.crop/2**self.args.binning)
-
+        
         # change sizes for 360 deg scans with rotation axis at the border
         if(self.args.file_type == 'double_fov'):
             n = 2*ni
@@ -135,17 +141,20 @@ class ConfSizes():
         # blocked views fix
         ids_proj = [self.args.start_proj, self.args.end_proj]
         theta = theta[ids_proj[0]:ids_proj[1]]
-
-        if self.args.blocked_views:
-            st = self.args.blocked_views_start
-            end = self.args.blocked_views_end
-            ids = np.where(((theta) % np.pi < st) +
-                           ((theta-st) % np.pi > end-st))[0]
+        if self.args.blocked_views !='none':            
+            tmp = literal_eval(self.args.blocked_views)
+            if not isinstance(tmp[0],list):
+                tmp = [tmp]
+            ids = np.arange(len(theta))
+            for pairs in tmp:
+                [st,end] = pairs
+                ids = np.intersect1d(ids,np.where(((theta) % np.pi < st) +
+                    ((theta-st) % np.pi > end-st))[0])
             theta = theta[ids]
             ids_proj = np.arange(ids_proj[0], ids_proj[1])[ids]
-        nproj = len(theta)
+            log.info(f'angles {theta}')
+        nproj = len(theta)        
         
-
         # calculate chunks
         nzchunk = int(np.ceil(nz/ncz))
         lzchunk = np.minimum(
@@ -183,7 +192,7 @@ class ConfSizes():
             # invert shifts for calculations if centeri<ni for double_fov
             shift_array = np.arange(-self.args.center_search_width,
                                     self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
-            save_centers = (self.centeri - shift_array)*2**self.args.binning
+            save_centers = (self.centeri - shift_array + self.st_n)*2**self.args.binning
             if (self.args.file_type == 'double_fov') and (self.centeri < self.ni//2):
                 shift_array = -shift_array
         elif self.args.reconstruction_type == 'try_lamino':
@@ -199,7 +208,10 @@ class ConfSizes():
         self.save_centers = save_centers
         self.nschunk = nschunk
         self.lschunk = lschunk
-        self.id_slice = int(self.args.nsino*(self.nz*2**self.args.binning-1) /
+        tmp = literal_eval(self.args.nsino)
+        if not isinstance(tmp, list):
+            tmp = [tmp]  
+        self.id_slices = np.int32(np.array(tmp)*(self.nz*2**self.args.binning-1) /
                             2**self.args.binning)*2**self.args.binning
 
     def init_sizes_lamino(self):

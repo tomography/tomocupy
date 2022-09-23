@@ -144,22 +144,11 @@ SECTIONS['file-reading'] = {
         'help': "Reconstruction binning factor as power(2, choice)",
         'choices': [0, 1, 2, 3]},
     'blocked-views': {
-        'default': False,
-        'help': 'When set, the blocked-views options are used',
-        'action': 'store_true'},
+        'type': str,
+        'default': 'none',
+        'help': "Angle range for blocked views [st,end]. Can be a list of ranges(e.g. [[0,1.2],[3,3.14]])"},
 }
 
-
-SECTIONS['blocked-views'] = {
-    'blocked-views-start': {
-        'type': float,
-        'default': 0,
-        'help': "Angle of the first blocked view"},
-    'blocked-views-end': {
-        'type': float,
-        'default': 1,
-        'help': "Angle of the last blocked view"},
-}
 
 SECTIONS['remove-stripe'] = {
     'remove-stripe-method': {
@@ -225,6 +214,18 @@ SECTIONS['retrieve-phase'] = {
         'default': 8,
         'help': "Padding with extra slices in z for phase-retrieval filtering"},
 }
+
+SECTIONS['rotate-proj'] = {
+    'rotate-proj-angle': {
+        'default': 0,
+        'type': float,
+        'help': "Rotation angle for projections (counterclockwise)"},
+    'rotate-proj-order': {
+        'default': 1,
+        'type': int,
+        'help': "Interpolation spline order for rotation"},
+}
+
 SECTIONS['lamino'] = {
     'lamino-search-width': {
         'type': float,
@@ -280,9 +281,9 @@ SECTIONS['reconstruction'] = {
         'default': 0.5,
         'help': "+/- center search step (pixel). "},
     'nsino': {
-        'default': 0.5,
-        'type': float,
-        'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom)'},
+        'default': '0.5',
+        'type': str,
+        'help': 'Location of the sinogram used for slice reconstruction and find axis (0 top, 1 bottom). Can be given as a list, e.g. [0,0.9].'},
     'nsino-per-chunk': {
         'type': int,
         'default': 8,
@@ -299,6 +300,14 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': -1,
         'help': "End slice"},
+    'start-column': {
+        'type': int,
+        'default': 0,
+        'help': "Start position in x"},
+    'end-column': {
+        'type': int,
+        'default': -1,
+        'help': "End position in x"},
     'start-proj': {
         'type': int,
         'default': 0,
@@ -310,9 +319,9 @@ SECTIONS['reconstruction'] = {
     'nproj-per-chunk': {
         'type': int,
         'default': 8,
-        'help': "Number of sinograms per chunk. Use larger numbers with computers with larger memory.  Value <= 0 defaults to # of cpus.", },
+        'help': "Number of sinograms per chunk. Use lower numbers with computers with lower GPU memory.", },
     'rotation-axis-auto': {
-        'default': 'read_auto',
+        'default': 'manual',
         'type': str,
         'help': "How to get rotation axis auto calculate ('auto'), or manually ('manual')",
         'choices': ['manual', 'auto', ]},
@@ -334,15 +343,16 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Output format",
         'choices': ['tiff', 'h5']},
+    'clear-folder': {
+        'default': 'False',
+        'type': str,
+        'help': "Clear output folder before reconstruction",
+        'choices': ['True', 'False']},
     'fbp-filter': {
         'default': 'parzen',
         'type': str,
         'help': "Filter for FBP reconstruction",
         'choices': ['shepp', 'parzen']},
-    'crop': {
-        'type': int,
-        'default': 0,
-        'help': "Crop from each side of the slice"},
     'dezinger': {
         'type': int,
         'default': 0,
@@ -357,18 +367,17 @@ SECTIONS['reconstruction'] = {
         'help': "Max number of threads for reading by chunks"},
     'minus-log': {
         'default': 'True',
-        'help': "take -log or not"
-    },
+        'help': "take -log or not"},    
 }
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'blocked-views', 'fw', 'ti', 'reconstruction-types')
-RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe',
-                      'reconstruction', 'blocked-views', 'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types')
+                'reconstruction', 'fw', 'ti', 'reconstruction-types')
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction', 
+                      'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
-              'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Blocked views', 'Reconstruction')
+              'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Reconstruction')
 
 
 def get_config_name():

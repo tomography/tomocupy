@@ -80,6 +80,9 @@ class Writer():
         os.system(f'mkdir -p {fnameout}')
         fnameout += '/recon'
         self.fnameout = fnameout
+        if (self.args.clear_folder=='True'):
+            log.info('Clearing the output folder')
+            os.system(f'rm {fnameout}*')
         log.info(f'Output: {fnameout}')
 
     def init_output_files(self):
@@ -92,6 +95,10 @@ class Writer():
             os.system(f'mkdir -p {fnameout}')
         else:
             fnameout = str(self.args.out_path_name)
+
+        if (self.args.clear_folder=='True'):
+            log.info('Clearing the output folder')
+            os.system(f'rm {fnameout}/*')
 
         if self.args.save_format == 'tiff':
             # if save results as tiff
@@ -151,16 +158,11 @@ class Writer():
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
-    def write_data_chunk(self, rec, k):
+    def write_data_chunk(self, rec, st, end, k):
         """Writing the kth data chunk to hard disk"""
 
-        if self.args.crop > 0:
-            rec = rec[:, self.args.crop:-
-                      self.args.crop, self.args.crop:-self.args.crop]
-
-        if self.args.save_format == 'tiff':
-            st = k*self.ncz+self.args.start_row//2**self.args.binning
-            for kk in range(self.lzchunk[k]):
+        if self.args.save_format == 'tiff':            
+            for kk in range(end-st):
                 fid = st+kk
                 tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
         elif self.args.save_format == 'h5':
@@ -169,10 +171,7 @@ class Writer():
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
 
-    def write_data_try(self, rec, cid):
+    def write_data_try(self, rec, cid, id_slice):
         """Write tiff reconstruction with a given name"""
 
-        if self.args.crop > 0:
-            rec = rec[self.args.crop:-self.args.crop,
-                      self.args.crop:-self.args.crop]
-        tifffile.imwrite(f'{self.fnameout}_{cid:05.2f}.tiff', rec)
+        tifffile.imwrite(f'{self.fnameout}_slice{id_slice:04d}_center{cid:05.2f}.tiff', rec)

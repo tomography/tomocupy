@@ -7,6 +7,7 @@ import inspect
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type try --rotation-axis 782.5 --nsino-per-chunk 4'
 cmd_dict = {
     f'{prefix} ': 13.5,
+    f'{prefix} --nsino [0,0.5] ': 27.65,
     f'{prefix} --reconstruction-algorithm lprec ': 13.5,
     f'{prefix} --reconstruction-algorithm linerec ': 13.5,
     f'{prefix} --dtype float16':11.8,
@@ -36,7 +37,9 @@ class Tests(unittest.TestCase):
             for k in np.arange(758.5, 778.5, 0.5):
                 try:
                     ssum += np.linalg.norm(tifffile.imread(
-                        f'data_rec/try_center/test_data/recon_{k:05.2f}.tiff'))
+                        f'data_rec/try_center/test_data/recon_slice0010_center{k:05.2f}.tiff'))
+                    ssum += np.linalg.norm(tifffile.imread(
+                        f'data_rec/try_center/test_data/recon_slice0000_center{k:05.2f}.tiff'))
                 except:
                     pass
             self.assertAlmostEqual(ssum, cmd[1], places=0)
