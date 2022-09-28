@@ -4,11 +4,6 @@
 cfunc_filter::cfunc_filter(size_t nproj, size_t nz, size_t n)
     : nproj(nproj), nz(nz), n(n) {
     
-    #ifndef HALF
-        ne = 3*n/2;        
-    #else
-        ne = pow(2,ceil(log2(3*n/2)));
-    #endif  
     //fft filter R<->C
     cufftCreate(&plan_filter_fwd);
     cufftCreate(&plan_filter_inv);
@@ -19,13 +14,13 @@ cfunc_filter::cfunc_filter(size_t nproj, size_t nz, size_t n)
     long long odist = 0;
     size_t workSize = 0;
 
-    ffts[0] = ne;
-	  idist = ne;odist = ne/2+1;
-    inembed[0] = ne;onembed[0] = ne/2+1;
+    ffts[0] = n;
+	  idist = n;odist = n/2+1;
+    inembed[0] = n;onembed[0] = n/2+1;
 
 
     cudaMalloc((void **)&ge,
-            (ne/2+1) * nproj * nz * sizeof(real2));
+            (n/2+1) * nproj * nz * sizeof(real2));
     cufftXtMakePlanMany(plan_filter_fwd, 
         1, ffts, 
         inembed, 1, idist, CUDA_R, 
@@ -58,10 +53,10 @@ void cfunc_filter::filter(size_t g_, size_t w_, size_t stream_) {
     cufftSetStream(plan_filter_fwd, stream);
     cufftSetStream(plan_filter_inv, stream);    
     dim3 dimBlock(32,32,1);        
-    dim3 GS3d1 = dim3(ceil(ne/32.0), ceil(nproj / 32.0), nz);
-    dim3 GS3d2 = dim3(ceil((ne/2+1)/32.0), ceil(nproj / 32.0), nz);
+    dim3 GS3d1 = dim3(ceil(n/32.0), ceil(nproj / 32.0), nz);
+    dim3 GS3d2 = dim3(ceil((n/2+1)/32.0), ceil(nproj / 32.0), nz);
     cufftXtExec(plan_filter_fwd, g, ge, CUFFT_FORWARD);
-    mulw <<<GS3d2, dimBlock, 0, stream>>> (ge, w, ne/2+1, nproj, nz);
+    mulw <<<GS3d2, dimBlock, 0, stream>>> (ge, w, n/2+1, nproj, nz);
     cufftXtExec(plan_filter_inv, ge, g, CUFFT_INVERSE);
-    mulrec <<<GS3d1, dimBlock, 0, stream>>> (g, 1/(float)ne, ne, nproj, nz);    
+    mulrec <<<GS3d1, dimBlock, 0, stream>>> (g, 1/(float)n, n, nproj, nz);    
 }

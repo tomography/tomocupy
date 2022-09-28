@@ -61,7 +61,11 @@ class TomoFunctions():
         self.ncproj = cl_conf.ncproj
         self.centeri = cl_conf.centeri
         self.center = cl_conf.center
-
+        self.ne = 3*self.n//2
+        if self.args.dtype == 'float16':
+            # power of 2 for float16
+            self.ne = 2**int(np.ceil(np.log2(3*self.n//2)))
+        
         if self.args.lamino_angle == 0:
             if self.args.reconstruction_algorithm == 'fourierrec':
                 self.cl_rec = fourierrec.FourierRec(
@@ -75,12 +79,12 @@ class TomoFunctions():
                 self.cl_rec = linerec.LineRec(
                     cp.array(cl_conf.theta), self.nproj, self.nproj, self.ncz, self.ncz, self.n, self.args.dtype)
             self.cl_filter = fbp_filter.FBPFilter(
-                self.n, self.nproj, self.ncz, self.args.dtype)
-        else:
-            self.cl_filter = fbp_filter.FBPFilter(
-                self.n, self.ncproj, self.nz, self.args.dtype)  # note ncproj,nz!
+                self.ne, self.nproj, self.ncz, self.args.dtype)
+        else:            
             self.cl_rec = linerec.LineRec(
                 cp.array(cl_conf.theta), self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
+            self.cl_filter = fbp_filter.FBPFilter(
+                self.ne, self.ncproj, self.nz, self.args.dtype)  # note ncproj,nz!
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
@@ -112,26 +116,22 @@ class TomoFunctions():
 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
-
-        ne = 3*self.n//2
-        if self.args.dtype == 'float16':
-            # power of 2 for float16
-            ne = 2**int(np.ceil(np.log2(3*self.n//2)))
-        t = cp.fft.rfftfreq(ne).astype('float32')
+        
+        t = cp.fft.rfftfreq(self.ne).astype('float32')
         if self.args.fbp_filter == 'parzen':
             w = t * (1 - t * 2)**3
         elif self.args.fbp_filter == 'shepp':
             w = t * cp.sinc(t)
 
         tmp = cp.pad(
-            data, ((0, 0), (0, 0), (ne//2-self.n//2, ne//2-self.n//2)), mode='edge')
+            data, ((0, 0), (0, 0), (self.ne//2-self.n//2, self.ne//2-self.n//2)), mode='edge')
         w = w*cp.exp(-2*cp.pi*1j*t*(-self.center +
                                     sht[:, cp.newaxis]+self.n/2))  # center fix
 
         # tmp = cp.fft.irfft(
         # beta*cp.fft.rfft(tmp, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
-        data[:] = tmp[:, :, ne//2-self.n//2:ne//2+self.n//2]
+        data[:] = tmp[:, :, self.ne//2-self.n//2:self.ne//2+self.n//2]
 
         return data  # reuse input memory
 
