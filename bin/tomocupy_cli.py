@@ -126,7 +126,9 @@ def main():
     args = config.parse_known_args(parser, subparser=True)
     # create logger
     logs_home = args.logs_home
-
+    # test cupy
+    import cupy as cp
+    c = cp.ones(1)
     # make sure logs directory exists
     if not os.path.exists(logs_home):
         os.makedirs(logs_home)
