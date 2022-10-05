@@ -133,10 +133,12 @@ class ConfSizes():
             st_n = (ni-2**int(np.log2(ni)))//2
             end_n = st_n+2**int(np.log2(ni))
             ni = 2**int(np.log2(ni))
+            n0 = n
             n = 2**int(np.log2(n))
 
-            log.warning(
-                f'Crop data to the power of 2 sizes to work with 16bit precision, output size in x dimension {ni}')
+            if n!=n0:
+                log.warning(
+                    f'Crop data to the power of 2 sizes to work with 16bit precision, output size in x dimension {ni}')
 
         # blocked views fix
         ids_proj = [self.args.start_proj, self.args.end_proj]

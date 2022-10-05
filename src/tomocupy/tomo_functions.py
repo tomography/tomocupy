@@ -43,6 +43,7 @@ from tomocupy import lprec
 from tomocupy import fbp_filter
 from tomocupy import linerec
 from tomocupy import retrieve_phase, remove_stripe, adjust_projections
+import cupyx.scipy.ndimage as ndimage
 
 
 import cupy as cp
