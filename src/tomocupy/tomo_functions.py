@@ -110,9 +110,13 @@ class TomoFunctions():
 
         if(int(self.args.dezinger) > 0):
             r = int(self.args.dezinger)
-            fdata = ndimage.median_filter(data, [1, r, r])
-            ids = cp.where(cp.abs(fdata-data) > 0.5*cp.abs(fdata))
-            data[ids] = fdata[ids]
+            if len(data.shape) == 3:
+                fdata = ndimage.median_filter(data, [1, r, r])
+            else:
+                fdata = ndimage.median_filter(data, [r, r])
+            import pdb; pdb.set_trace()
+            data[:]= cp.where(cp.logical_and(data > fdata, (data - fdata) > 5000), fdata, data)
+            #data[ids] = fdata[ids]
         return data
 
     def fbp_filter_center(self, data, sht=0):
@@ -157,8 +161,10 @@ class TomoFunctions():
         if not isinstance(res, cp.ndarray):
             res = cp.zeros(data.shape, self.args.dtype)
         # dark flat field correrction
+        data[:] = self.remove_outliers(data)
+        dark[:] = self.remove_outliers(dark)
+        flat[:] = self.remove_outliers(flat)
         res[:] = self.darkflat_correction(data, dark, flat)
-        res[:] = self.remove_outliers(res)
         # remove stripes
         if self.args.remove_stripe_method == 'fw':
             res[:] = remove_stripe.remove_stripe_fw(
