@@ -357,6 +357,10 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': 0,
         'help': "Width of region for removing outliers"},
+    'dezinger-threshold': {
+        'type': int,
+        'default': 5000,
+        'help': "Threshold of grayscale above local median to be considered a zinger pixel"},
     'max-write-threads': {
         'type': int,
         'default': 8,

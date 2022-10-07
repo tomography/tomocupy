@@ -111,10 +111,10 @@ class TomoFunctions():
         if(int(self.args.dezinger) > 0):
             w = int(self.args.dezinger)
             if len(data.shape) == 3:
-                fdata = ndimage.median_filter(data, [1, w, w])
+                fdata = ndimage.median_filter(data, [w, 1, w])
             else:
                 fdata = ndimage.median_filter(data, [w, w])
-            data[:]= cp.where(cp.logical_and(data > fdata, (data - fdata) > 5000), fdata, data)
+            data[:]= cp.where(cp.logical_and(data > fdata, (data - fdata) > self.args.dezinger_threshold), fdata, data)
         return data
 
     def fbp_filter_center(self, data, sht=0):
