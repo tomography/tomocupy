@@ -333,13 +333,12 @@ autodoc_mock_imports = [
     'traceback',
     'warnings',
     'tifffile',
-    'tomocupy._cfunc_fourierrec',
-    'tomocupy._cfunc_fourierrecfp16',
-    'tomocupy._cfunc_lprec',
-    'tomocupy._cfunc_lprecfp16',
-    'tomocupy._cfunc_filter',
-    'tomocupy._cfunc_filterfp16',    
-    'tomocupy._cfunc_linerec',    
-    'tomocupy._cfunc_linerecfp16',
-]
+    'tomocupy.cfunc_fourierrec',
+    'tomocupy.cfunc_fourierrecfp16',
+    'tomocupy.cfunc_lprec',
+    'tomocupy.cfunc_lprecfp16',
+    'tomocupy.cfunc_filter',
+    'tomocupy.cfunc_filterfp16',    
+    'tomocupy.cfunc_linerec',    
+    'tomocupy.cfunc_linerecfp16',]
 
