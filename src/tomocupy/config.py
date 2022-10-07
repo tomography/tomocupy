@@ -356,7 +356,7 @@ SECTIONS['reconstruction'] = {
     'dezinger': {
         'type': int,
         'default': 0,
-        'help': "Radius for removing outliers"},
+        'help': "Width of region for removing outliers"},
     'max-write-threads': {
         'type': int,
         'default': 8,

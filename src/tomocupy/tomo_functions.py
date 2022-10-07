@@ -109,14 +109,12 @@ class TomoFunctions():
         """Remove outliers"""
 
         if(int(self.args.dezinger) > 0):
-            r = int(self.args.dezinger)
+            w = int(self.args.dezinger)
             if len(data.shape) == 3:
-                fdata = ndimage.median_filter(data, [1, r, r])
+                fdata = ndimage.median_filter(data, [1, w, w])
             else:
-                fdata = ndimage.median_filter(data, [r, r])
-            import pdb; pdb.set_trace()
+                fdata = ndimage.median_filter(data, [w, w])
             data[:]= cp.where(cp.logical_and(data > fdata, (data - fdata) > 5000), fdata, data)
-            #data[ids] = fdata[ids]
         return data
 
     def fbp_filter_center(self, data, sht=0):
