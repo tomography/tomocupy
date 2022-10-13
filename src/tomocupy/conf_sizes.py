@@ -219,14 +219,17 @@ class ConfSizes():
     def init_sizes_lamino(self):
         """Calculating sizes for laminography reconstruction by chunks"""
 
-        # calculate reconstruction height
-        rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) 
+        # calculate reconstruction height        
+        if self.args.lamino_end_row == -1:
+            rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) - self.args.lamino_start_row//2**self.args.binning
+        else:
+            rh = self.args.lamino_end_row//2**self.args.binning - self.args.lamino_start_row//2**self.args.binning
         
         # calculate chunks
         nrchunk = int(np.ceil(rh/self.ncz))
         lrchunk = np.minimum(
             self.ncz, np.int32(rh-np.arange(nrchunk)*self.ncz))
-        
+            
         self.nrchunk = nrchunk
         self.lrchunk = lrchunk
         self.rh = rh

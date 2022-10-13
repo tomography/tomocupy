@@ -239,6 +239,14 @@ SECTIONS['lamino'] = {
         'default': 0,
         'type': float,
         'help': "Pitch of the stage for laminography"},
+    'lamino-start-row': {
+        'default': 0,
+        'type': int,
+        'help': "Start slice for lamino reconstruction"},
+    'lamino-end-row': {
+        'default': -1,
+        'type': int,
+        'help': "End slice for lamino reconstruction"},
 }
 
 SECTIONS['reconstruction-types'] = {
