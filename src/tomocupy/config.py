@@ -267,6 +267,79 @@ SECTIONS['reconstruction-steps-types'] = {
         'choices': ['fourierrec', 'linerec']},
 }
 
+SECTIONS['beam-hardening']= {
+    'beam-hardening-method': {
+        'default': 'none',
+        'type': str,
+        'help': "Beam hardening method.",
+        'choices':['none','standard']},
+    'source-distance': {
+        'default': 36.0,
+        'type': float,
+        'help': 'Distance from source to scintillator in m'},
+    'scintillator-material': {
+        'default': 'LuAG_Ce',
+        'type': str,
+        'help': 'Scintillator material for beam hardening',
+    'scintillator-thickness': {
+        'default': 100.0,
+        'type': float,
+        'help': 'Scintillator thickness in microns'},
+    'sample-material': {
+        'default': 'Fe',
+        'type': str,
+        'help': 'Sample material for beam hardening',
+    'sample-density': {
+        'default': 1.0,
+        'type': float
+        'help': 'Density of sample material in g/cm^3'
+    'filter-1-auto': {
+        'default': False,
+        'help': 'If True, read filter 1 from HDF meta data',},
+    'filter-1-material': {
+        'default': 'none',
+        'type': str,
+        'help': 'Filter 1 material for beam hardening',
+    'filter-1-thickness': {
+        'default': 0.0,
+        'type': float,
+        'help': 'Filter 1 thickness in microns'},
+    'filter-1-density': {
+        'default': 1.0,
+        'type': float,
+        'help': 'Filter 1 density in g/cm^3'},
+    'filter-2-auto': {
+        'default': False,
+        'help': 'If True, read filter 2 from HDF meta data',},
+    'filter-2-material': {
+        'default': 'none',
+        'type': str,
+        'help': 'Filter 2 material for beam hardening',
+    'filter-2-thickness': {
+        'default': 0.0,
+        'type': float,
+        'help': 'Filter 2 thickness in microns'},
+    'filter-2-density': {
+        'default': 1.0,
+        'type': float,
+        'help': 'Filter 2 density in g/cm^3'},
+    'filter-3-auto': {
+        'default': False,
+        'help': 'If True, read filter 3 from HDF meta data',},
+    'filter-3-material': {
+        'default': 'none',
+        'type': str,
+        'help': 'Filter 3 material in microns',
+    'filter-3-thickness': {
+        'default': 0.0,
+        'type': float,
+        'help': 'Filter 3 thickness for beam hardening'},
+    'filter-3-density': {
+        'default': 1.0,
+        'type': float,
+        'help': 'Filter 3 density in g/cm^3'},
+    }
+
 SECTIONS['reconstruction'] = {
     'rotation-axis': {
         'default': -1.0,
