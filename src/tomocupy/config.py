@@ -379,7 +379,10 @@ SECTIONS['reconstruction'] = {
         'help': "Max number of threads for reading by chunks"},
     'minus-log': {
         'default': 'True',
-        'help': "take -log or not"},    
+        'help': "Take -log or not"},    
+    'flat-linear': {
+        'default': 'False',
+        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},        
 }
 
 
