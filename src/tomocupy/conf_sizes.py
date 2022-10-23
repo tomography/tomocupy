@@ -99,7 +99,7 @@ class ConfSizes():
         # define projection chunk size for processing
         ncproj = self.args.nproj_per_chunk
         
-        # take center
+
         centeri = self.args.rotation_axis
         if centeri == -1:
             centeri = ni/2
@@ -139,7 +139,7 @@ class ConfSizes():
             if n!=n0:
                 log.warning(
                     f'Crop data to the power of 2 sizes to work with 16bit precision, output size in x dimension {ni}')
-
+        
         # blocked views fix
         ids_proj = [self.args.start_proj, self.args.end_proj]
         theta = theta[ids_proj[0]:ids_proj[1]]
@@ -194,14 +194,14 @@ class ConfSizes():
             # invert shifts for calculations if centeri<ni for double_fov
             shift_array = np.arange(-self.args.center_search_width,
                                     self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
-            save_centers = (self.centeri - shift_array + self.st_n)*2**self.args.binning
+            save_centers = (self.centeri - shift_array)*2**self.args.binning+self.st_n
             if (self.args.file_type == 'double_fov') and (self.centeri < self.ni//2):
                 shift_array = -shift_array
+            
         elif self.args.reconstruction_type == 'try_lamino':
             shift_array = np.arange(-self.args.lamino_search_width,
                                     self.args.lamino_search_width, self.args.lamino_search_step).astype('float32')
             save_centers = self.args.lamino_angle + shift_array
-
         # calculate chunks
         nschunk = int(np.ceil(len(shift_array)/self.ncz))
         lschunk = np.minimum(self.ncz, np.int32(
