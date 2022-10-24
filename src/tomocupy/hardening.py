@@ -37,9 +37,11 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS          #
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
-
+import re
+from pathlib import Path
 import numpy as np
 import cupy as cp
+import h5py
 from tomocupy import logging
 from beamhardening import beamhardening as bh
 
@@ -85,17 +87,17 @@ class Beam_Corrector():
         
         #Put the linear interpolation values in params
         self.beam_corr.compute_interp_values()
-        self.interp_angles = cp.array(beam_corr.angular_interp_values[0])
-        self.interp_corrector = cp.array(beam_corr.angular_interp_values[1])
-        self.interp_trans = cp.array(beam_corr.centerline_interp_values[0])
-        self.interp_pathlength = cp.array(beam_corr.centerline_interp_values[1])
-        return params
+        self.interp_angles = cp.array(self.beam_corr.angular_interp_values[0])
+        self.interp_corrector = cp.array(self.beam_corr.angular_interp_values[1])
+        self.interp_trans = cp.array(self.beam_corr.centerline_interp_values[0])
+        self.interp_pathlength = cp.array(self.beam_corr.centerline_interp_values[1])
+        self.params = params
     
     def parse_meta(self, params):
-        params = read_pixel_size(params)
-        params = read_filter_materials(params)
-        params = read_scintillator(params)
-        params = read_bright_ratio(params)
+        params = self.read_pixel_size(params)
+        params = self.read_filter_materials(params)
+        params = self.read_scintillator(params)
+        params = self.read_bright_ratio(params)
         return params
 
     def correct_centerline(self, data):
@@ -103,23 +105,24 @@ class Beam_Corrector():
         return data
 
     def correct_angle(self, data, current_rows):
-        angles = self.beam_corr.angles[current_rows]
+        angles = cp.array(self.beam_corr.angles[current_rows.get()])
         correction = cp.interp(angles, self.interp_angles, self.interp_corrector)
-        data[:] = data * correction[cp.newaxis,:,cp.newaxis]
+        for i in range(correction.shape[0]):
+            data[:,i,:] = data[:,i,:] * correction[i]
+        return data
 
-
-    def read_filter_materials(params):
+    def read_filter_materials(self, params):
         '''Read the beam filter configuration.
         This discriminates between files created with tomoScan and
         the previous meta data format.
         '''
-        if check_item_exists_hdf(params.file_name, '/measurement/instrument/attenuator_1'):
-            return read_filter_materials_tomoscan(params)
+        if self.check_item_exists_hdf(params.file_name, '/measurement/instrument/attenuator_1'):
+            return self.read_filter_materials_tomoscan(params)
         else:
-            return read_filter_materials_old(params)
+            return self.read_filter_materials_old(params)
 
 
-    def read_filter_materials_tomoscan(params):
+    def read_filter_materials_tomoscan(self, params):
         '''Read the beam filter configuration from the HDF file.
         
         If params.filter_{n}_auto for n in [1,2,3] is True,
@@ -146,7 +149,7 @@ class Beam_Corrector():
         filter_path = '/measurement/instrument/attenuator_{idx}'
         param_path = 'filter_{idx}_{attr}'
         for idx_filter in range(1,4,1):
-            if not check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter)):
+            if not self.check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter)):
                 log.warning('  *** *** Filter {idx} not found in HDF file.  Set this filter to none'
                                         .format(idx = idx_filter))
                 setattr(params, param_path.format(idx=idx_filter, attr='material'), 'Al')
@@ -158,25 +161,25 @@ class Beam_Corrector():
                 continue
             log.warning('  *** *** auto reading parameters for filter {0}'.format(idx_filter))
             # See if there are description and thickness fields
-            if check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter) + '/description'):
-                filt_material = config.param_from_dxchange(params.file_name,
+            if self.check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter) + '/description'):
+                filt_material = self.param_from_dxchange(params.file_name,
                                             filter_path.format(idx=idx_filter) + '/description',
                                             char_array = True, scalar = False)
-                filt_thickness = int(config.param_from_dxchange(params.file_name,
+                filt_thickness = int(self.param_from_dxchange(params.file_name,
                                             filter_path.format(idx=idx_filter) + '/thickness',
                                             char_array = False, scalar = True))
             else:
                 #The filter info is just the raw string from the filter unit.
                 log.warning('  *** *** filter {idx} info must be read from the raw string'
                                 .format(idx = idx_filter))
-                filter_str = config.param_from_dxchange(params.file_name,
+                filter_str = self.param_from_dxchange(params.file_name,
                                             filter_path.format(idx=idx_filter) + '/setup/filter_unit_text',
                                             char_array = True, scalar = False)
                 if filter_str is None:
                     log.warning('  *** *** Could not load filter %d configuration from HDF5 file.' % idx_filter)
-                    filt_material, filt_thickness = _filter_str_to_params('Open')
+                    filt_material, filt_thickness = self._filter_str_to_params('Open')
                 else: 
-                    filt_material, filt_thickness = _filter_str_to_params(filter_str)
+                    filt_material, filt_thickness = self._filter_str_to_params(filter_str)
 
             # Update the params with the loaded values
             setattr(params, param_path.format(idx=idx_filter, attr='material'), filt_material)
@@ -185,7 +188,7 @@ class Beam_Corrector():
         return params
 
 
-    def read_filter_materials_old(params):
+    def read_filter_materials_old(self, params):
         '''Read the beam filter configuration from the HDF file.
         
         If params.filter_1_material and/or params.filter_2_material are
@@ -217,14 +220,14 @@ class Beam_Corrector():
             filter_param = getattr(params, param_path.format(idx=idx_filter, attr='material'))
             if filter_param == 'auto':
                 # Read recorded filter condition from the HDF5 file
-                filter_str = config.param_from_dxchange(params.file_name,
+                filter_str = self.param_from_dxchange(params.file_name,
                                                         filter_path.format(idx=idx_filter),
                                                         char_array=True, scalar=False)
                 if filter_str is None:
                     log.warning('  *** *** Could not load filter %d configuration from HDF5 file.' % idx_filter)
-                    material, thickness = _filter_str_to_params('Open')
+                    material, thickness = self._filter_str_to_params('Open')
                 else:
-                    material, thickness = _filter_str_to_params(filter_str)
+                    material, thickness = self._filter_str_to_params(filter_str)
                 # Update the params with the loaded values
                 setattr(params, param_path.format(idx=idx_filter, attr='material'), material)
                 setattr(params, param_path.format(idx=idx_filter, attr='thickness'), thickness)
@@ -232,7 +235,7 @@ class Beam_Corrector():
         return params
 
 
-    def _filter_str_to_params(filter_str):
+    def _filter_str_to_params(self, filter_str):
         # Any material with zero thickness is equivalent to being open
         open_filter = ('Al', 0.)
         if filter_str == 'Open':
@@ -264,26 +267,26 @@ class Beam_Corrector():
         return material, thickness
 
 
-    def read_pixel_size(params):
+    def read_pixel_size(self, params):
         '''
         Read the pixel size and magnification from the HDF file.
         Use to compute the effective pixel size.
         '''
         log.info('  *** auto pixel size reading')
-        if params.pixel_size_read != "True":
+        if params.pixel_size_read != True:
             log.info('  *** *** OFF')
             return params
         
-        if check_item_exists_hdf(params.file_name,
+        if self.check_item_exists_hdf(params.file_name,
                                     '/measurement/instrument/detection_system/objective/resolution'):
-            params.pixel_size = config.param_from_dxchange(params.file_name,
+            params.pixel_size = self.param_from_dxchange(params.file_name,
                                                 '/measurement/instrument/detection_system/objective/resolution')
             log.info('  *** *** effective pixel size = {:6.4e} microns'.format(params.pixel_size))
             return(params)
         log.warning('  *** tomoScan resolution parameter not found.  Try old format')
-        pixel_size = config.param_from_dxchange(params.file_name,
+        pixel_size = self.param_from_dxchange(params.file_name,
                                                 '/measurement/instrument/detector/pixel_size_x')
-        mag = config.param_from_dxchange(params.file_name,
+        mag = self.param_from_dxchange(params.file_name,
                                         '/measurement/instrument/detection_system/objective/magnification')
         #Handle case where something wasn't read right
         if not (pixel_size and mag):
@@ -300,16 +303,16 @@ class Beam_Corrector():
         return params
 
 
-    def read_scintillator(params):
+    def read_scintillator(self, params):
         '''Read the scintillator type and thickness from the HDF file.
         '''
         if params.scintillator_read:
             log.info('  *** auto reading scintillator params')
             possible_names = ['/measurement/instrument/detection_system/scintillator/scintillating_thickness',
-                            '/measurements/instrument/detection_system/scintillator/active_thickness']
+                            '/measurement/instrument/detection_system/scintillator/active_thickness']
             for pn in possible_names:
-                if check_item_exists_hdf(params.file_name, pn):
-                    val = config.param_from_dxchange(params.file_name,
+                if self.check_item_exists_hdf(params.file_name, pn):
+                    val = self.param_from_dxchange(params.file_name,
                                              pn, attr=None,
                                              scalar=True,
                                              char_array=False)
@@ -321,15 +324,16 @@ class Beam_Corrector():
                             '/measurement/instrument/detection_system/scintillator/description']
             scint_material_string = ''
             for pn in possible_names:
-                if check_item_exists_hdf(params.file_name, pn):
-                    scint_material_string = config.param_from_dxchange(params.file_name,
+                if self.check_item_exists_hdf(params.file_name, pn):
+                    scint_material_string = self.param_from_dxchange(params.file_name,
                                                 pn, scalar = False, char_array = True)
                     break
             else:
                 log.warning('  *** *** no scintillator material found')
                 return(params)
             if scint_material_string.lower().startswith('luag'):
-                params.scintillator_material = 'LuAG_Ce'
+                params.scintillator_material = 'Lu3Al5O12'
+                params.scintillator_density = 6.9
             elif scint_material_string.lower().startswith('lyso'):
                 params.scintillator_material = 'LYSO_Ce'
             elif scint_material_string.lower().startswith('yag'):
@@ -340,11 +344,10 @@ class Beam_Corrector():
         return params 
 
 
-    def read_bright_ratio(params):
+    def read_bright_ratio(self, params):
         '''Read the ratio between the bright exposure and other exposures.
         '''
-        log.info('  *** *** %s' % params.flat_correction_method)
-        if params.flat_correction_method != 'standard' or (not params.scintillator_auto):
+        if not params.scintillator_read:
             log.warning('  *** *** skip finding exposure ratio')
             params.bright_exp_ratio = 1
             return params
@@ -353,8 +356,8 @@ class Beam_Corrector():
             possible_names = ['/measurement/instrument/detector/different_flat_exposure',
                             '/process/acquisition/flat_fields/different_flat_exposure']
             for pn in possible_names:
-                if check_item_exists_hdf(params.file_name, pn):
-                    diff_bright_exp = config.param_from_dxchange(params.file_name, pn,
+                if self.check_item_exists_hdf(params.file_name, pn):
+                    diff_bright_exp = self.param_from_dxchange(params.file_name, pn,
                                         attr = None, scalar = False, char_array = True)
                     break
             if diff_bright_exp.lower() == 'same':
@@ -365,12 +368,12 @@ class Beam_Corrector():
                             '/process/acquisition/flat_fields/flat_exposure_time',
                             '/measurement/instrument/detector/brightfield_exposure_time']
             for pn in possible_names:
-                if check_item_exists_hdf(params.file_name, pn):
-                    bright_exp = config.param_from_dxchange(params.file_name, pn,
+                if self.check_item_exists_hdf(params.file_name, pn):
+                    bright_exp = self.param_from_dxchange(params.file_name, pn,
                                         attr = None, scalar = True, char_array = False)
                     break    
             log.info('  *** *** %f' % bright_exp)
-            norm_exp = config.param_from_dxchange(params.file_name,
+            norm_exp = self.param_from_dxchange(params.file_name,
                                         '/measurement/instrument/detector/exposure_time',
                                         attr = None, scalar = True, char_array = False)
             log.info('  *** *** %f' % norm_exp)
@@ -382,7 +385,7 @@ class Beam_Corrector():
         return params
 
 
-    def check_item_exists_hdf(hdf_filename, item_name):
+    def check_item_exists_hdf(self, hdf_filename, item_name):
         '''Checks if an item exists in an HDF file.
         Inputs
         hdf_filename: str filename or pathlib.Path object for HDF file to check
@@ -391,3 +394,29 @@ class Beam_Corrector():
         '''
         with h5py.File(hdf_filename, 'r') as hdf_file:
             return item_name in hdf_file
+
+
+    def param_from_dxchange(self, hdf_file, data_path, attr=None, scalar=True, char_array=False):
+        """
+        Reads a parameter from the HDF file.
+        Inputs
+        hdf_file: string path or pathlib.Path object for the HDF file.
+        data_path: path to the requested data in the HDF file.
+        attr: name of the attribute if this is stored as an attribute (default: None)
+        scalar: True if the value is a single valued dataset (dafault: True)
+        char_array: if True, interpret as a character array.  Useful for EPICS strings (default: False)
+        """
+        if not Path(hdf_file).is_file():
+            return None
+        with h5py.File(hdf_file,'r') as f:
+            try:
+                if attr:
+                    return f[data_path].attrs[attr].decode('ASCII')
+                elif char_array:
+                    return ''.join([chr(i) for i in f[data_path][0]]).strip(chr(0))
+                elif scalar:
+                    return f[data_path][0]
+                else:
+                    return None
+            except KeyError:
+                return None

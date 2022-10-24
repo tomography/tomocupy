@@ -98,7 +98,7 @@ class GPURec():
                 cp.cuda.PinnedMemoryPool().malloc)
 
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf, cl_reader)
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
@@ -234,8 +234,8 @@ class GPURec():
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
-                    st = ids[k-2]*ncz+self.args.start_row//2**self.args.binning
-                    end = st+lzchunk[ids[k-2]]
+                    st = ids[k]*ncz+self.args.start_row//2**self.args.binning
+                    end = st+lzchunk[ids[k]]
                     current_rows = cp.arange(st, end)
             self.stream3.synchronize()
             if(k > 1):
@@ -267,7 +267,7 @@ class GPURec():
 
             # preprocessing
             data = self.cl_tomo_func.proc_sino(data, dark, flat)
-            data = self.cl_tomo_func.proc_proj(data)
+            data = self.cl_tomo_func.proc_proj(data, [id_slice])
             data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
             # refs for faster access

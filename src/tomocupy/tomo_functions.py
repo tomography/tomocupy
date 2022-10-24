@@ -52,7 +52,7 @@ import numpy as np
 
 
 class TomoFunctions():
-    def __init__(self, cl_conf):
+    def __init__(self, cl_conf, cl_reader):
 
         self.args = cl_conf.args
         self.ni = cl_conf.ni
@@ -90,8 +90,8 @@ class TomoFunctions():
 
         #Prep for beam hardening if desired
         if self.args.beam_hardening_method != "none":
-            self.bh_obj = hardening.Beam_Corrector(self.args, self.cl_reader)
-
+            self.bh_obj = hardening.Beam_Corrector(self.args, cl_reader)
+            self.args = self.bh_obj.params
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
@@ -102,8 +102,9 @@ class TomoFunctions():
             (flat0-dark0+1e-3)
         res[res <= 0] = 1
         #Account for data with a different bright correction
-        if params.bright_exp_ratio and params.bright_exp_ratio != 1.0:
-            res[:] = res / params.bright_exp_ratio 
+        if hasattr(self.args, 'bright_exp_ratio'):
+            if self.args.bright_exp_ratio and self.args.bright_exp_ratio != 1.0:
+                res[:] = res / self.args.bright_exp_ratio 
         return res
 
     def minus_log(self, data):
@@ -112,14 +113,11 @@ class TomoFunctions():
         data[:] = -cp.log(data)
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0
-        #Handle beam hardening
-        if self.args.beam_hardening_method != "none":
-            data[:] = self.beam_hardening_correct(data)
         return data  # reuse input memory
 
     def beamhardening(self, data, current_rows):
-        data[:] = bh_obj.correct_centerline(data)
-        data[:] = bh_obj.correct_angle(data, current_rows)
+        data[:] = self.bh_obj.correct_centerline(data)
+        data[:] = self.bh_obj.correct_angle(data, current_rows)
         return data
 
     def remove_outliers(self, data):
