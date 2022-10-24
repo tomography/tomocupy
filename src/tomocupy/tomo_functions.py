@@ -43,6 +43,7 @@ from tomocupy import lprec
 from tomocupy import fbp_filter
 from tomocupy import linerec
 from tomocupy import retrieve_phase, remove_stripe, adjust_projections
+from tomocupy import hardening
 import cupyx.scipy.ndimage as ndimage
 
 
@@ -87,6 +88,11 @@ class TomoFunctions():
             self.cl_filter = fbp_filter.FBPFilter(
                 self.ne, self.ncproj, self.nz, self.args.dtype)  # note ncproj,nz!
 
+        #Prep for beam hardening if desired
+        if self.args.beam_hardening_method != "none":
+            self.bh_obj = hardening.Beam_Corrector(self.args, self.cl_reader)
+
+
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
 
@@ -95,6 +101,9 @@ class TomoFunctions():
         res = (data.astype(self.args.dtype, copy=False)-dark0) / \
             (flat0-dark0+1e-3)
         res[res <= 0] = 1
+        #Account for data with a different bright correction
+        if params.bright_exp_ratio and params.bright_exp_ratio != 1.0:
+            res[:] = res / params.bright_exp_ratio 
         return res
 
     def minus_log(self, data):
@@ -103,7 +112,15 @@ class TomoFunctions():
         data[:] = -cp.log(data)
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0
+        #Handle beam hardening
+        if self.args.beam_hardening_method != "none":
+            data[:] = self.beam_hardening_correct(data)
         return data  # reuse input memory
+
+    def beamhardening(self, data, current_rows):
+        data[:] = bh_obj.correct_centerline(data)
+        data[:] = bh_obj.correct_angle(data, current_rows)
+        return data
 
     def remove_outliers(self, data):
         """Remove outliers"""
@@ -173,7 +190,7 @@ class TomoFunctions():
 
         return res
 
-    def proc_proj(self, data, res=None):
+    def proc_proj(self, data, current_rows, res=None):
         """Processing a projection data chunk"""
 
         if not isinstance(res, cp.ndarray):
@@ -188,6 +205,8 @@ class TomoFunctions():
         # minus log
         if self.args.minus_log == 'True':
             data[:] = self.minus_log(data)
+        if self.args.beam_hardening_method != 'none':
+            data[:] = self.beamhardening(data, current_rows)
         # padding for 360 deg recon
         if(self.args.file_type == 'double_fov'):
             res[:] = self.pad360(data)

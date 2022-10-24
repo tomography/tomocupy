@@ -123,7 +123,7 @@ class GPURec():
         self.cl_conf = cl_conf
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
-
+        
     def read_data_to_queue(self, data_queue, read_threads):
         """Reading data from hard disk and putting it to a queue"""
 
@@ -196,7 +196,7 @@ class GPURec():
 
         # chunk ids with parallel read
         ids = []
-
+        current_rows = None
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
@@ -210,7 +210,7 @@ class GPURec():
                     rec = rec_gpu[(k-1) % 2]
 
                     data = self.cl_tomo_func.proc_sino(data, dark, flat)
-                    data = self.cl_tomo_func.proc_proj(data)
+                    data = self.cl_tomo_func.proc_proj(data, current_rows)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
@@ -234,6 +234,9 @@ class GPURec():
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
+                    st = ids[k-2]*ncz+self.args.start_row//2**self.args.binning
+                    end = st+lzchunk[ids[k-2]]
+                    current_rows = cp.arange(st, end)
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)

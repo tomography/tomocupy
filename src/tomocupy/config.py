@@ -277,29 +277,41 @@ SECTIONS['beam-hardening']= {
         'default': 36.0,
         'type': float,
         'help': 'Distance from source to scintillator in m'},
+    'scintillator-read': {
+        'default': False,
+        'help': "When set, read scintillator properties from the HDF file",
+        'action': 'store_true'},
+    'pixel-size-read': {
+        'default': False,
+        'help': "When set, read effective pixel size from the HDF file",
+        'action': 'store_true'},
     'scintillator-material': {
         'default': 'LuAG_Ce',
         'type': str,
-        'help': 'Scintillator material for beam hardening',
+        'help': 'Scintillator material for beam hardening'},
     'scintillator-thickness': {
         'default': 100.0,
         'type': float,
         'help': 'Scintillator thickness in microns'},
+    'scintillator-density': {
+        'default': 6.0,
+        'type': float,
+        'help': 'Density of scintillator in g/cm^3'},
     'sample-material': {
         'default': 'Fe',
         'type': str,
-        'help': 'Sample material for beam hardening',
+        'help': 'Sample material for beam hardening'},
     'sample-density': {
         'default': 1.0,
-        'type': float
-        'help': 'Density of sample material in g/cm^3'
+        'type': float,
+        'help': 'Density of sample material in g/cm^3'},
     'filter-1-auto': {
         'default': False,
-        'help': 'If True, read filter 1 from HDF meta data',},
+        'help': 'If True, read filter 1 from HDF meta data'},
     'filter-1-material': {
         'default': 'none',
         'type': str,
-        'help': 'Filter 1 material for beam hardening',
+        'help': 'Filter 1 material for beam hardening'},
     'filter-1-thickness': {
         'default': 0.0,
         'type': float,
@@ -310,11 +322,11 @@ SECTIONS['beam-hardening']= {
         'help': 'Filter 1 density in g/cm^3'},
     'filter-2-auto': {
         'default': False,
-        'help': 'If True, read filter 2 from HDF meta data',},
+        'help': 'If True, read filter 2 from HDF meta data'},
     'filter-2-material': {
         'default': 'none',
         'type': str,
-        'help': 'Filter 2 material for beam hardening',
+        'help': 'Filter 2 material for beam hardening'},
     'filter-2-thickness': {
         'default': 0.0,
         'type': float,
@@ -325,11 +337,11 @@ SECTIONS['beam-hardening']= {
         'help': 'Filter 2 density in g/cm^3'},
     'filter-3-auto': {
         'default': False,
-        'help': 'If True, read filter 3 from HDF meta data',},
+        'help': 'If True, read filter 3 from HDF meta data'},
     'filter-3-material': {
         'default': 'none',
         'type': str,
-        'help': 'Filter 3 material in microns',
+        'help': 'Filter 3 material in microns'},
     'filter-3-thickness': {
         'default': 0.0,
         'type': float,
@@ -449,9 +461,9 @@ SECTIONS['reconstruction'] = {
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'reconstruction-types')
+                'reconstruction', 'fw', 'ti', 'reconstruction-types', 'beam-hardening', 'retrieve-phase')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction', 
-                      'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
+                      'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj', 'beam-hardening')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
               'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Reconstruction')
