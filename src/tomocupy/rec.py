@@ -267,7 +267,7 @@ class GPURec():
 
             # preprocessing
             data = self.cl_tomo_func.proc_sino(data, dark, flat)
-            data = self.cl_tomo_func.proc_proj(data, [id_slice])
+            data = self.cl_tomo_func.proc_proj(data, cp.array([id_slice]))
             data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
             # refs for faster access

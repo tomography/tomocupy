@@ -72,7 +72,7 @@ class FindCenter():
         cl_conf = conf_sizes.ConfSizes(args, cl_reader)
 
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf, cl_reader)
 
         # additional refs
         self.args = args
