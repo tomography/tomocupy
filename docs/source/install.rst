@@ -22,9 +22,9 @@ Install
 
 ::
     
-    (tomocupy)$ git clone https://github.com/nikitinvv/tomocupy
+    (tomocupy)$ git clone https://github.com/tomography/tomocupy
     (tomocupy)$ cd tomocupy
-    (tomocupy)$ python setup.py install 
+    (tomocupy)$ pip install .
 
 ==========
 Unit tests
@@ -44,4 +44,4 @@ Update
 
     (tomocupy)$ cd tomocupy
     (tomocupy)$ git pull
-    (tomocupy)$ python setup.py install
+    (tomocupy)$ pip install .

@@ -18,13 +18,14 @@ cmd_dict = {
     f'{prefix} --reconstruction-algorithm linerec --binning 1': 11.9,
     f'{prefix} --start-row 3 --end-row 15 --start-proj 200 --end-proj 700': 17.1,
     f'{prefix} --save-format h5': 27.6,
-    f'{prefix} --nsino-per-chunk 2 --double_fov True': 27.6,
+    f'{prefix} --nsino-per-chunk 2 --file-type double_fov': 19.5,
     f'{prefix} --nsino-per-chunk 2 --blocked-views [0.2,1]': 30.0,
     f'{prefix} --nsino-per-chunk 2 --blocked-views [[0.2,1],[2,3]]': 39.98,
     f'{prefix} --remove-stripe-method fw': 27.5,
     f'{prefix} --remove-stripe-method fw --dtype float16': 23.6,
     f'{prefix} --start-column 200 --end-column 1000': 19.2,
     f'{prefix} --start-column 200 --end-column 1000 --binning 1': 8.49,
+    f'{prefix} --flat-linear True': 27.6,
 }
 
 

@@ -159,7 +159,9 @@ class GPURecSteps():
         procs = []
         for k in range(nthreads):
             st_proj = k*lchunk
-            end_proj = (k+1)*lchunk
+            end_proj = min((k+1)*lchunk,self.args.end_proj-self.args.start_proj)
+            if st_proj>=end_proj:
+                continue
             read_thread = Thread(
                 target=self.cl_reader.read_proj_chunk, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
             procs.append(read_thread)
@@ -387,7 +389,7 @@ class GPURecSteps():
                         data0 = self.cl_tomo_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
                         self.cl_tomo_func.cl_rec.backprojection(
-                            rec, data0, self.stream2, theta0, self.cl_conf.lamino_angle, (kr-1)*ncz)
+                            rec, data0, self.stream2, theta0, self.cl_conf.lamino_angle, (kr-1)*ncz+self.args.lamino_start_row//2**self.args.binning)
 
                 if (kr > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
@@ -409,7 +411,7 @@ class GPURecSteps():
                 self.stream3.synchronize()
                 if (kr > 1 and kt == 0):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                    st = (kr-2)*ncz+self.args.start_row//2**self.args.binning
+                    st = (kr-2)*ncz+self.args.lamino_start_row//2**self.args.binning
                     end = st+lrchunk[kr-2]
                     self.write_threads[ithread].run(
                         self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, kr-2))

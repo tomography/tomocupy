@@ -239,6 +239,14 @@ SECTIONS['lamino'] = {
         'default': 0,
         'type': float,
         'help': "Pitch of the stage for laminography"},
+    'lamino-start-row': {
+        'default': 0,
+        'type': int,
+        'help': "Start slice for lamino reconstruction"},
+    'lamino-end-row': {
+        'default': -1,
+        'type': int,
+        'help': "End slice for lamino reconstruction"},
 }
 
 SECTIONS['reconstruction-types'] = {
@@ -356,18 +364,25 @@ SECTIONS['reconstruction'] = {
     'dezinger': {
         'type': int,
         'default': 0,
-        'help': "Radius for removing outliers"},
+        'help': "Width of region for removing outliers"},
+    'dezinger-threshold': {
+        'type': int,
+        'default': 5000,
+        'help': "Threshold of grayscale above local median to be considered a zinger pixel"},
     'max-write-threads': {
         'type': int,
-        'default': 4,
+        'default': 8,
         'help': "Max number of threads for writing by chunks"},
     'max-read-threads': {
         'type': int,
-        'default': 1,
+        'default': 4,
         'help': "Max number of threads for reading by chunks"},
     'minus-log': {
         'default': 'True',
-        'help': "take -log or not"},    
+        'help': "Take -log or not"},    
+    'flat-linear': {
+        'default': 'False',
+        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},        
 }
 
 

@@ -10,10 +10,11 @@ cmd_dict = {
     f'{prefix} --nsino [0,0.5] ': 27.65,
     f'{prefix} --reconstruction-algorithm lprec ': 13.5,
     f'{prefix} --reconstruction-algorithm linerec ': 13.5,
-    f'{prefix} --dtype float16':11.8,
     f'{prefix} --binning 1': 5.29,
-    f'{prefix} --nsino-per-chunk 2 --double_fov True': 13.5,
-    f'{prefix} --center-search-width 30 --center-search-step 2': 12.4
+    f'{prefix} --nsino-per-chunk 2 --file-type double_fov': 10,
+    f'{prefix} --center-search-width 30 --center-search-step 2': 12.4,
+    f'{prefix} --dezinger 2': 13.6,
+    f'{prefix} --flat-linear True': 13.6,
 }
 
 

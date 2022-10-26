@@ -91,10 +91,10 @@ class Writer():
         # init output files
         if(self.args.out_path_name is None):
             fnameout = os.path.dirname(
-                self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec'
-            os.system(f'mkdir -p {fnameout}')
+                self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec'            
         else:
             fnameout = str(self.args.out_path_name)
+        os.system(f'mkdir -p {fnameout}')
 
         if (self.args.clear_folder=='True'):
             log.info('Clearing the output folder')
