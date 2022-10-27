@@ -143,11 +143,14 @@ class Writer():
             try:  # trying to copy meta
                 import meta
                 tree, meta_dict = meta.read_hdf(self.args.file_name)
-                for key, value in meta_dict.items():
-                    # print(key, value)
-                    dset = rec_virtual.create_dataset(key, data=value[0])
-                    if value[1] is not None:
-                        dset.attrs['units'] = value[1]
+                with h5py.File(self.args.file_name,'r') as f:
+                    for key, value in meta_dict.items():
+                        # print(key, value)
+                        dset = rec_virtual.create_dataset(key, data=value[0], dtype=f[key].dtype, shape=(1,))
+                        if value[1] is not None:
+                            s = value[1]
+                            utf8_type = h5py.string_dtype('utf-8', len(s)+1)
+                            dset.attrs['units'] =  np.array(s.encode("utf-8"), dtype=utf8_type)
             except:
                 log.info('Skip copying meta')
                 pass
