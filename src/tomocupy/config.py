@@ -346,6 +346,14 @@ SECTIONS['reconstruction'] = {
         'default': '0.5',
         'type': float,
         'help': "SIFT threshold for rotation search.", },
+    'find-center-start-row': {
+        'type': int,
+        'default': 0,
+        'help': "Start row to find the rotation center"},
+    'find-center-end-row': {
+        'type': int,
+        'default': -1,
+        'help': "End row to find the rotation center"},
     'dtype': {
         'default': 'float32',
         'type': str,

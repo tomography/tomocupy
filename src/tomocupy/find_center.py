@@ -147,12 +147,20 @@ class FindCenter():
 
         flat, dark = self.cl_reader.read_flat_dark(
             self.cl_conf.st_n, self.cl_conf.end_n)
+
+        st_row = self.args.find_center_start_row
+        end_row = self.args.find_center_end_row
+        if end_row == -1:
+            end_row = self.args.end_row
+        flat = flat[:,st_row:end_row]   
+        dark = dark[:,st_row:end_row]  
+        
         if pairs[0] == pairs[1]:
             pairs[0] = 0
             pairs[1] = self.cl_conf.nproj-1
 
         data = self.cl_reader.read_pairs(
-            pairs, self.args.start_row, self.args.end_row, self.cl_conf.st_n, self.cl_conf.end_n)
+            pairs, st_row, end_row, self.cl_conf.st_n, self.cl_conf.end_n)
 
         data = cp.array(data)
         flat = cp.array(flat)
