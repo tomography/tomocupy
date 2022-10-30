@@ -58,6 +58,10 @@ class Reader():
 
     def __init__(self, args):
         self.args = args
+        
+        if self.args.flat_dark_file_name == None:
+            log.warning(f'Using flat and dark fields from {self.args.flat_dark_file_name}')
+            self.args.flat_dark_file_name = self.args.file_name
 
     def read_sizes(self):
         '''
@@ -82,7 +86,7 @@ class Reader():
             sizes['nzi'] = nzi
             sizes['ni'] = ni
 
-        with h5py.File(self.args.flat_field_file_name) as file_in:
+        with h5py.File(self.args.flat_dark_file_name) as file_in:
             dark = file_in['/exchange/data_dark']
             flat = file_in['/exchange/data_white']
             ndark = dark.shape[0]
@@ -125,7 +129,7 @@ class Reader():
                                              st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
                                              
 
-        with h5py.File(self.args.flat_field_file_name) as fid:
+        with h5py.File(self.args.flat_dark_file_name) as fid:
             data_flat = fid['/exchange/data_white'][:,
                                                     st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
             data_dark = fid['/exchange/data_dark'][:,
@@ -149,7 +153,7 @@ class Reader():
     def read_flat_dark(self, st_n, end_n):
         """Read flat and dark"""
 
-        with h5py.File(self.args.flat_field_file_name) as fid:
+        with h5py.File(self.args.flat_dark_file_name) as fid:
             dark = fid['/exchange/data_dark'][:,
                                               self.args.start_row:self.args.end_row, st_n:end_n]
             flat = fid['/exchange/data_white'][:,
