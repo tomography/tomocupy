@@ -60,8 +60,10 @@ class Reader():
         self.args = args
         
         if self.args.flat_dark_file_name == None:
-            log.warning(f'Using flat and dark fields from {self.args.flat_dark_file_name}')
             self.args.flat_dark_file_name = self.args.file_name
+        else:
+            log.warning(f'Using flat and dark fields from {self.args.flat_dark_file_name}')
+
 
     def read_sizes(self):
         '''
