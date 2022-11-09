@@ -105,7 +105,7 @@ class GPURecSteps():
         self.write_threads = []
         for k in range(cl_conf.args.max_write_threads):
             self.write_threads.append(utils.WRThread())
-
+        
         # additional refs
         self.dtype = cl_conf.dtype
         self.in_dtype = cl_conf.in_dtype
@@ -120,11 +120,12 @@ class GPURecSteps():
         log.info('Step 1. Reading data.')
         data, flat, dark = self.read_data_parallel()        
 
-        log.info('Step 2. Processing by chunks in z.')
-        data = self.proc_sino_parallel(data, dark, flat)
+        if self.args.pre_processing == 'True':
+            log.info('Step 2. Processing by chunks in z.')
+            data = self.proc_sino_parallel(data, dark, flat)
 
-        log.info('Step 3. Processing by chunks in angles.')
-        data = self.proc_proj_parallel(data)
+            log.info('Step 3. Processing by chunks in angles.')
+            data = self.proc_proj_parallel(data)
         
         if self.cl_conf.args.reconstruction_type == 'full':
             if self.cl_conf.args.lamino_angle == 0:
@@ -614,3 +615,4 @@ class GPURecSteps():
 
             for t in self.write_threads:
                 t.join()
+                

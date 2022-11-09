@@ -55,6 +55,7 @@ from tomocupy.linerec import *
 from tomocupy.logging import *
 from tomocupy.rec import *
 from tomocupy.rec_steps import *
+from tomocupy.proc import *
 from tomocupy.find_center import *
 from tomocupy.remove_stripe import *
 from tomocupy.retrieve_phase import *

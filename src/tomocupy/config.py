@@ -282,6 +282,11 @@ SECTIONS['reconstruction-steps-types'] = {
         'type': str,
         'help': "Reconstruction algorithm",
         'choices': ['fourierrec', 'linerec']},
+    'pre-processing': {
+        'default': 'True',
+        'type': str,
+        'help': "Preprocess projections or not",
+        'choices': ['True', 'False']},
 }
 
 SECTIONS['reconstruction'] = {
@@ -367,7 +372,7 @@ SECTIONS['reconstruction'] = {
         'default': 'tiff',
         'type': str,
         'help': "Output format",
-        'choices': ['tiff', 'h5']},
+        'choices': ['tiff', 'h5', 'h5sino']},
     'clear-folder': {
         'default': 'False',
         'type': str,
