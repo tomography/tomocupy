@@ -177,4 +177,4 @@ class FindCenter():
             f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
         log.info(
             f'Vertical misalignment {shifts[:, 0]}, mean: {np.mean(shifts[:, 0])}')
-        return np.mean(centers)
+        return np.mean(centers)*2**self.args.binning

@@ -124,6 +124,12 @@ class TomoFunctions():
                 fdata = ndimage.median_filter(data, [w, w])
             data[:]= cp.where(cp.logical_and(data > fdata, (data - fdata) > self.args.dezinger_threshold), fdata, data)
         return data
+        # if(int(self.args.dezinger) > 0):
+        #     r = int(self.args.dezinger)
+        #     fdata = ndimage.median_filter(data, [1, r, r])
+        #     ids = cp.where(cp.abs(fdata-data) > 0.5*cp.abs(fdata))
+        #     data[ids] = fdata[ids]
+        #return data
 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
@@ -177,7 +183,7 @@ class TomoFunctions():
                 res, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
         elif self.args.remove_stripe_method == 'ti':
             res[:] = remove_stripe.remove_stripe_ti(
-                res, self.args.ti_beta)
+                res, self.args.ti_beta,self.args.ti_mask)
 
         return res
 

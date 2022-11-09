@@ -190,6 +190,10 @@ SECTIONS['ti'] = {
         'default': 0.022,  # as in the paper
         'type': float,
         'help': "Parameter for ring removal (0,1)"},
+    'ti-mask': {
+        'default': 1,  
+        'type': float,
+        'help': "Mask size for ring removal (0,1)"},
 }
 
 SECTIONS['retrieve-phase'] = {
