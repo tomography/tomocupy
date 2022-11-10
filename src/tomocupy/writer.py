@@ -78,8 +78,12 @@ class Writer():
     def init_output_files_try(self):
         """Constructing output file names and initiating the actual files"""
 
-        fnameout = os.path.dirname(
-            self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
+        # init output files
+        if(self.args.out_path_name is None):
+            fnameout = os.path.dirname(
+                self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
+        else:
+            fnameout = str(self.args.out_path_name)            
         os.system(f'mkdir -p {fnameout}')
         fnameout += '/recon'
         self.fnameout = fnameout
