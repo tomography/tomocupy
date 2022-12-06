@@ -124,8 +124,10 @@ class Reader():
 
         with h5py.File(self.args.file_name) as fid:
             if isinstance(ids_proj, np.ndarray):
-                data = fid['/exchange/data'][ids_proj, st_z:end_z,
-                                             st_n:end_n].astype(in_dtype, copy=False)
+                #data = fid['/exchange/data'][ids_proj, st_z:end_z,
+                #                             st_n:end_n].astype(in_dtype, copy=False)
+                data = fid['/exchange/data'][:, st_z:end_z,
+                                             st_n:end_n][ids_proj].astype(in_dtype, copy=False) 
             else:
                 data = fid['/exchange/data'][ids_proj[0]:ids_proj[1],
                                              st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)

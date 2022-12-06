@@ -405,6 +405,9 @@ SECTIONS['reconstruction'] = {
     'flat-linear': {
         'default': 'False',
         'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},        
+    'pad-endpoint': {
+        'default': 'False',
+        'help': "Include or not endpoint for smooting in double fov reconstruction (preventing circle in the middle)."},            
 }
 
 

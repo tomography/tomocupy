@@ -159,7 +159,11 @@ class TomoFunctions():
             # if rotation center is on the left side of the ROI
             data[:] = data[:, :, ::-1]
         w = max(1, int(2*(self.ni-self.center)))
-        v = cp.linspace(1, 0, w, endpoint=True)
+        
+        if self.args.pad_endpoint=='True':
+            v = cp.linspace(1, 0, w, endpoint=True)
+        else:
+            v = cp.linspace(1, 0, w, endpoint=False)
         v = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)
         data[:, :, -w:] *= v
 
