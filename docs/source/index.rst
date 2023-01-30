@@ -13,7 +13,7 @@ Features
 
 * Fast tomographic reconstruction on GPU
 * Fast laminographic reconstruction on GPU
-* Efficeint conveyor data processing
+* Efficient conveyor data processing
 * 16-bit or 32-bit arithmetics
 * Manual rotation center search and automatic rotation center search with using SIFT algorithm
 * Manual search of the laminographic tilting angle
