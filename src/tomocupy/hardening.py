@@ -43,6 +43,7 @@ import numpy as np
 import cupy as cp
 import h5py
 from tomocupy import logging
+from tomocupy import utils
 from beamhardening import beamhardening as bh
 
 log = logging.getLogger(__name__)
@@ -97,7 +98,7 @@ class Beam_Corrector():
         params = self.read_pixel_size(params)
         params = self.read_filter_materials(params)
         params = self.read_scintillator(params)
-        params = self.read_bright_ratio(params)
+        params = utils.read_bright_ratio(params)
         return params
 
     def correct_centerline(self, data):
@@ -116,7 +117,7 @@ class Beam_Corrector():
         This discriminates between files created with tomoScan and
         the previous meta data format.
         '''
-        if self.check_item_exists_hdf(params.file_name, '/measurement/instrument/attenuator_1'):
+        if utils.check_item_exists_hdf(params.file_name, '/measurement/instrument/attenuator_1'):
             return self.read_filter_materials_tomoscan(params)
         else:
             return self.read_filter_materials_old(params)
@@ -149,7 +150,7 @@ class Beam_Corrector():
         filter_path = '/measurement/instrument/attenuator_{idx}'
         param_path = 'filter_{idx}_{attr}'
         for idx_filter in range(1,4,1):
-            if not self.check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter)):
+            if not utils.check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter)):
                 log.warning('  *** *** Filter {idx} not found in HDF file.  Set this filter to none'
                                         .format(idx = idx_filter))
                 setattr(params, param_path.format(idx=idx_filter, attr='material'), 'Al')
@@ -161,18 +162,18 @@ class Beam_Corrector():
                 continue
             log.warning('  *** *** auto reading parameters for filter {0}'.format(idx_filter))
             # See if there are description and thickness fields
-            if self.check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter) + '/description'):
-                filt_material = self.param_from_dxchange(params.file_name,
+            if utils.check_item_exists_hdf(params.file_name, filter_path.format(idx = idx_filter) + '/description'):
+                filt_material = utils.param_from_dxchange(params.file_name,
                                             filter_path.format(idx=idx_filter) + '/description',
                                             char_array = True, scalar = False)
-                filt_thickness = int(self.param_from_dxchange(params.file_name,
+                filt_thickness = int(utils.param_from_dxchange(params.file_name,
                                             filter_path.format(idx=idx_filter) + '/thickness',
                                             char_array = False, scalar = True))
             else:
                 #The filter info is just the raw string from the filter unit.
                 log.warning('  *** *** filter {idx} info must be read from the raw string'
                                 .format(idx = idx_filter))
-                filter_str = self.param_from_dxchange(params.file_name,
+                filter_str = utils.param_from_dxchange(params.file_name,
                                             filter_path.format(idx=idx_filter) + '/setup/filter_unit_text',
                                             char_array = True, scalar = False)
                 if filter_str is None:
@@ -220,7 +221,7 @@ class Beam_Corrector():
             filter_param = getattr(params, param_path.format(idx=idx_filter, attr='material'))
             if filter_param == 'auto':
                 # Read recorded filter condition from the HDF5 file
-                filter_str = self.param_from_dxchange(params.file_name,
+                filter_str = utils.param_from_dxchange(params.file_name,
                                                         filter_path.format(idx=idx_filter),
                                                         char_array=True, scalar=False)
                 if filter_str is None:
@@ -277,16 +278,16 @@ class Beam_Corrector():
             log.info('  *** *** OFF')
             return params
         
-        if self.check_item_exists_hdf(params.file_name,
+        if utils.check_item_exists_hdf(params.file_name,
                                     '/measurement/instrument/detection_system/objective/resolution'):
-            params.pixel_size = self.param_from_dxchange(params.file_name,
+            params.pixel_size = utils.param_from_dxchange(params.file_name,
                                                 '/measurement/instrument/detection_system/objective/resolution')
             log.info('  *** *** effective pixel size = {:6.4e} microns'.format(params.pixel_size))
             return(params)
         log.warning('  *** tomoScan resolution parameter not found.  Try old format')
-        pixel_size = self.param_from_dxchange(params.file_name,
+        pixel_size = utils.param_from_dxchange(params.file_name,
                                                 '/measurement/instrument/detector/pixel_size_x')
-        mag = self.param_from_dxchange(params.file_name,
+        mag = utils.param_from_dxchange(params.file_name,
                                         '/measurement/instrument/detection_system/objective/magnification')
         #Handle case where something wasn't read right
         if not (pixel_size and mag):
@@ -311,8 +312,8 @@ class Beam_Corrector():
             possible_names = ['/measurement/instrument/detection_system/scintillator/scintillating_thickness',
                             '/measurement/instrument/detection_system/scintillator/active_thickness']
             for pn in possible_names:
-                if self.check_item_exists_hdf(params.file_name, pn):
-                    val = self.param_from_dxchange(params.file_name,
+                if utils.check_item_exists_hdf(params.file_name, pn):
+                    val = utils.param_from_dxchange(params.file_name,
                                              pn, attr=None,
                                              scalar=True,
                                              char_array=False)
@@ -324,8 +325,8 @@ class Beam_Corrector():
                             '/measurement/instrument/detection_system/scintillator/description']
             scint_material_string = ''
             for pn in possible_names:
-                if self.check_item_exists_hdf(params.file_name, pn):
-                    scint_material_string = self.param_from_dxchange(params.file_name,
+                if utils.check_item_exists_hdf(params.file_name, pn):
+                    scint_material_string = utils.param_from_dxchange(params.file_name,
                                                 pn, scalar = False, char_array = True)
                     break
             else:
@@ -342,81 +343,3 @@ class Beam_Corrector():
                 log.warning('  *** *** scintillator {:s} not recognized!'.format(scint_material_string))
             log.info('  *** *** using scintillator {:s}'.format(params.scintillator_material))
         return params 
-
-
-    def read_bright_ratio(self, params):
-        '''Read the ratio between the bright exposure and other exposures.
-        '''
-        if not params.scintillator_read:
-            log.warning('  *** *** skip finding exposure ratio')
-            params.bright_exp_ratio = 1
-            return params
-        log.info('  *** *** Find bright exposure ratio params from the HDF file')
-        try:
-            possible_names = ['/measurement/instrument/detector/different_flat_exposure',
-                            '/process/acquisition/flat_fields/different_flat_exposure']
-            for pn in possible_names:
-                if self.check_item_exists_hdf(params.file_name, pn):
-                    diff_bright_exp = self.param_from_dxchange(params.file_name, pn,
-                                        attr = None, scalar = False, char_array = True)
-                    break
-            if diff_bright_exp.lower() == 'same':
-                log.error('  *** *** used same flat and data exposures')
-                params.bright_exp_ratio = 1
-                return params
-            possible_names = ['/measurement/instrument/detector/exposure_time_flat',
-                            '/process/acquisition/flat_fields/flat_exposure_time',
-                            '/measurement/instrument/detector/brightfield_exposure_time']
-            for pn in possible_names:
-                if self.check_item_exists_hdf(params.file_name, pn):
-                    bright_exp = self.param_from_dxchange(params.file_name, pn,
-                                        attr = None, scalar = True, char_array = False)
-                    break    
-            log.info('  *** *** %f' % bright_exp)
-            norm_exp = self.param_from_dxchange(params.file_name,
-                                        '/measurement/instrument/detector/exposure_time',
-                                        attr = None, scalar = True, char_array = False)
-            log.info('  *** *** %f' % norm_exp)
-            params.bright_exp_ratio = bright_exp / norm_exp
-            log.info('  *** *** found bright exposure ratio of {0:6.4f}'.format(params.bright_exp_ratio))
-        except:
-            log.warning('  *** *** problem getting bright exposure ratio.  Use 1.')
-            params.bright_exp_ratio = 1
-        return params
-
-
-    def check_item_exists_hdf(self, hdf_filename, item_name):
-        '''Checks if an item exists in an HDF file.
-        Inputs
-        hdf_filename: str filename or pathlib.Path object for HDF file to check
-        item_name: name of item whose existence needs to be checked
-        path: str path to check.  Default to None
-        '''
-        with h5py.File(hdf_filename, 'r') as hdf_file:
-            return item_name in hdf_file
-
-
-    def param_from_dxchange(self, hdf_file, data_path, attr=None, scalar=True, char_array=False):
-        """
-        Reads a parameter from the HDF file.
-        Inputs
-        hdf_file: string path or pathlib.Path object for the HDF file.
-        data_path: path to the requested data in the HDF file.
-        attr: name of the attribute if this is stored as an attribute (default: None)
-        scalar: True if the value is a single valued dataset (dafault: True)
-        char_array: if True, interpret as a character array.  Useful for EPICS strings (default: False)
-        """
-        if not Path(hdf_file).is_file():
-            return None
-        with h5py.File(hdf_file,'r') as f:
-            try:
-                if attr:
-                    return f[data_path].attrs[attr].decode('ASCII')
-                elif char_array:
-                    return ''.join([chr(i) for i in f[data_path][0]]).strip(chr(0))
-                elif scalar:
-                    return f[data_path][0]
-                else:
-                    return None
-            except KeyError:
-                return None
