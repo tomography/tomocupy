@@ -44,6 +44,7 @@ from tomocupy import fbp_filter
 from tomocupy import linerec
 from tomocupy import retrieve_phase, remove_stripe, adjust_projections
 from tomocupy import hardening
+from tomocupy import utils
 import cupyx.scipy.ndimage as ndimage
 
 
@@ -92,6 +93,9 @@ class TomoFunctions():
         if self.args.beam_hardening_method != "none":
             self.bh_obj = hardening.Beam_Corrector(self.args, cl_reader)
             self.args = self.bh_obj.params
+
+        #Find the exposure ratio
+        self.args = utils.read_bright_ratio(self.args)
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
