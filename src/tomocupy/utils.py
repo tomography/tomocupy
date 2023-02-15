@@ -47,6 +47,8 @@ import time
 import numexpr as ne
 from tomocupy import logging
 
+log = logging.getLogger(__name__)
+
 # Print iterations progress
 
 
