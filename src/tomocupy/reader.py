@@ -58,6 +58,12 @@ class Reader():
 
     def __init__(self, args):
         self.args = args
+        
+        if self.args.flat_dark_file_name == None:
+            self.args.flat_dark_file_name = self.args.file_name
+        else:
+            log.warning(f'Using flat and dark fields from {self.args.flat_dark_file_name}')
+
 
     def read_sizes(self):
         '''
@@ -71,23 +77,26 @@ class Reader():
         ndark - number of dark fields
         dtype - data type (e.g., 'uint16', 'uint8')
         '''
+        sizes = {}
 
         with h5py.File(self.args.file_name) as file_in:
             data = file_in['/exchange/data']
-            dark = file_in['/exchange/data_dark']
-            flat = file_in['/exchange/data_white']
             nproj, nzi, ni = data.shape[:]
-            ndark = dark.shape[0]
-            nflat = flat.shape[0]
 
-            sizes = {}
+            sizes['dtype'] = data.dtype
             sizes['nproji'] = nproj
             sizes['nzi'] = nzi
             sizes['ni'] = ni
+
+        with h5py.File(self.args.flat_dark_file_name) as file_in:
+            dark = file_in['/exchange/data_dark']
+            flat = file_in['/exchange/data_white']
+            ndark = dark.shape[0]
+            nflat = flat.shape[0]
+
             sizes['ndark'] = ndark
             sizes['nflat'] = nflat
-            sizes['dtype'] = data.dtype
-
+            
         return sizes
 
     def read_theta(self):
@@ -120,6 +129,9 @@ class Reader():
             else:
                 data = fid['/exchange/data'][ids_proj[0]:ids_proj[1],
                                              st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
+                                             
+
+        with h5py.File(self.args.flat_dark_file_name) as fid:
             data_flat = fid['/exchange/data_white'][:,
                                                     st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
             data_dark = fid['/exchange/data_dark'][:,
@@ -143,7 +155,7 @@ class Reader():
     def read_flat_dark(self, st_n, end_n):
         """Read flat and dark"""
 
-        with h5py.File(self.args.file_name) as fid:
+        with h5py.File(self.args.flat_dark_file_name) as fid:
             dark = fid['/exchange/data_dark'][:,
                                               self.args.start_row:self.args.end_row, st_n:end_n]
             flat = fid['/exchange/data_white'][:,

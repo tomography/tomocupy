@@ -128,6 +128,11 @@ SECTIONS['file-reading'] = {
         'type': Path,
         'help': "Name of the last used hdf file or directory containing multiple hdf files",
         'metavar': 'PATH'},
+    'flat-dark-file-name': {
+        'default': None,
+        'type': Path,
+        'help': "Name of the hdf file containing flat and dark data",
+        'metavar': 'PATH'},
     'out-path-name': {
         'default': None,
         'type': Path,
@@ -185,6 +190,10 @@ SECTIONS['ti'] = {
         'default': 0.022,  # as in the paper
         'type': float,
         'help': "Parameter for ring removal (0,1)"},
+    'ti-mask': {
+        'default': 1,  
+        'type': float,
+        'help': "Mask size for ring removal (0,1)"},
 }
 
 SECTIONS['retrieve-phase'] = {
@@ -239,6 +248,14 @@ SECTIONS['lamino'] = {
         'default': 0,
         'type': float,
         'help': "Pitch of the stage for laminography"},
+    'lamino-start-row': {
+        'default': 0,
+        'type': int,
+        'help': "Start slice for lamino reconstruction"},
+    'lamino-end-row': {
+        'default': -1,
+        'type': int,
+        'help': "End slice for lamino reconstruction"},
 }
 
 SECTIONS['reconstruction-types'] = {
@@ -265,6 +282,11 @@ SECTIONS['reconstruction-steps-types'] = {
         'type': str,
         'help': "Reconstruction algorithm",
         'choices': ['fourierrec', 'linerec']},
+    'pre-processing': {
+        'default': 'True',
+        'type': str,
+        'help': "Preprocess projections or not",
+        'choices': ['True', 'False']},
 }
 
 SECTIONS['beam-hardening']= {
@@ -418,6 +440,14 @@ SECTIONS['reconstruction'] = {
         'default': '0.5',
         'type': float,
         'help': "SIFT threshold for rotation search.", },
+    'find-center-start-row': {
+        'type': int,
+        'default': 0,
+        'help': "Start row to find the rotation center"},
+    'find-center-end-row': {
+        'type': int,
+        'default': -1,
+        'help': "End row to find the rotation center"},
     'dtype': {
         'default': 'float32',
         'type': str,
@@ -427,7 +457,7 @@ SECTIONS['reconstruction'] = {
         'default': 'tiff',
         'type': str,
         'help': "Output format",
-        'choices': ['tiff', 'h5']},
+        'choices': ['tiff', 'h5', 'h5sino']},
     'clear-folder': {
         'default': 'False',
         'type': str,
@@ -456,7 +486,10 @@ SECTIONS['reconstruction'] = {
         'help': "Max number of threads for reading by chunks"},
     'minus-log': {
         'default': 'True',
-        'help': "take -log or not"},    
+        'help': "Take -log or not"},    
+    'flat-linear': {
+        'default': 'False',
+        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},        
 }
 
 

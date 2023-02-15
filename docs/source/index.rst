@@ -6,13 +6,14 @@ Tomocupy
 
 Tomocupy implements an efficient data processing conveyor allowing to overlap all data transfers with computations. First, independent Python threads are started for reading data chunks from the hard disk into a Python data queue and for writing reconstructed chunks from the Python queue to the hard disk. Second, CPU-GPU data transfers are overlapped with GPU computations by using CUDA streams. 
 
+**Note:** For the best performance it is recommended to use fast data storage otherwise most of reconstruction time will be spent for rw operations. PCIe NVME SSDs (e.g., Samsung 970/980 EVO/PRO) allows for parallel data read/write operations and with tomocupy works 4-8 times faster than regular HDD. 
 
 Features
 --------
 
 * Fast tomographic reconstruction on GPU
 * Fast laminographic reconstruction on GPU
-* Efficeint conveyor data processing
+* Efficient conveyor data processing
 * 16-bit or 32-bit arithmetics
 * Manual rotation center search and automatic rotation center search with using SIFT algorithm
 * Manual search of the laminographic tilting angle

@@ -83,11 +83,11 @@ def remove_stripe_fw(data, sigma, wname, level):
     data = cp.asarray(sli[:, 0, (nproj_pad - nproj) //
                       2:(nproj_pad + nproj)//2, :ni]).astype(data.dtype)  # modified
     data = data.swapaxes(0, 1)
-
+    
     return data
 
 
-def remove_stripe_ti(data, beta):
+def remove_stripe_ti(data, beta, mask_size):
     """Remove stripes with a new method by V. Titareno """
     gamma = beta*((1-beta)/(1+beta)
                   )**cp.abs(cp.fft.fftfreq(data.shape[-1])*data.shape[-1])
@@ -95,5 +95,8 @@ def remove_stripe_ti(data, beta):
     v = cp.mean(data, axis=0)
     v = v-v[:, 0:1]
     v = cp.fft.irfft(cp.fft.rfft(v)*cp.fft.rfft(gamma))
-    data[:] += v
+    mask = cp.zeros(v.shape,dtype=v.dtype)
+    mask_size = mask_size*mask.shape[1]
+    mask[:,mask.shape[1]//2-mask_size//2:mask.shape[1]//2+mask_size//2] = 1
+    data[:] += v*mask
     return data

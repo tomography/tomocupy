@@ -96,8 +96,16 @@ class TomoFunctions():
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
 
-        dark0 = cp.mean(dark.astype(self.args.dtype, copy=False), axis=0)
-        flat0 = cp.mean(flat.astype(self.args.dtype, copy=False), axis=0)
+        dark0 = dark.astype(self.args.dtype, copy=False)
+        flat0 = flat.astype(self.args.dtype, copy=False)
+        if self.args.flat_linear=='True' and data.shape[0]==self.nproj:#works only for processing all angles
+            flat0_p0 = cp.mean(flat0[:flat0.shape[0]//2],axis=0)
+            flat0_p1 = cp.mean(flat0[flat0.shape[0]//2+1:],axis=0)
+            v = cp.linspace(0,1,self.nproj)[...,cp.newaxis,cp.newaxis]
+            flat0 = (1-v)*flat0_p0+v*flat0_p1            
+        else:
+            flat0 = cp.mean(flat0,axis=0)
+        dark0 = cp.mean(dark0,axis=0)
         res = (data.astype(self.args.dtype, copy=False)-dark0) / \
             (flat0-dark0+1e-3)
         res[res <= 0] = 1
@@ -131,6 +139,12 @@ class TomoFunctions():
                 fdata = ndimage.median_filter(data, [w, w])
             data[:]= cp.where(cp.logical_and(data > fdata, (data - fdata) > self.args.dezinger_threshold), fdata, data)
         return data
+        # if(int(self.args.dezinger) > 0):
+        #     r = int(self.args.dezinger)
+        #     fdata = ndimage.median_filter(data, [1, r, r])
+        #     ids = cp.where(cp.abs(fdata-data) > 0.5*cp.abs(fdata))
+        #     data[ids] = fdata[ids]
+        #return data
 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
@@ -160,7 +174,7 @@ class TomoFunctions():
             # if rotation center is on the left side of the ROI
             data[:] = data[:, :, ::-1]
         w = max(1, int(2*(self.ni-self.center)))
-        v = cp.linspace(1, 0, w, endpoint=False)
+        v = cp.linspace(1, 0, w, endpoint=True)
         v = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)
         data[:, :, -w:] *= v
 
@@ -184,7 +198,7 @@ class TomoFunctions():
                 res, self.args.fw_sigma, self.args.fw_filter, self.args.fw_level)
         elif self.args.remove_stripe_method == 'ti':
             res[:] = remove_stripe.remove_stripe_ti(
-                res, self.args.ti_beta)
+                res, self.args.ti_beta,self.args.ti_mask)
 
         return res
 
