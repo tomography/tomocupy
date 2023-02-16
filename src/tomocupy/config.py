@@ -128,6 +128,11 @@ SECTIONS['file-reading'] = {
         'type': Path,
         'help': "Name of the last used hdf file or directory containing multiple hdf files",
         'metavar': 'PATH'},
+    'flat-dark-file-name': {
+        'default': None,
+        'type': Path,
+        'help': "Name of the hdf file containing flat and dark data",
+        'metavar': 'PATH'},
     'out-path-name': {
         'default': None,
         'type': Path,
@@ -185,6 +190,10 @@ SECTIONS['ti'] = {
         'default': 0.022,  # as in the paper
         'type': float,
         'help': "Parameter for ring removal (0,1)"},
+    'ti-mask': {
+        'default': 1,  
+        'type': float,
+        'help': "Mask size for ring removal (0,1)"},
 }
 
 SECTIONS['retrieve-phase'] = {
@@ -273,6 +282,11 @@ SECTIONS['reconstruction-steps-types'] = {
         'type': str,
         'help': "Reconstruction algorithm",
         'choices': ['fourierrec', 'linerec']},
+    'pre-processing': {
+        'default': 'True',
+        'type': str,
+        'help': "Preprocess projections or not",
+        'choices': ['True', 'False']},
 }
 
 SECTIONS['reconstruction'] = {
@@ -341,6 +355,14 @@ SECTIONS['reconstruction'] = {
         'default': '0.5',
         'type': float,
         'help': "SIFT threshold for rotation search.", },
+    'find-center-start-row': {
+        'type': int,
+        'default': 0,
+        'help': "Start row to find the rotation center"},
+    'find-center-end-row': {
+        'type': int,
+        'default': -1,
+        'help': "End row to find the rotation center"},
     'dtype': {
         'default': 'float32',
         'type': str,
@@ -350,7 +372,7 @@ SECTIONS['reconstruction'] = {
         'default': 'tiff',
         'type': str,
         'help': "Output format",
-        'choices': ['tiff', 'h5']},
+        'choices': ['tiff', 'h5', 'h5sino']},
     'clear-folder': {
         'default': 'False',
         'type': str,

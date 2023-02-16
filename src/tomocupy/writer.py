@@ -67,6 +67,9 @@ class Writer():
         self.nzchunk = cl_conf.nzchunk
         self.lzchunk = cl_conf.lzchunk
         self.ncz = cl_conf.ncz
+        self.nproj = cl_conf.nproj
+        self.theta = cl_conf.theta
+        
         if self.args.reconstruction_type[:3] == 'try':
             self.init_output_files_try()
         else:
@@ -75,8 +78,12 @@ class Writer():
     def init_output_files_try(self):
         """Constructing output file names and initiating the actual files"""
 
-        fnameout = os.path.dirname(
-            self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
+        # init output files
+        if(self.args.out_path_name is None):
+            fnameout = os.path.dirname(
+                self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
+        else:
+            fnameout = str(self.args.out_path_name)            
         os.system(f'mkdir -p {fnameout}')
         fnameout += '/recon'
         self.fnameout = fnameout
@@ -158,6 +165,28 @@ class Writer():
             rec_virtual.close()
             config.update_hdf_process(fnameout, self.args, sections=(
                 'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
+        elif self.args.save_format == 'h5sino':
+            # if save results as h5 virtual datasets
+            fnameout += '.h5'
+            # Assemble virtual dataset
+            layout = h5py.VirtualLayout(shape=(
+                self.nproj, self.nzi/2**self.args.binning, self.n), dtype=self.dtype)
+            os.system(f'mkdir -p {fnameout[:-3]}_parts')
+            for k in range(self.nzchunk):
+                filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
+                vsource = h5py.VirtualSource(
+                    filename, "/exchange/data", shape=(self.nproj, self.lzchunk[k], self.n), dtype=self.dtype)
+                st = self.args.start_row//2**self.args.binning+k*self.ncz
+                layout[:,st:st+self.lzchunk[k]] = vsource
+            # Add virtual dataset to output file
+            rec_virtual = h5py.File(fnameout, "w")
+            dset_rec = rec_virtual.create_virtual_dataset(
+                "/exchange/data", layout)
+            rec_virtual.create_dataset('/exchange/theta',data = self.theta/np.pi*180)
+            rec_virtual.create_dataset('/exchange/data_white', data = np.ones([1,self.nzi//2**self.args.binning, self.n],dtype='float32'))
+            rec_virtual.create_dataset('/exchange/data_dark', data = np.zeros([1,self.nzi//2**self.args.binning, self.n],dtype='float32'))
+            rec_virtual.close()
+            
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
@@ -173,6 +202,11 @@ class Writer():
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
+        elif self.args.save_format == 'h5sino':
+            filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
+            with h5py.File(filename, "w") as fid:
+                fid.create_dataset("/exchange/data", data=rec,
+                                   chunks=(self.nproj, 1, self.n))
 
     def write_data_try(self, rec, cid, id_slice):
         """Write tiff reconstruction with a given name"""
