@@ -38,14 +38,16 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
+import os
+import time
+from pathlib import Path
+from threading import Thread
+import argparse
+import h5py
 import numpy as np
 import cupy as cp
-import argparse
-import os
-from threading import Thread
-import time
 import numexpr as ne
-from tomocupy import logging
+from tomocupy import log_local as logging
 
 log = logging.getLogger(__name__)
 
@@ -175,7 +177,7 @@ def read_bright_ratio(params):
                         '/measurement/instrument/detector/brightfield_exposure_time']
         for pn in possible_names:
             if check_item_exists_hdf(params.file_name, pn):
-                bright_exp = self.param_from_dxchange(params.file_name, pn,
+                bright_exp = param_from_dxchange(params.file_name, pn,
                                     attr = None, scalar = True, char_array = False)
                 break    
         log.info('  *** *** %f' % bright_exp)

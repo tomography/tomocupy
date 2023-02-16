@@ -44,13 +44,14 @@ from pathlib import Path
 import argparse
 import configparser
 from collections import OrderedDict
-import logging
+#import logging
 import warnings
 import inspect
 
 import h5py
 import numpy as np
 
+from tomocupy import log_local as logging
 from tomocupy import utils
 from tomocupy import __version__
 

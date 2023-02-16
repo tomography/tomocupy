@@ -38,7 +38,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy import logging
+from tomocupy import log_local as logging
 import numpy as np
 from ast import literal_eval
         

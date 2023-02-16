@@ -42,7 +42,7 @@ from pathlib import Path
 import numpy as np
 import cupy as cp
 import h5py
-from tomocupy import logging
+from tomocupy import log_local as logging
 from tomocupy import utils
 from beamhardening import beamhardening as bh
 

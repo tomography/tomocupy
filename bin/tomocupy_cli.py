@@ -9,7 +9,7 @@ import h5py
 import subprocess
 import time
 
-from tomocupy import logging
+from tomocupy import log_local as logging
 from tomocupy import config
 from tomocupy import GPURec
 from tomocupy import FindCenter
@@ -155,7 +155,6 @@ def main():
     lfname = os.path.join(logs_home, 'tomocupyfp16on_' +
                           datetime.strftime(datetime.now(), "%Y-%m-%d_%H_%M_%S") + '.log')
     log_level = 'DEBUG' if args.verbose else "INFO"
-    import pdb; pdb.set_trace()
     logging.setup_custom_logger(lfname, level=log_level)
     log.debug("Started tomocupyfp16on")
     log.info("Saving log at %s" % lfname)

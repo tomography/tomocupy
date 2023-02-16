@@ -116,7 +116,7 @@ class TomoFunctions():
         #Account for data with a different bright correction
         if hasattr(self.args, 'bright_exp_ratio'):
             if self.args.bright_exp_ratio and self.args.bright_exp_ratio != 1.0:
-                res[:] = res / self.args.bright_exp_ratio 
+                res[:] = res * self.args.bright_exp_ratio 
         return res
 
     def minus_log(self, data):
