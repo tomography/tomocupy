@@ -59,11 +59,15 @@ class Reader():
     def __init__(self, args):
         self.args = args
         
-        if self.args.flat_dark_file_name == None:
-            self.args.flat_dark_file_name = self.args.file_name
+        if self.args.dark_file_name == None:
+            self.args.dark_file_name = self.args.file_name
         else:
-            log.warning(f'Using flat and dark fields from {self.args.flat_dark_file_name}')
+            log.warning(f'Using dark fields from {self.args.dark_file_name}')
 
+        if self.args.flat_file_name == None:
+            self.args.flat_file_name = self.args.file_name
+        else:
+            log.warning(f'Using flat fields from {self.args.flat_file_name}')
 
     def read_sizes(self):
         '''
@@ -88,15 +92,16 @@ class Reader():
             sizes['nzi'] = nzi
             sizes['ni'] = ni
 
-        with h5py.File(self.args.flat_dark_file_name) as file_in:
-            dark = file_in['/exchange/data_dark']
+        with h5py.File(self.args.flat_file_name) as file_in:
             flat = file_in['/exchange/data_white']
-            ndark = dark.shape[0]
             nflat = flat.shape[0]
-
-            sizes['ndark'] = ndark
             sizes['nflat'] = nflat
-            
+
+        with h5py.File(self.args.dark_file_name) as file_in:
+            dark = file_in['/exchange/data_dark']
+            ndark = dark.shape[0]
+            sizes['ndark'] = ndark
+
         return sizes
 
     def read_theta(self):
@@ -133,11 +138,14 @@ class Reader():
                                              st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
                                              
 
-        with h5py.File(self.args.flat_dark_file_name) as fid:
-            data_flat = fid['/exchange/data_white'][:,
-                                                    st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
+        with h5py.File(self.args.dark_file_name) as fid:
             data_dark = fid['/exchange/data_dark'][:,
                                                    st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
+
+
+        with h5py.File(self.args.flat_file_name) as fid:
+            data_flat = fid['/exchange/data_white'][:,
+                                                    st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
 
             item = {}
             item['data'] = utils.downsample(data, self.args.binning)

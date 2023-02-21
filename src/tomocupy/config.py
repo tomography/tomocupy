@@ -128,7 +128,12 @@ SECTIONS['file-reading'] = {
         'type': Path,
         'help': "Name of the last used hdf file or directory containing multiple hdf files",
         'metavar': 'PATH'},
-    'flat-dark-file-name': {
+    'flat-file-name': {
+        'default': None,
+        'type': Path,
+        'help': "Name of the hdf file containing flat and dark data",
+        'metavar': 'PATH'},
+    'dark-file-name': {
         'default': None,
         'type': Path,
         'help': "Name of the hdf file containing flat and dark data",
