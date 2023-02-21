@@ -165,14 +165,17 @@ class Reader():
     def read_flat_dark(self, st_n, end_n):
         """Read flat and dark"""
 
-        with h5py.File(self.args.flat_dark_file_name) as fid:
+        with h5py.File(self.args.dark_file_name) as fid:
             dark = fid['/exchange/data_dark'][:,
                                               self.args.start_row:self.args.end_row, st_n:end_n]
+            dark = utils.downsample(dark, self.args.binning)
+
+        with h5py.File(self.args.flat_file_name) as fid:
             flat = fid['/exchange/data_white'][:,
                                                self.args.start_row:self.args.end_row, st_n:end_n]
             flat = utils.downsample(flat, self.args.binning)
-            dark = utils.downsample(dark, self.args.binning)
-            return flat, dark
+
+        return flat, dark
 
     def read_pairs(self, pairs, st_z, end_z, st_n, end_n):
         """Read projection pairs for automatic search of the rotation center. E.g. pairs=[0,1499] for the regular 180 deg dataset [1500,2048,2448]. """
