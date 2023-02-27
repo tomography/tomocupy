@@ -37,7 +37,17 @@ Install
     (tomocupy)$ pip install .
     (tomocupy)$ cd -
 
-3. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
+5. Intall meta for supporting hdf meta data writer used by option: --save-format h5
+
+::
+
+    (tomocupy)$ git clone https://github.com/xray-imaging/meta.git
+    (tomocupy)$ cd meta
+    (tomocupy)$ pip install .
+    (tomocupy)$ cd -
+
+
+6. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
 
 ::
     
