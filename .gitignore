@@ -162,8 +162,3 @@ script
 *.png
 *.tiff
 *.npy
-
-# cfunc generated files
-_cfunc*
-cfunc*
-out*
