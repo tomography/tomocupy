@@ -6,7 +6,14 @@ Install
 
 ::
 
-    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py python=3.10
+    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py python=3.9
+
+
+.. warning:: Conda has a built-in mechanism to determine and install the latest version of cudatoolkit supported by your driver. However, if for any reason you need to force-install a particular CUDA version (say 11.0), you can do:
+
+::
+
+    $ conda install -c conda-forge cupy cudatoolkit=11.0
 
 2. Activate tomocupy environment
 
