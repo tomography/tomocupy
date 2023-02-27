@@ -146,12 +146,13 @@ class Writer():
             dset_rec.attrs["axes"] = 'z:y:x'
             dset_rec.attrs["description"] = 'ReconData'
             dset_rec.attrs["units"] = 'counts'
+            print('0')
 
             self.write_meta(rec_virtual)
+            # print('1')
 
             rec_virtual.close()
-            config.update_hdf_process(fnameout, self.args, sections=(
-                'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
+            config.update_hdf_process(fnameout, self.args, sections=config.RECON_STEPS_PARAMS)
         elif self.args.save_format == 'h5sino':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
