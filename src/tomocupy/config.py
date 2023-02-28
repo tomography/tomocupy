@@ -131,12 +131,12 @@ SECTIONS['file-reading'] = {
     'flat-file-name': {
         'default': None,
         'type': Path,
-        'help': "Name of the hdf file containing flat and dark data",
+        'help': "Name of the hdf file containing flat data",
         'metavar': 'PATH'},
     'dark-file-name': {
         'default': None,
         'type': Path,
-        'help': "Name of the hdf file containing flat and dark data",
+        'help': "Name of the hdf file containing dark data",
         'metavar': 'PATH'},
     'out-path-name': {
         'default': None,
@@ -208,24 +208,24 @@ SECTIONS['retrieve-phase'] = {
         'help': "Phase retrieval correction method",
         'choices': ['none', 'paganin']},
     'energy': {
-        'default': 20,
+        'default': 0,
         'type': float,
         'help': "X-ray energy [keV]"},
     'propagation-distance': {
-        'default': 60,
+        'default': 0,
         'type': float,
         'help': "Sample detector distance [mm]"},
     'pixel-size': {
-        'default': 1.17,
+        'default': 0,
         'type': float,
         'help': "Pixel size [microns]"},
     'retrieve-phase-alpha': {
-        'default': 0.001,
+        'default': 0,
         'type': float,
         'help': "Regularization parameter"},
     'retrieve-phase-pad': {
         'type': utils.positive_int,
-        'default': 8,
+        'default': 1,
         'help': "Padding with extra slices in z for phase-retrieval filtering"},
 }
 
@@ -418,7 +418,7 @@ SECTIONS['reconstruction'] = {
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
                 'reconstruction', 'fw', 'ti', 'reconstruction-types')
-RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction', 
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
                       'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',

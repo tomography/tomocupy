@@ -147,24 +147,10 @@ class Writer():
             dset_rec.attrs["description"] = 'ReconData'
             dset_rec.attrs["units"] = 'counts'
 
-            try:  # trying to copy meta
-                import meta
-                tree, meta_dict = meta.read_hdf(self.args.file_name)
-                with h5py.File(self.args.file_name,'r') as f:
-                    for key, value in meta_dict.items():
-                        # print(key, value)
-                        dset = rec_virtual.create_dataset(key, data=value[0], dtype=f[key].dtype, shape=(1,))
-                        if value[1] is not None:
-                            s = value[1]
-                            utf8_type = h5py.string_dtype('utf-8', len(s)+1)
-                            dset.attrs['units'] =  np.array(s.encode("utf-8"), dtype=utf8_type)
-            except:
-                log.info('Skip copying meta')
-                pass
+            self.write_meta(rec_virtual)
 
             rec_virtual.close()
-            config.update_hdf_process(fnameout, self.args, sections=(
-                'file-reading', 'remove-stripe',  'reconstruction', 'blocked-views', 'fw'))
+            config.update_hdf_process(fnameout, self.args, sections=config.RECON_STEPS_PARAMS)
         elif self.args.save_format == 'h5sino':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
@@ -185,10 +171,32 @@ class Writer():
             rec_virtual.create_dataset('/exchange/theta',data = self.theta/np.pi*180)
             rec_virtual.create_dataset('/exchange/data_white', data = np.ones([1,self.nzi//2**self.args.binning, self.n],dtype='float32'))
             rec_virtual.create_dataset('/exchange/data_dark', data = np.zeros([1,self.nzi//2**self.args.binning, self.n],dtype='float32'))
+
+            self.write_meta(rec_virtual)
+
             rec_virtual.close()
             
         self.fnameout = fnameout
         log.info(f'Output: {fnameout}')
+
+    def write_meta(self, rec_virtual):
+
+        try:  # trying to copy meta
+            import meta
+            tree, meta_dict = meta.read_hdf(self.args.file_name)
+            with h5py.File(self.args.file_name,'r') as f:
+                log.info("  *** meta data from raw dataset %s copied to rec hdf file" % self.args.file_name)
+                for key, value in meta_dict.items():
+                    # print(key, value)
+                    if key.find('exchange') != 1:
+                        dset = rec_virtual.create_dataset(key, data=value[0], dtype=f[key].dtype, shape=(1,))
+                        if value[1] is not None:
+                            s = value[1]
+                            utf8_type = h5py.string_dtype('utf-8', len(s)+1)
+                            dset.attrs['units'] =  np.array(s.encode("utf-8"), dtype=utf8_type)
+        except:
+            log.error('write_meta() error: Skip copying meta')
+            pass        
 
     def write_data_chunk(self, rec, st, end, k):
         """Writing the kth data chunk to hard disk"""

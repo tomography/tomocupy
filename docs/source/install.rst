@@ -6,7 +6,14 @@ Install
 
 ::
 
-    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py python=3.10
+    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py python=3.9
+
+
+.. warning:: Conda has a built-in mechanism to determine and install the latest version of cudatoolkit supported by your driver. However, if for any reason you need to force-install a particular CUDA version (say 11.0), you can do:
+
+::
+
+    $ conda install -c conda-forge cupy cudatoolkit=11.0
 
 2. Activate tomocupy environment
 
@@ -30,7 +37,17 @@ Install
     (tomocupy)$ pip install .
     (tomocupy)$ cd -
 
-3. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
+5. Intall meta for supporting hdf meta data writer used by option: --save-format h5
+
+::
+
+    (tomocupy)$ git clone https://github.com/xray-imaging/meta.git
+    (tomocupy)$ cd meta
+    (tomocupy)$ pip install .
+    (tomocupy)$ cd -
+
+
+6. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
 
 ::
     
