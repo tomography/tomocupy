@@ -48,6 +48,9 @@ def run_rec(args):
             clpthandle.recon_all()
         if(args.reconstruction_type == 'try'):
             clpthandle.recon_try()
+        # update config file
+        # sections = config.RECON_PARAMS
+        # config.write(args.config, args=args, sections=sections)
     else:
         log.error("File Name does not exist: %s" % args.file_name)
 
@@ -90,6 +93,11 @@ def run_recstep(args):
         clpthandle = GPURecSteps(args)
         clpthandle.recon_steps_all()
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
+
+        # # update config file
+        # sections = config.RECON_STEPS_PARAMS
+        # config.write(args.config, args=args, sections=sections)
+
     else:
         log.error("File Name does not exist: %s" % args.file_name)
 
