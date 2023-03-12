@@ -151,6 +151,30 @@ class Writer():
 
             rec_virtual.close()
             config.update_hdf_process(fnameout, self.args, sections=config.RECON_STEPS_PARAMS)
+
+        elif self.args.save_format == 'h5nolinks':
+            fnameout += '.h5'
+            h5w = h5py.File(fnameout, "w")
+            dset_rec = h5w.create_dataset("/exchange/data", shape=(int(self.nzi/2**self.args.binning), self.n, self.n), dtype=self.dtype)
+
+            # saving command line to repeat the reconstruction as attribute of /exchange/data
+            rec_line = sys.argv
+            # remove full path to the file
+            rec_line[0] = os.path.basename(rec_line[0])
+            s = ' '.join(rec_line).encode("utf-8")
+            dset_rec.attrs["command"] = np.array(
+                s, dtype=h5py.string_dtype('utf-8', len(s)))
+            dset_rec.attrs["axes"] = 'z:y:x'
+            dset_rec.attrs["description"] = 'ReconData'
+            dset_rec.attrs["units"] = 'counts'
+
+            self.write_meta(h5w)
+
+            self.h5w = h5w
+            self.dset_rec = dset_rec
+
+            config.update_hdf_process(fnameout, self.args, sections=config.RECON_STEPS_PARAMS)
+
         elif self.args.save_format == 'h5sino':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
@@ -210,6 +234,8 @@ class Writer():
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
+        elif self.args.save_format == 'h5nolinks':
+            self.h5w['/exchange/data'][st:end, :, :] = rec 
         elif self.args.save_format == 'h5sino':
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
