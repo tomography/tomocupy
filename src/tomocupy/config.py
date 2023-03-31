@@ -301,7 +301,7 @@ SECTIONS['reconstruction'] = {
         'help': "Location of rotation axis"},
     'center-search-width': {
         'type': float,
-        'default': 10.0,
+        'default': 50.0,
         'help': "+/- center search width (pixel). "},
     'center-search-step': {
         'type': float,
