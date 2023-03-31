@@ -165,6 +165,11 @@ class ConfSizes():
         ltchunk = np.minimum(
             ncproj, np.int32(nproj-np.arange(ntchunk)*ncproj))  # chunk sizes in proj
 
+        tmp = literal_eval(self.args.nsino)
+        if not isinstance(tmp, list):
+            tmp = [tmp]  
+        self.id_slices = np.int32(np.array(tmp)*(nz*2**self.args.binning-1) /
+                            2**self.args.binning)*2**self.args.binning
         self.n = n
         self.nz = nz
         self.ncz = ncz
@@ -209,12 +214,7 @@ class ConfSizes():
         self.shift_array = shift_array
         self.save_centers = save_centers
         self.nschunk = nschunk
-        self.lschunk = lschunk
-        tmp = literal_eval(self.args.nsino)
-        if not isinstance(tmp, list):
-            tmp = [tmp]  
-        self.id_slices = np.int32(np.array(tmp)*(self.nz*2**self.args.binning-1) /
-                            2**self.args.binning)*2**self.args.binning
+        self.lschunk = lschunk        
 
     def init_sizes_lamino(self):
         """Calculating sizes for laminography reconstruction by chunks"""

@@ -26,6 +26,8 @@ cmd_dict = {
     f'{prefix} --start-column 200 --end-column 1000': 19.2,
     f'{prefix} --start-column 200 --end-column 1000 --binning 1': 8.49,
     f'{prefix} --flat-linear True': 27.6,
+    f'{prefix} --rotation-axis-auto auto --rotation-axis-method sift  --reconstruction-type full' : 27.618,
+    f'{prefix} --rotation-axis-auto auto --rotation-axis-method vo --center-search-step 0.1 --nsino 0.5 --center-search-width 100 --reconstruction-type full' : 27.617,
 }
 
 

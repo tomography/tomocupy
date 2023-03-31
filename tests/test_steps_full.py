@@ -7,7 +7,7 @@ import h5py
 
 prefix = 'tomocupy recon_steps --file-name data/test_data.h5 --rotation-axis 782.5 --nsino-per-chunk 4 --reconstruction-type full'
 cmd_dict = {
-    # f'{prefix}': 27.6,
+    f'{prefix}': 27.6,
     f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --propagation-distance 60 --energy 20 --pixel-size 1.17': 20.5,
     f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --propagation-distance 60 --energy 20 --pixel-size 1.17 --dtype float16 ': 17.2,
     f'{prefix} --reconstruction-algorithm linerec': 27.6,

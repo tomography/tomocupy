@@ -360,6 +360,10 @@ SECTIONS['reconstruction'] = {
         'default': '0.5',
         'type': float,
         'help': "SIFT threshold for rotation search.", },
+    'rotation-axis-method': {
+        'default': 'sift',  
+        'type': str,        
+        'choices': ['sift', 'vo']},
     'find-center-start-row': {
         'type': int,
         'default': 0,
