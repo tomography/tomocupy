@@ -46,7 +46,8 @@ from cupyx.scipy.ndimage import median_filter
 from cupyx.scipy import signal
 from cupyx.scipy.ndimage import binary_dilation
 from cupyx.scipy.ndimage import uniform_filter1d
-from cupyx.scipy import interpolate
+from scipy import interpolate
+import numpy as np
 
 
 def remove_stripe_fw(data, sigma, wname, level):
@@ -110,6 +111,7 @@ def remove_stripe_ti(data, beta, mask_size):
 # Vo-all
 
 
+# @profile
 def _rs_sort(sinogram, size, matindex, dim):
     """
     Remove stripes using the sorting technique.
@@ -126,6 +128,7 @@ def _rs_sort(sinogram, size, matindex, dim):
     return cp.transpose(sino_corrected)
 
 
+# @profile
 def _detect_stripe(listdata, snr):
     """
     Algorithm 4 in :cite:`Vo:18`. Used to locate stripes.
@@ -151,21 +154,28 @@ def _detect_stripe(listdata, snr):
     return listmask
 
 
+# @profile
 def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
     """
     Remove large stripes.
     """
-    drop_ratio = cp.clip(drop_ratio, 0.0, 0.8)
+    drop_ratio = max(min(drop_ratio,0.8),0)# = cp.clip(drop_ratio, 0.0, 0.8)
     (nrow, ncol) = sinogram.shape
     ndrop = int(0.5 * drop_ratio * nrow)
     sinosort = cp.sort(sinogram, axis=0)
     sinosmooth = median_filter(sinosort, (1, size))
     list1 = cp.mean(sinosort[ndrop:nrow - ndrop], axis=0)
     list2 = cp.mean(sinosmooth[ndrop:nrow - ndrop], axis=0)
-    listfact = cp.divide(list1,
-                         list2,
-                         out=cp.ones_like(list1),
-                         where=list2 != 0)
+    # listfact = cp.divide(list1,
+    #                      list2,
+    #                      out=cp.ones_like(list1),
+    #                      where=list2 != 0)
+    
+    listfact = cp.ones_like(list1)
+    ids = cp.where(list2 != 0)[0]
+    listfact[ids] = list1[ids]/list2[ids]                    
+    
+    
     # Locate stripes
     listmask = _detect_stripe(listfact, snr)
     listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
@@ -184,6 +194,7 @@ def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
     return sinogram
 
 
+# @profile
 def _rs_dead(sinogram, snr, size, matindex, norm=True):
     """
     Remove unresponsive and fluctuating stripes.
@@ -193,10 +204,12 @@ def _rs_dead(sinogram, snr, size, matindex, norm=True):
     sinosmooth = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
     listdiff = cp.sum(cp.abs(sinogram - sinosmooth), axis=0)
     listdiffbck = median_filter(listdiff, size)
-    listfact = cp.divide(listdiff,
-                         listdiffbck,
-                         out=cp.ones_like(listdiff),
-                         where=listdiffbck != 0)
+    
+    
+    listfact = cp.ones_like(listdiff)
+    ids = cp.where(listdiffbck != 0)[0]
+    listfact[ids] = listdiff[ids]/listdiffbck[ids]                    
+    
     listmask = _detect_stripe(listfact, snr)
     listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
     listmask[0:2] = 0.0
@@ -204,10 +217,19 @@ def _rs_dead(sinogram, snr, size, matindex, norm=True):
     listx = cp.where(listmask < 1.0)[0]
     listy = cp.arange(nrow)
     matz = sinogram[:, listx]
-    finter = interpolate.interp2d(listx, listy, matz, kind='linear')
-    listxmiss = cp.where(listmask > 0.0)[0]
+    
+    # sinogram_c=sinogram.get()    
+    listxmiss = cp.where(listmask > 0.0)[0]    
+    
+    # finter = interpolate.interp2d(listx.get(), listy.get(), matz.get(), kind='linear')    
     if len(listxmiss) > 0:
-        sinogram[:, listxmiss] = finter(listxmiss, listy)
+        # sinogram_c[:, listxmiss.get()] = finter(listxmiss.get(), listy.get())        
+        for k in range(nrow):
+            sinogram[k, listxmiss] = cp.interp(listxmiss, listx, matz[k])#finter(listxmiss.get(), listy.get())                                
+    
+    # print(np.linalg.norm(sinogram_c-sinogram.get()))
+    # return sinogram
+
     # Remove residual stripes
     if norm is True:
         sinogram = _rs_large(sinogram, snr, size, matindex)
@@ -221,7 +243,6 @@ def _create_matindex(nrow, ncol):
     listindex = cp.arange(0.0, ncol, 1.0)
     matindex = cp.tile(listindex, (nrow, 1))
     return matindex
-
 
 def remove_all_stripe(tomo,
                       snr=3,
