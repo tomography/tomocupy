@@ -118,12 +118,28 @@ def _rs_sort(sinogram, size, matindex, dim):
     """
     sinogram = cp.transpose(sinogram)
     matcomb = cp.asarray(cp.dstack((matindex, sinogram)))
-    matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcomb])
+    
+    # matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcomb])
+    ids = cp.argsort(matcomb[:,:,1],axis=1)
+    matsort = matcomb.copy()
+    matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
+    matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
+    # print(matsort.shape,matsort2.shape)
+    # print(np.linalg.norm(matsort-matsort2))
     if dim == 1:
         matsort[:, :, 1] = median_filter(matsort[:, :, 1], (size, 1))
     else:
         matsort[:, :, 1] = median_filter(matsort[:, :, 1], (size, size))
-    matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
+    
+    # matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
+    
+    ids = cp.argsort(matsort[:,:,0],axis=1)
+    matsortback = matsort.copy()
+    matsortback[:,:,0] = cp.take_along_axis(matsortback[:,:,0],ids,axis=1)
+    matsortback[:,:,1] = cp.take_along_axis(matsortback[:,:,1],ids,axis=1)
+    # print(np.linalg.norm(matsortback-matsortback2))
+    
+    
     sino_corrected = matsortback[:, :, 1]
     return cp.transpose(sino_corrected)
 
@@ -171,9 +187,10 @@ def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
     #                      out=cp.ones_like(list1),
     #                      where=list2 != 0)
     
-    listfact = cp.ones_like(list1)
-    ids = cp.where(list2 != 0)[0]
-    listfact[ids] = list1[ids]/list2[ids]                    
+    # listfact = cp.ones_like(list1)
+    # ids = cp.where(list2 != 0)[0]
+    listfact = list1/list2
+    # listfact[list2==0]=1
     
     
     # Locate stripes
@@ -185,9 +202,21 @@ def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
         sinogram = sinogram / matfact
     sinogram1 = cp.transpose(sinogram)
     matcombine = cp.asarray(cp.dstack((matindex, sinogram1)))
-    matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcombine])
+    
+    # matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcombine])
+    ids = cp.argsort(matcombine[:,:,1],axis=1)
+    matsort = matcombine.copy()
+    matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
+    matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
+    
+    
     matsort[:, :, 1] = cp.transpose(sinosmooth)
-    matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
+    # matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
+    ids = cp.argsort(matsort[:,:,0],axis=1)
+    matsortback = matsort.copy()
+    matsortback[:,:,0] = cp.take_along_axis(matsortback[:,:,0],ids,axis=1)
+    matsortback[:,:,1] = cp.take_along_axis(matsortback[:,:,1],ids,axis=1)
+    
     sino_corrected = cp.transpose(matsortback[:, :, 1])
     listxmiss = cp.where(listmask > 0.0)[0]
     sinogram[:, listxmiss] = sino_corrected[:, listxmiss]
@@ -201,14 +230,22 @@ def _rs_dead(sinogram, snr, size, matindex, norm=True):
     """
     sinogram = cp.copy(sinogram)  # Make it mutable
     (nrow, _) = sinogram.shape
-    sinosmooth = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
+    # sinosmooth = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
+    sinosmooth = uniform_filter1d(sinogram, 10, axis=0)
+    
+    # sinosmooth2 = sinogram.copy() 
+    # for k in range(sinosmooth2.shape[0]):
+    #     sinosmooth2[:,:,k] = uniform_filter1d(sinogram[k],10)
+    # # = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
+    # print(np.linalg.norm(sinosmooth-sinosmooth2))
+    
     listdiff = cp.sum(cp.abs(sinogram - sinosmooth), axis=0)
     listdiffbck = median_filter(listdiff, size)
     
     
-    listfact = cp.ones_like(listdiff)
-    ids = cp.where(listdiffbck != 0)[0]
-    listfact[ids] = listdiff[ids]/listdiffbck[ids]                    
+    # listfact = cp.ones_like(listdiff)
+    # ids = cp.where(listdiffbck != 0)[0]
+    listfact = listdiff/listdiffbck
     
     listmask = _detect_stripe(listfact, snr)
     listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
@@ -224,9 +261,28 @@ def _rs_dead(sinogram, snr, size, matindex, norm=True):
     # finter = interpolate.interp2d(listx.get(), listy.get(), matz.get(), kind='linear')    
     if len(listxmiss) > 0:
         # sinogram_c[:, listxmiss.get()] = finter(listxmiss.get(), listy.get())        
-        for k in range(nrow):
-            sinogram[k, listxmiss] = cp.interp(listxmiss, listx, matz[k])#finter(listxmiss.get(), listy.get())                                
-    
+        # print(np.linalg.norm(listx-np.sort(listx)))
+        # print('1')
+        # print(sinogram_c[:,listxmiss])
+        # for k in range(nrow):
+            # print(listx,listxmiss)
+            # sinogram[k, listxmiss] = cp.interp(listxmiss, listx, matz[k])#finter(listxmiss.get(), listy.get())                                
+            # y0 = matz[k,ids-1]
+            # y1 = matz[k,ids]
+            # x0 = listx[ids-1]
+            # x1 = listx[ids]
+            # x = listxmiss
+            # sinogram_c[:,listxmiss] = matz[:,ids-1]+(listxmiss-listx[ids-1])*(matz[k,ids]-matz[k,ids-1])/(listx[ids]-listx[ids-1])
+        ids = cp.searchsorted(listx, listxmiss)
+        sinogram[:,listxmiss] = matz[:,ids-1]+(listxmiss-listx[ids-1])*(matz[:,ids]-matz[:,ids-1])/(listx[ids]-listx[ids-1])
+        
+        # print(sinogram_c[:,listxmiss])
+        # print(sinogram[:,listxmiss])
+        # print(np.linalg.norm(sinogram-sinogram_c))
+        # listxmiss_int = np.int32(listxmiss)
+        # listxmiss_float = listxmiss-np.int32(listxmiss)
+        # sinogram[k, listxmiss]
+        
     # print(np.linalg.norm(sinogram_c-sinogram.get()))
     # return sinogram
 

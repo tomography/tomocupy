@@ -28,6 +28,7 @@ cmd_dict = {
     f'{prefix} --flat-linear True': 27.6,
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method sift  --reconstruction-type full' : 27.618,
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method vo --center-search-step 0.1 --nsino 0.5 --center-search-width 100 --reconstruction-type full' : 27.617,
+    f'{prefix} --remove-stripe-method vo-all ': 27.300305247306824,
 }
 
 
@@ -60,7 +61,7 @@ class Tests(unittest.TestCase):
                         f'data_rec/test_data_rec/recon_{k:05}.tiff'))
                 except:
                     pass
-            self.assertAlmostEqual(ssum, cmd[1], places=0)
+            self.assertAlmostEqual(ssum, cmd[1], places=5)
 
 
 if __name__ == '__main__':
