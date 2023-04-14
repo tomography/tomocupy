@@ -326,7 +326,7 @@ def _calculate_metric(shift_col, sino1, sino2, sino3, mask):
             sino_shift[:, shift_col:] = sino3[:, shift_col:]
         mat = cp.vstack((sino1, sino_shift))
     else:
-        sino_shift = ndimage.interpolation.shift(
+        sino_shift = ndimage.shift(
             sino2, (0, shift_col), order=3, prefilter=True)
         if shift_col >= 0:
             shift_int = int(np.ceil(shift_col))
