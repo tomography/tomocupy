@@ -108,10 +108,7 @@ def remove_stripe_ti(data, beta, mask_size):
     data[:] += v*mask
     return data
 
-# Vo-all
-
-
-# @profile
+# Optimized version for Vo-all ring removal in tomopy
 def _rs_sort(sinogram, size, matindex, dim):
     """
     Remove stripes using the sorting technique.
@@ -124,8 +121,6 @@ def _rs_sort(sinogram, size, matindex, dim):
     matsort = matcomb.copy()
     matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
     matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
-    # print(matsort.shape,matsort2.shape)
-    # print(np.linalg.norm(matsort-matsort2))
     if dim == 1:
         matsort[:, :, 1] = median_filter(matsort[:, :, 1], (size, 1))
     else:
@@ -137,14 +132,22 @@ def _rs_sort(sinogram, size, matindex, dim):
     matsortback = matsort.copy()
     matsortback[:,:,0] = cp.take_along_axis(matsortback[:,:,0],ids,axis=1)
     matsortback[:,:,1] = cp.take_along_axis(matsortback[:,:,1],ids,axis=1)
-    # print(np.linalg.norm(matsortback-matsortback2))
-    
     
     sino_corrected = matsortback[:, :, 1]
     return cp.transpose(sino_corrected)
 
+def _mpolyfit(x,y):
+    n= len(x)
+    x_mean = cp.mean(x)
+    y_mean = cp.mean(y)
+    
+    Sxy = cp.sum(x*y) - n*x_mean*y_mean
+    Sxx = cp.sum(x*x) - n*x_mean*x_mean
+    
+    slope = Sxy / Sxx
+    intercept = y_mean - slope*x_mean
+    return slope,intercept
 
-# @profile
 def _detect_stripe(listdata, snr):
     """
     Algorithm 4 in :cite:`Vo:18`. Used to locate stripes.
@@ -153,8 +156,10 @@ def _detect_stripe(listdata, snr):
     listsorted = cp.sort(listdata)[::-1]
     xlist = cp.arange(0, numdata, 1.0)
     ndrop = cp.int16(0.25 * numdata)
-    (_slope, _intercept) = cp.polyfit(xlist[ndrop:-ndrop - 1],
-                                      listsorted[ndrop:-ndrop - 1], 1)
+    # (_slope, _intercept) = cp.polyfit(xlist[ndrop:-ndrop - 1],
+                                    #   listsorted[ndrop:-ndrop - 1], 1)
+    (_slope, _intercept) = _mpolyfit(xlist[ndrop:-ndrop - 1], listsorted[ndrop:-ndrop - 1])
+
     numt1 = _intercept + _slope * xlist[-1]
     noiselevel = cp.abs(numt1 - _intercept)
     noiselevel = cp.clip(noiselevel, 1e-6, None)
@@ -169,8 +174,6 @@ def _detect_stripe(listdata, snr):
         listmask[listdata <= lower_thresh] = 1.0
     return listmask
 
-
-# @profile
 def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
     """
     Remove large stripes.
@@ -187,11 +190,7 @@ def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
     #                      out=cp.ones_like(list1),
     #                      where=list2 != 0)
     
-    # listfact = cp.ones_like(list1)
-    # ids = cp.where(list2 != 0)[0]
     listfact = list1/list2
-    # listfact[list2==0]=1
-    
     
     # Locate stripes
     listmask = _detect_stripe(listfact, snr)
@@ -209,7 +208,6 @@ def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
     matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
     matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
     
-    
     matsort[:, :, 1] = cp.transpose(sinosmooth)
     # matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
     ids = cp.argsort(matsort[:,:,0],axis=1)
@@ -222,8 +220,6 @@ def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
     sinogram[:, listxmiss] = sino_corrected[:, listxmiss]
     return sinogram
 
-
-# @profile
 def _rs_dead(sinogram, snr, size, matindex, norm=True):
     """
     Remove unresponsive and fluctuating stripes.
@@ -233,18 +229,10 @@ def _rs_dead(sinogram, snr, size, matindex, norm=True):
     # sinosmooth = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
     sinosmooth = uniform_filter1d(sinogram, 10, axis=0)
     
-    # sinosmooth2 = sinogram.copy() 
-    # for k in range(sinosmooth2.shape[0]):
-    #     sinosmooth2[:,:,k] = uniform_filter1d(sinogram[k],10)
-    # # = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
-    # print(np.linalg.norm(sinosmooth-sinosmooth2))
-    
     listdiff = cp.sum(cp.abs(sinogram - sinosmooth), axis=0)
     listdiffbck = median_filter(listdiff, size)
     
     
-    # listfact = cp.ones_like(listdiff)
-    # ids = cp.where(listdiffbck != 0)[0]
     listfact = listdiff/listdiffbck
     
     listmask = _detect_stripe(listfact, snr)
@@ -255,37 +243,14 @@ def _rs_dead(sinogram, snr, size, matindex, norm=True):
     listy = cp.arange(nrow)
     matz = sinogram[:, listx]
     
-    # sinogram_c=sinogram.get()    
     listxmiss = cp.where(listmask > 0.0)[0]    
     
     # finter = interpolate.interp2d(listx.get(), listy.get(), matz.get(), kind='linear')    
     if len(listxmiss) > 0:
         # sinogram_c[:, listxmiss.get()] = finter(listxmiss.get(), listy.get())        
-        # print(np.linalg.norm(listx-np.sort(listx)))
-        # print('1')
-        # print(sinogram_c[:,listxmiss])
-        # for k in range(nrow):
-            # print(listx,listxmiss)
-            # sinogram[k, listxmiss] = cp.interp(listxmiss, listx, matz[k])#finter(listxmiss.get(), listy.get())                                
-            # y0 = matz[k,ids-1]
-            # y1 = matz[k,ids]
-            # x0 = listx[ids-1]
-            # x1 = listx[ids]
-            # x = listxmiss
-            # sinogram_c[:,listxmiss] = matz[:,ids-1]+(listxmiss-listx[ids-1])*(matz[k,ids]-matz[k,ids-1])/(listx[ids]-listx[ids-1])
         ids = cp.searchsorted(listx, listxmiss)
         sinogram[:,listxmiss] = matz[:,ids-1]+(listxmiss-listx[ids-1])*(matz[:,ids]-matz[:,ids-1])/(listx[ids]-listx[ids-1])
         
-        # print(sinogram_c[:,listxmiss])
-        # print(sinogram[:,listxmiss])
-        # print(np.linalg.norm(sinogram-sinogram_c))
-        # listxmiss_int = np.int32(listxmiss)
-        # listxmiss_float = listxmiss-np.int32(listxmiss)
-        # sinogram[k, listxmiss]
-        
-    # print(np.linalg.norm(sinogram_c-sinogram.get()))
-    # return sinogram
-
     # Remove residual stripes
     if norm is True:
         sinogram = _rs_large(sinogram, snr, size, matindex)
