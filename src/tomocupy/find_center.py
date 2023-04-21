@@ -227,15 +227,15 @@ class FindCenter():
         _tomo_fs = ndimage.gaussian_filter(_tomo, (2, 2), mode='reflect')
 
         # Coarse and fine searches for finding the rotation center.
-        if _tomo.shape[0] * _tomo.shape[1] > 4e6:  # If data is large (>2kx2k)
-            _tomo_coarse = _downsample(_tomo_cs, level=2)
-            init_cen = _search_coarse(
-                _tomo_coarse, smin / 4.0, smax / 4.0, ratio, drop)
-            fine_cen = _search_fine(_tomo_fs, srad, step,
-                                    init_cen * 4.0, ratio, drop)
-        else:
-            init_cen = _search_coarse(_tomo_cs, smin, smax, ratio, drop)
-            fine_cen = _search_fine(_tomo_fs, srad, step,
+        # if _tomo.shape[0] * _tomo.shape[1] > 4e6:  # If data is large (>2kx2k)
+        #     _tomo_coarse = _downsample(_tomo_cs, level=2)
+        #     init_cen = _search_coarse(
+        #         _tomo_coarse, smin / 4.0, smax / 4.0, ratio, drop)
+        #     fine_cen = _search_fine(_tomo_fs, srad, step,
+        #                             init_cen * 4.0, ratio, drop)
+        # else:
+        init_cen = _search_coarse(_tomo_cs, smin, smax, ratio, drop)
+        fine_cen = _search_fine(_tomo_fs, srad, step,
                                     init_cen, ratio, drop)
         log.debug('Rotation center search finished: %i', fine_cen)
         return fine_cen
