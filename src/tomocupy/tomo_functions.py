@@ -141,6 +141,8 @@ class TomoFunctions():
             w = t * (1 - t * 2)**3
         elif self.args.fbp_filter == 'shepp':
             w = t * cp.sinc(t)
+        elif self.args.fbp_filter == 'ramp':
+            w = t
 
         tmp = cp.pad(
             data, ((0, 0), (0, 0), (self.ne//2-self.n//2, self.ne//2-self.n//2)), mode='edge')
