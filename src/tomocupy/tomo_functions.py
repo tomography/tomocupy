@@ -68,7 +68,6 @@ class TomoFunctions():
             # power of 2 for float16
             self.ne = 2**int(np.ceil(np.log2(self.ne)))
 
-        self.wfilter = utils.take_filter(self.ne,self.args.fbp_filter)
         if self.args.lamino_angle == 0:
             if self.args.reconstruction_algorithm == 'fourierrec':
                 self.cl_rec = fourierrec.FourierRec(
@@ -88,6 +87,8 @@ class TomoFunctions():
                 cp.array(cl_conf.theta), self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
             self.cl_filter = fbp_filter.FBPFilter(
                 self.ne, self.ncproj, self.nz, self.args.dtype)  # note ncproj,nz!
+        self.wfilter = self.cl_filter.calc_filter(self.args.fbp_filter)
+
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
