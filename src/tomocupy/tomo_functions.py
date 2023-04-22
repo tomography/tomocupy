@@ -42,6 +42,7 @@ from tomocupy import fourierrec
 from tomocupy import lprec
 from tomocupy import fbp_filter
 from tomocupy import linerec
+from tomocupy import utils
 from tomocupy import retrieve_phase, remove_stripe, adjust_projections
 import cupyx.scipy.ndimage as ndimage
 
@@ -62,11 +63,12 @@ class TomoFunctions():
         self.ncproj = cl_conf.ncproj
         self.centeri = cl_conf.centeri
         self.center = cl_conf.center
-        self.ne = 3*self.n//2
+        self.ne = 4*self.n
         if self.args.dtype == 'float16':
             # power of 2 for float16
-            self.ne = 2**int(np.ceil(np.log2(3*self.n//2)))
+            self.ne = 2**int(np.ceil(np.log2(self.ne)))
 
+        self.wfilter = utils.take_filter(self.ne,self.args.fbp_filter)
         if self.args.lamino_angle == 0:
             if self.args.reconstruction_algorithm == 'fourierrec':
                 self.cl_rec = fourierrec.FourierRec(
@@ -101,8 +103,7 @@ class TomoFunctions():
         else:
             flat0 = cp.mean(flat0, axis=0)
         dark0 = cp.mean(dark0, axis=0)
-        res = (data.astype(self.args.dtype, copy=False)-dark0) / \
-            (flat0-dark0+1e-3)
+        res = (data.astype(self.args.dtype, copy=False)-dark0) / (flat0-dark0)
         res[res <= 0] = 1
         return res
 
@@ -133,24 +134,18 @@ class TomoFunctions():
         #     data[ids] = fdata[ids]
         # return data
 
+
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
 
-        t = cp.fft.rfftfreq(self.ne).astype('float32')
-        if self.args.fbp_filter == 'parzen':
-            w = t * (1 - t * 2)**3
-        elif self.args.fbp_filter == 'shepp':
-            w = t * cp.sinc(t)
-        elif self.args.fbp_filter == 'ramp':
-            w = t
-
         tmp = cp.pad(
             data, ((0, 0), (0, 0), (self.ne//2-self.n//2, self.ne//2-self.n//2)), mode='edge')
-        w = w*cp.exp(-2*cp.pi*1j*t*(-self.center +
+        t = cp.fft.rfftfreq(self.ne).astype('float32')
+        w = self.wfilter*cp.exp(-2*cp.pi*1j*t*(-self.center +
                                     sht[:, cp.newaxis]+self.n/2))  # center fix
 
         # tmp = cp.fft.irfft(
-        # beta*cp.fft.rfft(tmp, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
+            # w*cp.fft.rfft(tmp, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
         data[:] = tmp[:, :, self.ne//2-self.n//2:self.ne//2+self.n//2]
 

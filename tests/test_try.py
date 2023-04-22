@@ -6,15 +6,15 @@ import inspect
 
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type try --rotation-axis 782.5 --nsino-per-chunk 4'
 cmd_dict = {
-    f'{prefix} ': 13.5,
-    f'{prefix} --nsino [0,0.5] ': 27.65,
-    f'{prefix} --reconstruction-algorithm lprec ': 13.5,
-    f'{prefix} --reconstruction-algorithm linerec ': 13.5,
-    f'{prefix} --binning 1': 5.29,
-    f'{prefix} --nsino-per-chunk 2 --file-type double_fov': 10,
-    f'{prefix} --center-search-width 30 --center-search-step 2': 12.4,
-    f'{prefix} --dezinger 2': 13.6,
-    f'{prefix} --flat-linear True': 13.6,
+    f'{prefix} ': 13.98,
+    f'{prefix} --nsino [0,0.5] ': 28.36,
+    f'{prefix} --reconstruction-algorithm lprec ': 13.82,
+    f'{prefix} --reconstruction-algorithm linerec ': 14.00,
+    f'{prefix} --binning 1': 5.47,
+    f'{prefix} --nsino-per-chunk 2 --file-type double_fov': 7.67,
+    f'{prefix} --center-search-width 30 --center-search-step 2': 12.70,
+    f'{prefix} --dezinger 2': 13.98,
+    f'{prefix} --flat-linear True': 13.98,
 }
 
 

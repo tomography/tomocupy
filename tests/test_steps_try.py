@@ -6,11 +6,11 @@ import inspect
 
 prefix = 'tomocupy recon_steps --file-name data/test_data.h5 --rotation-axis 782.5 --nsino-per-chunk 4'
 cmd_dict = {
-    f'{prefix} --reconstruction-type try --lamino-angle 1 --reconstruction-algorithm linerec': 13.7,
-    f'{prefix} --reconstruction-type try_lamino --lamino-angle 1 --reconstruction-algorithm linerec': 36.3,
-    f'{prefix} --reconstruction-type try --rotate-proj-angle 1 --nsino [0,0.5]': 27.3,
-    f'{prefix} --reconstruction-type try --lamino-angle 1 --rotate-proj-angle 1 --nsino [0,0.5]': 25.64,    
-    f'{prefix} --reconstruction-type try --binning 1 --rotate-proj-angle 1 --nsino [0,0.5]': 10.73,    
+    f'{prefix} --reconstruction-type try --lamino-angle 1 --reconstruction-algorithm linerec': 14.023,
+    f'{prefix} --reconstruction-type try_lamino --lamino-angle 1 --reconstruction-algorithm linerec': 37.060,
+    f'{prefix} --reconstruction-type try --rotate-proj-angle 1 --nsino [0,0.5]': 28.004,
+    f'{prefix} --reconstruction-type try --lamino-angle 1 --rotate-proj-angle 1 --nsino [0,0.5]': 26.180,    
+    f'{prefix} --reconstruction-type try --binning 1 --rotate-proj-angle 1 --nsino [0,0.5]': 11.103,    
 }
 
 
