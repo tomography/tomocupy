@@ -104,7 +104,7 @@ class TomoFunctions():
         else:
             flat0 = cp.mean(flat0, axis=0)
         dark0 = cp.mean(dark0, axis=0)
-        res = (data.astype(self.args.dtype, copy=False)-dark0) / (flat0-dark0)
+        res = (data.astype(self.args.dtype, copy=False)-dark0) / (flat0-dark0+1e-3)
         res[res <= 0] = 1
         return res
 
