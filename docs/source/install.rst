@@ -76,3 +76,39 @@ Update
     (tomocupy)$ cd tomocupy
     (tomocupy)$ git pull
     (tomocupy)$ pip install .
+    
+=========================
+Install for tomo3 machine with installed cuda 12.1 driver
+=========================
+
+::
+
+    (base)$ export CUDACXX=/usr/local/cuda-12.1/bin/nvcc
+    
+::
+
+    (base)$ conda create -n tomocupy3 -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py
+    
+::
+
+    (base)$ pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
+    
+::
+
+    (base)$ conda activate tomocupy
+    
+::
+
+    (tomocupy)$ git clone https://github.com/fbcotter/pytorch_wavelets
+    (tomocupy)$ cd pytorch_wavelets
+    (tomocupy)$ pip install .
+    (tomocupy)$ cd -
+
+::
+
+    (tomocupy)$ git clone https://github.com/tomography/tomocupy
+    (tomocupy)$ cd tomocupy
+    (tomocupy)$ pip install .
+    
+    
+
