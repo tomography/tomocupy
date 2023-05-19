@@ -46,7 +46,6 @@ from cupyx.scipy.ndimage import median_filter
 from cupyx.scipy import signal
 from cupyx.scipy.ndimage import binary_dilation
 from cupyx.scipy.ndimage import uniform_filter1d
-from scipy import interpolate
 import numpy as np
 
 
