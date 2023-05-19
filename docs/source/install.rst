@@ -87,7 +87,7 @@ Install for tomo3 machine with installed cuda 12.1 driver
     
 ::
 
-    (base)$ conda create -n tomocupy3 -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py
+    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py
     
 ::
 
