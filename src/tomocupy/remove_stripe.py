@@ -39,14 +39,255 @@
 # *************************************************************************** #
 
 import cupy as cp
-import torch
-from pytorch_wavelets import DWTForward, DWTInverse  # (or import DWT, IDWT)
-from cupy.fft import (fft, ifft, fft2, ifft2)
+import pywt
 from cupyx.scipy.ndimage import median_filter
 from cupyx.scipy import signal
 from cupyx.scipy.ndimage import binary_dilation
 from cupyx.scipy.ndimage import uniform_filter1d
-import numpy as np
+
+###### Ring removal with wavelet filtering (adapted for cupy from pytroch_wavelet package https://pytorch-wavelets.readthedocs.io/)################################################################################
+
+def _reflect(x, minx, maxx):
+    """Reflect the values in matrix *x* about the scalar values *minx* and
+    *maxx*.  Hence a vector *x* containing a long linearly increasing series is
+    converted into a waveform which ramps linearly up and down between *minx*
+    and *maxx*.  If *x* contains integers and *minx* and *maxx* are (integers +
+    0.5), the ramps will have repeated max and min samples.
+
+    .. codeauthor:: Rich Wareham <rjw57@cantab.net>, Aug 2013
+    .. codeauthor:: Nick Kingsbury, Cambridge University, January 1999.
+
+    """
+    x = cp.asanyarray(x)
+    rng = maxx - minx
+    rng_by_2 = 2 * rng
+    mod = cp.fmod(x - minx, rng_by_2)
+    normed_mod = cp.where(mod < 0, mod + rng_by_2, mod)
+    out = cp.where(normed_mod >= rng, rng_by_2 - normed_mod, normed_mod) + minx
+    return cp.array(out, dtype=x.dtype)
+
+
+def _mypad(x, pad, value=0):
+    """ Function to do numpy like padding on Arrays. Only works for 2-D
+    padding.
+
+    Inputs:
+        x (array): Array to pad
+        pad (tuple): tuple of (left, right, top, bottom) pad sizes        
+    """
+    # Vertical only
+    if pad[0] == 0 and pad[1] == 0:
+        m1, m2 = pad[2], pad[3]
+        l = x.shape[-2]
+        xe = _reflect(cp.arange(-m1, l+m2, dtype='int32'), -0.5, l-0.5)
+        return x[:, :, xe]
+    # horizontal only
+    elif pad[2] == 0 and pad[3] == 0:
+        m1, m2 = pad[0], pad[1]
+        l = x.shape[-1]
+        xe = _reflect(cp.arange(-m1, l+m2, dtype='int32'), -0.5, l-0.5)
+        return x[:, :, :, xe]
+
+
+def _conv2d(x, w, stride, pad, groups=1):
+    """ Convolution (equivalent pytorch.conv2d)
+    """
+    if pad != 0:
+        x = cp.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant')
+
+    b,  ci, hi, wi = x.shape
+    co, _, hk, wk = w.shape
+    ho = int(cp.floor(1 + (hi - hk) / stride[0]))
+    wo = int(cp.floor(1 + (wi - wk) / stride[1]))
+    out = cp.zeros([b, co, ho, wo], dtype='float32')
+    x = cp.expand_dims(x, axis=1)
+    w = cp.expand_dims(w, axis=0)
+    chunk = ci//groups
+    chunko = co//groups
+    for g in range(groups):
+        for ii in range(hk):
+            for jj in range(wk):
+                x_windows = x[:, :, g*chunk:(g+1)*chunk, ii:ho *
+                              stride[0]+ii:stride[0], jj:wo*stride[1]+jj:stride[1]]
+                out[:, g*chunko:(g+1)*chunko] += cp.sum(x_windows *
+                                                        w[:, g*chunko:(g+1)*chunko, :, ii:ii+1, jj:jj+1], axis=2)
+    return out
+
+
+def _conv_transpose2d(x, w, stride, pad, bias=None, groups=1):
+    """ Transposed convolution (equivalent pytorch.conv_transpose2d)
+    """
+    b,  co, ho, wo = x.shape
+    co, ci, hk, wk = w.shape
+
+    hi = (ho-1)*stride[0]+hk
+    wi = (wo-1)*stride[1]+wk
+    out = cp.zeros([b, ci, hi, wi], dtype='float32')
+    chunk = ci//groups
+    chunko = co//groups
+    for g in range(groups):
+        for ii in range(hk):
+            for jj in range(wk):
+                x_windows = x[:, g*chunko:(g+1)*chunko]
+                out[:, g*chunk:(g+1)*chunk, ii:ho*stride[0]+ii:stride[0], jj:wo*stride[1] +
+                    jj:stride[1]] += x_windows * w[g*chunko:(g+1)*chunko, :, ii:ii+1, jj:jj+1]
+    if pad != 0:
+        out = out[:, :, pad[0]:out.shape[2]-pad[0], pad[1]:out.shape[3]-pad[1]]
+    return out
+
+
+def afb1d(x, h0, h1='zero', dim=-1):
+    """ 1D analysis filter bank (along one dimension only) of an image
+
+    Inputs:
+        x (array): 4D input with the last two dimensions the spatial input
+        h0 (array): 4D input for the lowpass filter. Should have shape (1, 1,
+            h, 1) or (1, 1, 1, w)
+        h1 (array): 4D input for the highpass filter. Should have shape (1, 1,
+            h, 1) or (1, 1, 1, w)
+        dim (int) - dimension of filtering. d=2 is for a vertical filter (called
+            column filtering but filters across the rows). d=3 is for a
+            horizontal filter, (called row filtering but filters across the
+            columns).
+
+    Returns:
+        lohi: lowpass and highpass subbands concatenated along the channel
+            dimension
+    """
+    C = x.shape[1]
+    # Convert the dim to positive
+    d = dim % 4
+    s = (2, 1) if d == 2 else (1, 2)
+    N = x.shape[d]
+    L = h0.size
+    L2 = L // 2
+    shape = [1, 1, 1, 1]
+    shape[d] = L
+    h = cp.concatenate([h0.reshape(*shape), h1.reshape(*shape)]*C, axis=0)
+    # Calculate the pad size
+    outsize = pywt.dwt_coeff_len(N, L, mode='symmetric')
+    p = 2 * (outsize - 1) - N + L
+    pad = (0, 0, p//2, (p+1)//2) if d == 2 else (p//2, (p+1)//2, 0, 0)
+    x = _mypad(x, pad=pad)
+    lohi = _conv2d(x, h, stride=s, pad=0, groups=C)
+    return lohi
+
+
+def sfb1d(lo, hi, g0, g1='zero', dim=-1):
+    """ 1D synthesis filter bank of an image Array
+    """
+
+    C = lo.shape[1]
+    d = dim % 4
+    L = g0.size
+    shape = [1, 1, 1, 1]
+    shape[d] = L
+    N = 2*lo.shape[d]
+    s = (2, 1) if d == 2 else (1, 2)
+    g0 = cp.concatenate([g0.reshape(*shape)]*C, axis=0)
+    g1 = cp.concatenate([g1.reshape(*shape)]*C, axis=0)
+    pad = (L-2, 0) if d == 2 else (0, L-2)
+    y = _conv_transpose2d(cp.asarray(lo), cp.asarray(g0), stride=s, pad=pad, groups=C) + \
+        _conv_transpose2d(cp.asarray(hi), cp.asarray(g1),
+                          stride=s, pad=pad, groups=C)
+    return y
+
+
+class DWTForward():
+    """ Performs a 2d DWT Forward decomposition of an image
+
+    Args:
+        wave (str): Which wavelet to use.                    
+        """
+
+    def __init__(self, wave='db1'):
+        super().__init__()
+
+        wave = pywt.Wavelet(wave)
+        h0_col, h1_col = wave.dec_lo, wave.dec_hi
+        h0_row, h1_row = h0_col, h1_col
+
+        self.h0_col = cp.array(h0_col).astype('float32')[
+            ::-1].reshape((1, 1, -1, 1))
+        self.h1_col = cp.array(h1_col).astype('float32')[
+            ::-1].reshape((1, 1, -1, 1))
+        self.h0_row = cp.array(h0_row).astype('float32')[
+            ::-1].reshape((1, 1, 1, -1))
+        self.h1_row = cp.array(h1_row).astype('float32')[
+            ::-1].reshape((1, 1, 1, -1))
+
+    def apply(self, x):
+        """ Forward pass of the DWT.
+
+        Args:
+            x (array): Input of shape :math:`(N, C_{in}, H_{in}, W_{in})`
+
+        Returns:
+            (yl, yh)
+                tuple of lowpass (yl) and bandpass (yh) coefficients.
+                yh is a list of scale coefficients. yl has shape
+                :math:`(N, C_{in}, H_{in}', W_{in}')` and yh has shape
+                :math:`list(N, C_{in}, 3, H_{in}'', W_{in}'')`. The new
+                dimension in yh iterates over the LH, HL and HH coefficients.
+
+        Note:
+            :math:`H_{in}', W_{in}', H_{in}'', W_{in}''` denote the correctly
+            downsampled shapes of the DWT pyramid.
+        """
+        # Do a multilevel transform
+        # Do 1 level of the transform
+        lohi = afb1d(x, self.h0_row, self.h1_row, dim=3)
+        y = afb1d(lohi, self.h0_col, self.h1_col, dim=2)
+        s = y.shape
+        y = y.reshape(s[0], -1, 4, s[-2], s[-1])
+        x = cp.ascontiguousarray(y[:, :, 0])
+        yh = cp.ascontiguousarray(y[:, :, 1:])
+        return x, yh
+
+
+class DWTInverse():
+    """ Performs a 2d DWT Inverse reconstruction of an image
+
+    Args:
+        wave (str): Which wavelet to use.            
+    """
+
+    def __init__(self, wave='db1'):
+        super().__init__()
+        wave = pywt.Wavelet(wave)
+        g0_col, g1_col = wave.rec_lo, wave.rec_hi
+        g0_row, g1_row = g0_col, g1_col
+        # Prepare the filters
+        self.g0_col = cp.array(g0_col).astype('float32').reshape((1, 1, -1, 1))
+        self.g1_col = cp.array(g1_col).astype('float32').reshape((1, 1, -1, 1))
+        self.g0_row = cp.array(g0_row).astype('float32').reshape((1, 1, 1, -1))
+        self.g1_row = cp.array(g1_row).astype('float32').reshape((1, 1, 1, -1))
+
+    def apply(self, coeffs):
+        """
+        Args:
+            coeffs (yl, yh): tuple of lowpass and bandpass coefficients, where:
+              yl is a lowpass array of shape :math:`(N, C_{in}, H_{in}',
+              W_{in}')` and yh is a list of bandpass arrays of shape
+              :math:`list(N, C_{in}, 3, H_{in}'', W_{in}'')`. I.e. should match
+              the format returned by DWTForward
+
+        Returns:
+            Reconstructed input of shape :math:`(N, C_{in}, H_{in}, W_{in})`
+
+        Note:
+            :math:`H_{in}', W_{in}', H_{in}'', W_{in}''` denote the correctly
+            downsampled shapes of the DWT pyramid.
+
+        """
+        yl, yh = coeffs
+        lh = yh[:, :, 0]
+        hl = yh[:, :, 1]
+        hh = yh[:, :, 2]
+        lo = sfb1d(yl, lh, self.g0_col, self.g1_col, dim=2)
+        hi = sfb1d(hl, hh, self.g0_col, self.g1_col, dim=2)
+        yl = sfb1d(lo, hi, self.g0_row, self.g1_row, dim=3)
+        return yl
 
 
 def remove_stripe_fw(data, sigma, wname, level):
@@ -58,41 +299,41 @@ def remove_stripe_fw(data, sigma, wname, level):
     xshift = int((nproj_pad - nproj) // 2)
 
     # Accepts all wave types available to PyWavelets
-    xfm = DWTForward(J=1, mode='symmetric', wave=wname).cuda()
-    ifm = DWTInverse(mode='symmetric', wave=wname).cuda()
+    xfm = DWTForward(wave=wname)
+    ifm = DWTInverse(wave=wname)
 
     # Wavelet decomposition.
     cc = []
-    sli = torch.zeros([nz, 1, nproj_pad, ni], device='cuda')
+    sli = cp.zeros([nz, 1, nproj_pad, ni], dtype='float32')
 
     sli[:, 0, (nproj_pad - nproj)//2:(nproj_pad + nproj) //
-        2] = torch.as_tensor(data.astype('float32').swapaxes(0, 1), device='cuda')
+        2] = data.astype('float32').swapaxes(0, 1)
     for k in range(level):
-        sli, c = xfm(sli)
+        sli, c = xfm.apply(sli)
         cc.append(c)
         # FFT
-        fcV = torch.fft.fft(cc[k][0][:, 0, 1], axis=1)
+        fcV = cp.fft.fft(cc[k][:, 0, 1], axis=1)
         _, my, mx = fcV.shape
         # Damping of ring artifact information.
-        y_hat = torch.fft.ifftshift((torch.arange(-my, my, 2).cuda() + 1) / 2)
-        damp = -torch.expm1(-y_hat**2 / (2 * sigma**2))
-        fcV *= torch.transpose(torch.tile(damp, (mx, 1)), 0, 1)
+        y_hat = cp.fft.ifftshift((cp.arange(-my, my, 2) + 1) / 2)
+        damp = -cp.expm1(-y_hat**2 / (2 * sigma**2))
+        fcV *= cp.tile(damp, (mx, 1)).swapaxes(0, 1)
         # Inverse FFT.
-        cc[k][0][:, 0, 1] = torch.fft.ifft(fcV, my, axis=1).real
+        cc[k][:, 0, 1] = cp.fft.ifft(fcV, my, axis=1).real
 
     # Wavelet reconstruction.
     for k in range(level)[::-1]:
-        shape0 = cc[k][0][0, 0, 1].shape
+        shape0 = cc[k][0, 0, 1].shape
         sli = sli[:, :, :shape0[0], :shape0[1]]
-        sli = ifm((sli, cc[k]))
+        sli = ifm.apply((sli, cc[k]))
 
-    data = cp.asarray(sli[:, 0, (nproj_pad - nproj) //
-                      2:(nproj_pad + nproj)//2, :ni]).astype(data.dtype)  # modified
+    data = sli[:, 0, (nproj_pad - nproj)//2:(nproj_pad + nproj) //
+               2, :ni].astype(data.dtype)  # modified
     data = data.swapaxes(0, 1)
 
     return data
 
-
+######## Titarenko ring removal ############################################################################################################################################################################
 def remove_stripe_ti(data, beta, mask_size):
     """Remove stripes with a new method by V. Titareno """
     gamma = beta*((1-beta)/(1+beta)
@@ -107,7 +348,8 @@ def remove_stripe_ti(data, beta, mask_size):
     data[:] += v*mask
     return data
 
-# Optimized version for Vo-all ring removal in tomopy
+
+######## Optimized version for Vo-all ring removal in tomopy################################################################################################################################################################
 def _rs_sort(sinogram, size, matindex, dim):
     """
     Remove stripes using the sorting technique.

@@ -21,23 +21,7 @@ Install
 
     (base)$ conda activate tomocupy
 
-3. Install pytorch
-
-::
-
-    (tomocupy)$ pip install torch torchvision torchaudio 
-
-
-4. Install the pytorch pywavelets package for ring removal
-
-::
-
-    (tomocupy)$ git clone https://github.com/fbcotter/pytorch_wavelets
-    (tomocupy)$ cd pytorch_wavelets
-    (tomocupy)$ pip install .
-    (tomocupy)$ cd -
-
-5. Intall meta for supporting hdf meta data writer used by option: --save-format h5
+3*. (If needed) Install meta for supporting hdf meta data writer used by option: --save-format h5
 
 ::
 
@@ -47,7 +31,7 @@ Install
     (tomocupy)$ cd -
 
 
-6. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
+4. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
 
 ::
     
@@ -76,39 +60,3 @@ Update
     (tomocupy)$ cd tomocupy
     (tomocupy)$ git pull
     (tomocupy)$ pip install .
-    
-=========================
-Install for tomo3 machine with installed cuda 12.1 driver
-=========================
-
-::
-
-    (base)$ export CUDACXX=/usr/local/cuda-12.1/bin/nvcc
-    
-::
-
-    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig pywavelets numexpr opencv tifffile h5py
-    
-::
-
-    (base)$ pip3 install --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu121
-    
-::
-
-    (base)$ conda activate tomocupy
-    
-::
-
-    (tomocupy)$ git clone https://github.com/fbcotter/pytorch_wavelets
-    (tomocupy)$ cd pytorch_wavelets
-    (tomocupy)$ pip install .
-    (tomocupy)$ cd -
-
-::
-
-    (tomocupy)$ git clone https://github.com/tomography/tomocupy
-    (tomocupy)$ cd tomocupy
-    (tomocupy)$ pip install .
-    
-    
-
