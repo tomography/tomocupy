@@ -66,13 +66,13 @@ class LineRec():
         if len(theta)==0:
             theta = self.theta
             f[:]=0
-        phi = cp.float(cp.pi/2+(lamino_angle)/180*cp.pi)
+        phi = cp.pi/2+(lamino_angle)/180*cp.pi
         self.fslv.backprojection(f.data.ptr, data.data.ptr, theta.data.ptr, phi, sz, stream.ptr)
         
     def backprojection_try(self, f, data, sh, stream=0, theta=[], lamino_angle=0, sz=0):
         if len(theta)==0:
             theta = self.theta
-        phi = cp.float(cp.pi/2+(lamino_angle)/180*cp.pi)
+        phi = cp.pi/2+(lamino_angle)/180*cp.pi
         self.fslv.backprojection_try(f.data.ptr, data.data.ptr, theta.data.ptr, sh.data.ptr, phi, sz, stream.ptr)
 
     def backprojection_try_lamino(self, f, data, sh, stream=0, theta=[], lamino_angle=0, sz=0):

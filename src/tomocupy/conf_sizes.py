@@ -99,7 +99,7 @@ class ConfSizes():
         # define projection chunk size for processing
         ncproj = self.args.nproj_per_chunk
         
-        # take center
+
         centeri = self.args.rotation_axis
         if centeri == -1:
             centeri = ni/2
@@ -139,7 +139,7 @@ class ConfSizes():
             if n!=n0:
                 log.warning(
                     f'Crop data to the power of 2 sizes to work with 16bit precision, output size in x dimension {ni}')
-
+        
         # blocked views fix
         ids_proj = [self.args.start_proj, self.args.end_proj]
         theta = theta[ids_proj[0]:ids_proj[1]]
@@ -165,6 +165,11 @@ class ConfSizes():
         ltchunk = np.minimum(
             ncproj, np.int32(nproj-np.arange(ntchunk)*ncproj))  # chunk sizes in proj
 
+        tmp = literal_eval(self.args.nsino)
+        if not isinstance(tmp, list):
+            tmp = [tmp]  
+        self.id_slices = np.int32(np.array(tmp)*(nz*2**self.args.binning-1) /
+                            2**self.args.binning)*2**self.args.binning
         self.n = n
         self.nz = nz
         self.ncz = ncz
@@ -194,14 +199,14 @@ class ConfSizes():
             # invert shifts for calculations if centeri<ni for double_fov
             shift_array = np.arange(-self.args.center_search_width,
                                     self.args.center_search_width, self.args.center_search_step*2**self.args.binning).astype('float32')/2**self.args.binning
-            save_centers = (self.centeri - shift_array + self.st_n)*2**self.args.binning
+            save_centers = (self.centeri - shift_array)*2**self.args.binning+self.st_n
             if (self.args.file_type == 'double_fov') and (self.centeri < self.ni//2):
                 shift_array = -shift_array
+            
         elif self.args.reconstruction_type == 'try_lamino':
             shift_array = np.arange(-self.args.lamino_search_width,
                                     self.args.lamino_search_width, self.args.lamino_search_step).astype('float32')
             save_centers = self.args.lamino_angle + shift_array
-
         # calculate chunks
         nschunk = int(np.ceil(len(shift_array)/self.ncz))
         lschunk = np.minimum(self.ncz, np.int32(
@@ -209,24 +214,22 @@ class ConfSizes():
         self.shift_array = shift_array
         self.save_centers = save_centers
         self.nschunk = nschunk
-        self.lschunk = lschunk
-        tmp = literal_eval(self.args.nsino)
-        if not isinstance(tmp, list):
-            tmp = [tmp]  
-        self.id_slices = np.int32(np.array(tmp)*(self.nz*2**self.args.binning-1) /
-                            2**self.args.binning)*2**self.args.binning
+        self.lschunk = lschunk        
 
     def init_sizes_lamino(self):
         """Calculating sizes for laminography reconstruction by chunks"""
 
-        # calculate reconstruction height
-        rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) 
+        # calculate reconstruction height        
+        if self.args.lamino_end_row == -1:
+            rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) - self.args.lamino_start_row//2**self.args.binning
+        else:
+            rh = self.args.lamino_end_row//2**self.args.binning - self.args.lamino_start_row//2**self.args.binning
         
         # calculate chunks
         nrchunk = int(np.ceil(rh/self.ncz))
         lrchunk = np.minimum(
             self.ncz, np.int32(rh-np.arange(nrchunk)*self.ncz))
-        
+            
         self.nrchunk = nrchunk
         self.lrchunk = lrchunk
         self.rh = rh

@@ -14,6 +14,7 @@ from tomocupy import config
 from tomocupy import GPURec
 from tomocupy import FindCenter
 from tomocupy import GPURecSteps
+from tomocupy import GPUProc
 
 log = logging.getLogger(__name__)
 
@@ -47,6 +48,9 @@ def run_rec(args):
             clpthandle.recon_all()
         if(args.reconstruction_type == 'try'):
             clpthandle.recon_try()
+        # update config file
+        # sections = config.RECON_PARAMS
+        # config.write(args.config, args=args, sections=sections)
     else:
         log.error("File Name does not exist: %s" % args.file_name)
 
@@ -55,6 +59,22 @@ def run_rec(args):
     # log.warning(f'Init time {init_time:.1e}s')
     # with h5py.File(file_name) as fid:
     # np.save('time',rec_time/fid['exchange/data'].shape[1]*fid['exchange/data'].shape[2]+init_time)
+
+def run_proc(args):
+    t = time.time()
+    file_name = Path(args.file_name)
+    if file_name.is_file():
+        args.retrieve_phase_method = 'none'  # don no allow phase retrieval here
+        args.rotate_proj_angle = 0  # do not allow to rotate projections
+        args.lamino_angle = 0
+        
+        clpthandle = GPUProc(args)
+        clpthandle.proc_sino_parallel()
+    else:
+        log.error("File Name does not exist: %s" % args.file_name)
+
+    rec_time = (time.time()-t)  # -init_time
+    log.warning(f'Reconstruction time {rec_time:.1e}s')
 
 
 def run_recstep(args):
@@ -73,6 +93,11 @@ def run_recstep(args):
         clpthandle = GPURecSteps(args)
         clpthandle.recon_steps_all()
         log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
+
+        # # update config file
+        # sections = config.RECON_STEPS_PARAMS
+        # config.write(args.config, args=args, sections=sections)
+
     else:
         log.error("File Name does not exist: %s" % args.file_name)
 
@@ -105,7 +130,9 @@ def main():
         ('init',        init,            (),
          "Create configuration file"),
         ('recon',       run_rec,         tomo_params,
-         "Run tomographic reconstruction by splitting data into chunks in z "),
+         "Run tomographic processing by splitting data into chunks in z "),
+        ('proc',     run_proc,           tomo_params,
+         "Run tomographic reconstruction by steps and saving result to h5 file"),        
         ('recon_steps',   run_recstep,     tomo_steps_params,
          "Run tomographic reconstruction by splitting by chunks in z and angles (step-wise)"),
         ('reconmulti',  run_recmulti,    tomo_params,

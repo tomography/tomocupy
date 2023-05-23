@@ -128,6 +128,16 @@ SECTIONS['file-reading'] = {
         'type': Path,
         'help': "Name of the last used hdf file or directory containing multiple hdf files",
         'metavar': 'PATH'},
+    'flat-file-name': {
+        'default': None,
+        'type': Path,
+        'help': "Name of the hdf file containing flat data",
+        'metavar': 'PATH'},
+    'dark-file-name': {
+        'default': None,
+        'type': Path,
+        'help': "Name of the hdf file containing dark data",
+        'metavar': 'PATH'},
     'out-path-name': {
         'default': None,
         'type': Path,
@@ -155,7 +165,7 @@ SECTIONS['remove-stripe'] = {
         'default': 'none',
         'type': str,
         'help': "Remove stripe method: none, fourier-wavelet, titarenko",
-        'choices': ['none', 'fw', 'ti']},
+        'choices': ['none', 'fw', 'ti', 'vo-all']},
 }
 
 
@@ -180,11 +190,34 @@ SECTIONS['fw'] = {
 }
 
 
+SECTIONS['vo-all'] = {
+    'vo-all-snr': {
+        'default': 3,
+        'type': float,
+        'help': "Ratio used to locate large stripes. Greater is less sensitive."},
+    'vo-all-la-size': {
+        'default': 61,
+        'type': utils.positive_int,
+        'help': "Window size of the median filter to remove large stripes."},        
+    'vo-all-sm-size': {
+        'type': utils.positive_int,
+        'default': 21,
+        'help': "Window size of the median filter to remove small-to-medium stripes."},
+    'vo-all-dim': {
+        'default': 1,
+        'help': "Dimension of the window."},
+}
+
+
 SECTIONS['ti'] = {
     'ti-beta': {
         'default': 0.022,  # as in the paper
         'type': float,
         'help': "Parameter for ring removal (0,1)"},
+    'ti-mask': {
+        'default': 1,  
+        'type': float,
+        'help': "Mask size for ring removal (0,1)"},
 }
 
 SECTIONS['retrieve-phase'] = {
@@ -194,24 +227,24 @@ SECTIONS['retrieve-phase'] = {
         'help': "Phase retrieval correction method",
         'choices': ['none', 'paganin']},
     'energy': {
-        'default': 20,
+        'default': 0,
         'type': float,
         'help': "X-ray energy [keV]"},
     'propagation-distance': {
-        'default': 60,
+        'default': 0,
         'type': float,
         'help': "Sample detector distance [mm]"},
     'pixel-size': {
-        'default': 1.17,
+        'default': 0,
         'type': float,
         'help': "Pixel size [microns]"},
     'retrieve-phase-alpha': {
-        'default': 0.001,
+        'default': 0,
         'type': float,
         'help': "Regularization parameter"},
     'retrieve-phase-pad': {
         'type': utils.positive_int,
-        'default': 8,
+        'default': 1,
         'help': "Padding with extra slices in z for phase-retrieval filtering"},
 }
 
@@ -239,6 +272,14 @@ SECTIONS['lamino'] = {
         'default': 0,
         'type': float,
         'help': "Pitch of the stage for laminography"},
+    'lamino-start-row': {
+        'default': 0,
+        'type': int,
+        'help': "Start slice for lamino reconstruction"},
+    'lamino-end-row': {
+        'default': -1,
+        'type': int,
+        'help': "End slice for lamino reconstruction"},
 }
 
 SECTIONS['reconstruction-types'] = {
@@ -265,6 +306,11 @@ SECTIONS['reconstruction-steps-types'] = {
         'type': str,
         'help': "Reconstruction algorithm",
         'choices': ['fourierrec', 'linerec']},
+    'pre-processing': {
+        'default': 'True',
+        'type': str,
+        'help': "Preprocess projections or not",
+        'choices': ['True', 'False']},
 }
 
 SECTIONS['reconstruction'] = {
@@ -274,7 +320,7 @@ SECTIONS['reconstruction'] = {
         'help': "Location of rotation axis"},
     'center-search-width': {
         'type': float,
-        'default': 10.0,
+        'default': 50.0,
         'help': "+/- center search width (pixel). "},
     'center-search-step': {
         'type': float,
@@ -333,6 +379,19 @@ SECTIONS['reconstruction'] = {
         'default': '0.5',
         'type': float,
         'help': "SIFT threshold for rotation search.", },
+    'rotation-axis-method': {
+        'default': 'sift',  
+        'type': str,        
+        'help': "Method for automatic rotation search.",
+        'choices': ['sift', 'vo']},
+    'find-center-start-row': {
+        'type': int,
+        'default': 0,
+        'help': "Start row to find the rotation center"},
+    'find-center-end-row': {
+        'type': int,
+        'default': -1,
+        'help': "End row to find the rotation center"},
     'dtype': {
         'default': 'float32',
         'type': str,
@@ -342,7 +401,7 @@ SECTIONS['reconstruction'] = {
         'default': 'tiff',
         'type': str,
         'help': "Output format",
-        'choices': ['tiff', 'h5']},
+        'choices': ['tiff', 'h5', 'h5sino', 'h5nolinks']},
     'clear-folder': {
         'default': 'False',
         'type': str,
@@ -352,7 +411,7 @@ SECTIONS['reconstruction'] = {
         'default': 'parzen',
         'type': str,
         'help': "Filter for FBP reconstruction",
-        'choices': ['shepp', 'parzen']},
+        'choices': ['ramp', 'shepp', 'hann', 'hamming', 'parzen', 'cosine', 'cosine2']},
     'dezinger': {
         'type': int,
         'default': 0,
@@ -371,17 +430,23 @@ SECTIONS['reconstruction'] = {
         'help': "Max number of threads for reading by chunks"},
     'minus-log': {
         'default': 'True',
-        'help': "take -log or not"},    
+        'help': "Take -log or not"},    
+    'flat-linear': {
+        'default': 'False',
+        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},        
+    'pad-endpoint': {
+        'default': 'False',
+        'help': "Include or not endpoint for smooting in double fov reconstruction (preventing circle in the middle)."},            
 }
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'reconstruction-types')
-RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction', 
-                      'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
+                'reconstruction', 'fw', 'ti', 'vo-all', 'reconstruction-types')
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
+                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
-              'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Reconstruction')
+              'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo' 'Retrieve phase', 'Reconstruction')
 
 
 def get_config_name():
