@@ -21,25 +21,26 @@ requirements:
   build:
     - {{ compiler('cxx') }}
     - {{ compiler('cuda') }} # [cuda_compiler_version != None]
+    - cmake
+    - ninja
     - swig
-    - scikit-build    
-    - setuptools
   host:
-    - cudatoolkit 
+    - cudatoolkit
     - numpy
     - pip
     - python
-    - setuptools    
+    - scikit-build
+    - setuptools
   run:
     - {{ pin_compatible('python') }}
     - cudatoolkit
-    - cupy    
+    - cupy
+    - h5py
+    - numexpr
     - numpy
-    - pywavelets 
-    - numexpr 
-    - opencv 
-    - tifffile 
-    - h5py     
+    - opencv
+    - pywavelets
+    - tifffile
 
 about:
     home: https://github.com/tomography/tomocupy
