@@ -8,8 +8,8 @@ source:
   path: ../
 
 build:
-  skip: True  # [cuda_compiler_version != "11.2"]
-  skip: True  # [py != 310]
+  # skip: True  # [cuda_compiler_version != "11.0"]
+  # skip: True  # [py != 310]
   # skips above this line are for debugging purposes only
   skip: True  # [cuda_compiler_version in (undefined, "None")]
   number: 1
