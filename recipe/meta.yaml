@@ -1,0 +1,46 @@
+{% set version = "1.0" %}
+
+package:
+  name: tomocupy
+  version: {{ version }}
+
+source:
+  path: ../
+
+build:
+  skip: False  # [cuda_compiler_version == 11.2]
+  number: 1
+  script:
+    - "python -m pip install . --no-deps --ignore-installed --no-cache-dir -vvv"
+
+requirements:
+  channels:
+    - conda-forge
+  build:
+    - {{ compiler('cxx') }}
+    - {{ compiler('cuda') }} # [cuda_compiler_version != None]
+    - swig
+    - scikit-build    
+    - setuptools
+  host:
+    - cudatoolkit 
+    - numpy
+    - pip
+    - python
+    - setuptools    
+  run:
+    - {{ pin_compatible('python') }}
+    - cudatoolkit
+    - cupy    
+    - numpy
+    - pywavelets 
+    - numexpr 
+    - opencv 
+    - tifffile 
+    - h5py     
+
+about:
+    home: https://github.com/tomography/tomocupy
+    license: BSD 3-Clause
+    license_family: BSD
+    summary: 'GPU-based reconstruction of tomography data'
