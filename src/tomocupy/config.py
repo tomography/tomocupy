@@ -527,7 +527,6 @@ SECTIONS['reconstruction'] = {
         'default': '1',
         'type': float,
         'help': "Bright aspect ration between exposure for flat fields and projections."},
-    }
 }
 
 

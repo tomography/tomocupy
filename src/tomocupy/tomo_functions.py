@@ -207,7 +207,7 @@ class TomoFunctions():
 
         return res
 
-    def proc_proj(self, data, current_rows, res=None):
+    def proc_proj(self, data, st, end, res=None):
         """Processing a projection data chunk"""
 
         if not isinstance(res, cp.ndarray):
@@ -224,7 +224,7 @@ class TomoFunctions():
         if self.args.minus_log == 'True':
             data[:] = self.minus_log(data)
         if self.args.beam_hardening_method != 'none':
-            data[:] = self.beamhardening(data, current_rows)
+            data[:] = self.beamhardening(data, cp.arange(st, end))
         # padding for 360 deg recon
         if (self.args.file_type == 'double_fov'):
             res[:] = self.pad360(data)

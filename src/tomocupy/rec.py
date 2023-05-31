@@ -41,6 +41,7 @@
 from tomocupy import utils
 from tomocupy import log_local as logging
 from tomocupy import conf_sizes
+from tomocupy import conf_filepars
 from tomocupy import tomo_functions
 from tomocupy import reader
 from tomocupy import writer
@@ -75,7 +76,7 @@ class GPURec():
         # configure sizes and output files
         cl_reader = reader.Reader(args)
         cl_conf = conf_sizes.ConfSizes(args, cl_reader)
-        cl_filepars = conf_sizes.ConfFilePars(args, cl_reader)
+        cl_filepars = conf_filepars.ConfFilepars(args, cl_reader)
         cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing
@@ -209,9 +210,12 @@ class GPURec():
                     dark = item_gpu['dark'][(k-1) % 2]
                     flat = item_gpu['flat'][(k-1) % 2]
                     rec = rec_gpu[(k-1) % 2]
-
+                    
+                    st = ids[k-1]*ncz+self.args.start_row//2**self.args.binning
+                    end = st+lzchunk[ids[k-1]]                    
+                    
                     data = self.cl_tomo_func.proc_sino(data, dark, flat)
-                    data = self.cl_tomo_func.proc_proj(data, current_rows)
+                    data = self.cl_tomo_func.proc_proj(data, st, end)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
@@ -237,7 +241,7 @@ class GPURec():
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
                     st = ids[k]*ncz+self.args.start_row//2**self.args.binning
                     end = st+lzchunk[ids[k]]
-                    current_rows = cp.arange(st, end)
+                    #current_rows = cp.arange(st, end)
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
@@ -268,7 +272,7 @@ class GPURec():
 
             # preprocessing
             data = self.cl_tomo_func.proc_sino(data, dark, flat)
-            data = self.cl_tomo_func.proc_proj(data, cp.array([id_slice]))
+            data = self.cl_tomo_func.proc_proj(data, id_slice, id_slice+1)
             data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
             # refs for faster access

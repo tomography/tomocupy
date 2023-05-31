@@ -41,6 +41,7 @@
 from tomocupy import utils
 from tomocupy import log_local as logging
 from tomocupy import conf_sizes
+from tomocupy import conf_filepars
 from tomocupy import tomo_functions
 from threading import Thread
 from tomocupy import reader
@@ -78,6 +79,7 @@ class GPURecSteps():
         # configure sizes and output files
         cl_reader = reader.Reader(args)
         cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_filepars = conf_filepars.ConfFilepars(args, cl_reader)
         cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing
@@ -94,7 +96,7 @@ class GPURecSteps():
         self.shape_data_fulln = (cl_conf.nproj, cl_conf.nz, cl_conf.n)
 
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf, cl_filepars)
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
@@ -268,7 +270,7 @@ class GPURecSteps():
             if(k > 0 and k < ntchunk+1):
                 with self.stream2:  # reconstruction
                     self.cl_tomo_func.proc_proj(
-                        data_gpu[(k-1) % 2], rec_gpu[(k-1) % 2])
+                        data_gpu[(k-1) % 2], 0, self.shape_data_chunk_t[1], rec_gpu[(k-1) % 2])
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])

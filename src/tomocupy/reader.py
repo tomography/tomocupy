@@ -187,8 +187,7 @@ class Reader():
 
     def read_bright_ratio(self):
         '''Read the ratio between the bright exposure and other exposures.
-        '''
-        log.info('  *** *** Find bright exposure ratio params from the HDF file')
+        '''        
         try:
             possible_names = ['/measurement/instrument/detector/different_flat_exposure',
                             '/process/acquisition/flat_fields/different_flat_exposure']
@@ -205,10 +204,11 @@ class Reader():
                             '/process/acquisition/flat_fields/flat_exposure_time',
                             '/measurement/instrument/detector/brightfield_exposure_time']
             for pn in possible_names:
-                if check_item_exists_hdf(pn):
+                if self.check_item_exists_hdf(pn):
                     bright_exp = self.param_from_dxchange(self.args.file_name, pn,
                                         attr = None, scalar = True, char_array = False)
-                    break    
+                    break   
+            log.info('  *** *** Find bright exposure ratio params from the HDF file') 
             log.info('  *** *** %f' % bright_exp)
             norm_exp = self.param_from_dxchange('/measurement/instrument/detector/exposure_time',
                                         attr = None, scalar = True, char_array = False)
@@ -216,7 +216,7 @@ class Reader():
             bright_exp_ratio = bright_exp / norm_exp
             log.info('  *** *** found bright exposure ratio of {0:6.4f}'.format(bright_exp_ratio))
         except:
-            log.warning('  *** *** problem getting bright exposure ratio.  Use 1.')
+            #log.warning('  *** *** problem getting bright exposure ratio.  Use 1.')
             bright_exp_ratio = 1
         return bright_exp_ratio
 
