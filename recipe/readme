@@ -1,0 +1,4 @@
+export CF_CUDA_ENABLED=True
+
+conda install -c conda-forge conda-forge-pinning
+conda-build -m $CONDA_PREFIX/conda_build_config.yaml -c conda-forge
