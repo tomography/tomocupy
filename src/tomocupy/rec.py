@@ -39,7 +39,7 @@
 # *************************************************************************** #
 
 from tomocupy import utils
-from tomocupy import logging
+from tomocupy import log_local as logging
 from tomocupy import conf_sizes
 from tomocupy import tomo_functions
 from tomocupy import reader
@@ -75,6 +75,7 @@ class GPURec():
         # configure sizes and output files
         cl_reader = reader.Reader(args)
         cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_filepars = conf_sizes.ConfFilePars(args, cl_reader)
         cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing
@@ -98,7 +99,7 @@ class GPURec():
                 cp.cuda.PinnedMemoryPool().malloc)
 
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf, cl_filepars)
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
@@ -123,7 +124,7 @@ class GPURec():
         self.cl_conf = cl_conf
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
-
+        
     def read_data_to_queue(self, data_queue, read_threads):
         """Reading data from hard disk and putting it to a queue"""
 
@@ -196,7 +197,7 @@ class GPURec():
 
         # chunk ids with parallel read
         ids = []
-
+        current_rows = None
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
@@ -210,7 +211,7 @@ class GPURec():
                     rec = rec_gpu[(k-1) % 2]
 
                     data = self.cl_tomo_func.proc_sino(data, dark, flat)
-                    data = self.cl_tomo_func.proc_proj(data)
+                    data = self.cl_tomo_func.proc_proj(data, current_rows)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
                     data = self.cl_tomo_func.fbp_filter_center(data, sht)
@@ -234,6 +235,9 @@ class GPURec():
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
+                    st = ids[k]*ncz+self.args.start_row//2**self.args.binning
+                    end = st+lzchunk[ids[k]]
+                    current_rows = cp.arange(st, end)
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
@@ -264,7 +268,7 @@ class GPURec():
 
             # preprocessing
             data = self.cl_tomo_func.proc_sino(data, dark, flat)
-            data = self.cl_tomo_func.proc_proj(data)
+            data = self.cl_tomo_func.proc_proj(data, cp.array([id_slice]))
             data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
             # refs for faster access

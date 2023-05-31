@@ -41,7 +41,7 @@
 from tomocupy import cfunc_lprec
 from tomocupy import cfunc_lprecfp16
 from tomocupy import cfunc_lprec
-from tomocupy import logging
+from tomocupy import log_local as logging
 import cupy as cp
 import numpy as np
 log = logging.getLogger(__name__)

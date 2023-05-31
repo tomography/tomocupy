@@ -39,7 +39,7 @@
 # *************************************************************************** #
 
 from tomocupy import utils
-from tomocupy import logging
+from tomocupy import log_local as logging
 from tomocupy import conf_sizes
 from tomocupy import tomo_functions
 from tomocupy import reader
@@ -74,6 +74,7 @@ class FindCenter():
         # configure sizes and output files
         cl_reader = reader.Reader(args)
         cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_conf = conf_sizes.ConfFilepars(args, cl_reader)
 
         # init tomo functions
         self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)

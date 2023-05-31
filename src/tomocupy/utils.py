@@ -38,13 +38,18 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
+import os
+import time
+from pathlib import Path
+from threading import Thread
+import argparse
+import h5py
 import numpy as np
 import cupy as cp
-import argparse
-import os
-from threading import Thread
-import time
 import numexpr as ne
+from tomocupy import log_local as logging
+
+log = logging.getLogger(__name__)
 
 # Print iterations progress
 

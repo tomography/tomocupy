@@ -39,7 +39,7 @@
 # *************************************************************************** #
 
 from tomocupy import config
-from tomocupy import logging
+from tomocupy import log_local as logging
 import numpy as np
 import h5py
 import os

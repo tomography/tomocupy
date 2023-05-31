@@ -44,6 +44,7 @@ from tomocupy import fbp_filter
 from tomocupy import linerec
 from tomocupy import utils
 from tomocupy import retrieve_phase, remove_stripe, adjust_projections
+from tomocupy import utils
 import cupyx.scipy.ndimage as ndimage
 
 
@@ -52,7 +53,7 @@ import numpy as np
 
 
 class TomoFunctions():
-    def __init__(self, cl_conf):
+    def __init__(self, cl_conf, cl_filepars):
 
         self.args = cl_conf.args
         self.ni = cl_conf.ni
@@ -63,6 +64,9 @@ class TomoFunctions():
         self.ncproj = cl_conf.ncproj
         self.centeri = cl_conf.centeri
         self.center = cl_conf.center
+        self.bh_obj = cl_filepars.bh_obj
+        self.bright_exp_ratio = cl_filepars.bright_exp_ratio
+        
         self.ne = 4*self.n
         if self.args.dtype == 'float16':
             # power of 2 for float16
@@ -88,7 +92,7 @@ class TomoFunctions():
             self.cl_filter = fbp_filter.FBPFilter(
                 self.ne, self.ncproj, self.nz, self.args.dtype)  # note ncproj,nz!
         self.wfilter = self.cl_filter.calc_filter(self.args.fbp_filter)
-
+        
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
@@ -106,6 +110,8 @@ class TomoFunctions():
         dark0 = cp.mean(dark0, axis=0)
         res = (data.astype(self.args.dtype, copy=False)-dark0) / (flat0-dark0+1e-3)
         res[res <= 0] = 1
+        # Account for data with a different bright correction
+        res *= self.bright_exp_ratio 
         return res
 
     def minus_log(self, data):
@@ -115,6 +121,13 @@ class TomoFunctions():
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0
         return data  # reuse input memory
+
+    def beamhardening(self, data, current_rows):
+        """Beam hardening correction"""
+        
+        data[:] = self.bh_obj.correct_centerline(data)
+        data[:] = self.bh_obj.correct_angle(data, current_rows)
+        return data # reuse input memory
 
     def remove_outliers(self, data):
         """Remove outliers"""
@@ -194,7 +207,7 @@ class TomoFunctions():
 
         return res
 
-    def proc_proj(self, data, res=None):
+    def proc_proj(self, data, current_rows, res=None):
         """Processing a projection data chunk"""
 
         if not isinstance(res, cp.ndarray):
@@ -210,6 +223,8 @@ class TomoFunctions():
         # minus log
         if self.args.minus_log == 'True':
             data[:] = self.minus_log(data)
+        if self.args.beam_hardening_method != 'none':
+            data[:] = self.beamhardening(data, current_rows)
         # padding for 360 deg recon
         if (self.args.file_type == 'double_fov'):
             res[:] = self.pad360(data)

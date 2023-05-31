@@ -38,7 +38,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy import logging
+from tomocupy import log_local as logging
 from tomocupy import utils
 import numpy as np
 import h5py
@@ -184,3 +184,68 @@ class Reader():
             d = fid['/exchange/data'][pairs, st_z:end_z, st_n:end_n]
             data = utils.downsample(d, self.args.binning)
             return data
+
+    def read_bright_ratio(self):
+        '''Read the ratio between the bright exposure and other exposures.
+        '''
+        log.info('  *** *** Find bright exposure ratio params from the HDF file')
+        try:
+            possible_names = ['/measurement/instrument/detector/different_flat_exposure',
+                            '/process/acquisition/flat_fields/different_flat_exposure']
+            for pn in possible_names:
+                if self.check_item_exists_hdf(pn):
+                    diff_bright_exp = self.param_from_dxchange(self.args.file_name, pn,
+                                        attr = None, scalar = False, char_array = True)
+                    break
+            if diff_bright_exp.lower() == 'same':
+                log.error('  *** *** used same flat and data exposures')
+                bright_exp_ratio = 1
+                return bright_exp_ratio
+            possible_names = ['/measurement/instrument/detector/exposure_time_flat',
+                            '/process/acquisition/flat_fields/flat_exposure_time',
+                            '/measurement/instrument/detector/brightfield_exposure_time']
+            for pn in possible_names:
+                if check_item_exists_hdf(pn):
+                    bright_exp = self.param_from_dxchange(self.args.file_name, pn,
+                                        attr = None, scalar = True, char_array = False)
+                    break    
+            log.info('  *** *** %f' % bright_exp)
+            norm_exp = self.param_from_dxchange('/measurement/instrument/detector/exposure_time',
+                                        attr = None, scalar = True, char_array = False)
+            log.info('  *** *** %f' % norm_exp)
+            bright_exp_ratio = bright_exp / norm_exp
+            log.info('  *** *** found bright exposure ratio of {0:6.4f}'.format(bright_exp_ratio))
+        except:
+            log.warning('  *** *** problem getting bright exposure ratio.  Use 1.')
+            bright_exp_ratio = 1
+        return bright_exp_ratio
+
+    def check_item_exists_hdf(self,item_name):
+        '''Checks if an item exists in an HDF file.
+        Inputs
+        item_name: name of item whose existence needs to be checked
+        '''
+        with h5py.File(self.args.file_name, 'r') as hdf_file:
+            return item_name in hdf_file
+
+    def param_from_dxchange(self, data_path, attr=None, scalar=True, char_array=False):
+        """
+        Reads a parameter from the HDF file.
+        Inputs
+        data_path: path to the requested data in the HDF file.
+        attr: name of the attribute if this is stored as an attribute (default: None)
+        scalar: True if the value is a single valued dataset (dafault: True)
+        char_array: if True, interpret as a character array.  Useful for EPICS strings (default: False)
+        """
+        with h5py.File(self.args.file_name,'r') as f:
+            try:
+                if attr:
+                    return f[data_path].attrs[attr].decode('ASCII')
+                elif char_array:
+                    return ''.join([chr(i) for i in f[data_path][0]]).strip(chr(0))
+                elif scalar:
+                    return f[data_path][0]
+                else:
+                    return None
+            except KeyError:
+                return None

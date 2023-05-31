@@ -9,7 +9,7 @@ import h5py
 import subprocess
 import time
 
-from tomocupy import logging
+from tomocupy import log_local as logging
 from tomocupy import config
 from tomocupy import GPURec
 from tomocupy import FindCenter

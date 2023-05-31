@@ -39,7 +39,7 @@
 # *************************************************************************** #
 
 from tomocupy import utils
-from tomocupy import logging
+from tomocupy import log_local as logging
 from tomocupy import conf_sizes
 from tomocupy import tomo_functions
 from threading import Thread
