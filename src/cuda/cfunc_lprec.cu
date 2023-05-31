@@ -116,8 +116,8 @@ void cfunc_lprec::backprojection(size_t f_, size_t g_, size_t stream_)
     // define all block and grid sizes
     dim3 dimGrid01 = dim3(ceil(n/(float)BS1), ceil(nproj/(float)BS2), ceil(nz/(float)BS3));
 	dim3 dimGrid02 = dim3(ceil(nproj/(float)BS1),ceil(nz/(float)BS2),1); 
-	dim3 dimGrid03 = dim3(ceil(nproj/(float)BS1),ceil(n/(float)BS2),ceil(nz/(float)BS3); 
-	dim3 dimGrid04 = dim3(ceil(n/(float)BS1),ceil(nz/(float)BS2),1) 
+	dim3 dimGrid03 = dim3(ceil(nproj/(float)BS1),ceil(n/(float)BS2),ceil(nz/(float)BS3)); 
+	dim3 dimGrid04 = dim3(ceil(n/(float)BS1),ceil(nz/(float)BS2),1); 
 	dim3 dimGrid1 = dim3(ceil(ceil(sqrt(nlpids))/(float)BS1),ceil(ceil(sqrt(nlpids))/(float)BS2),ceil(nz/(float)BS3)); int step2d1 = BS1*GS1;  
     dim3 dimGrid2 = dim3(ceil(ceil(sqrt(nwids))/(float)BS1),ceil(ceil(sqrt(nwids))/(float)BS2),ceil(nz/(float)BS3)); int step2d2 = BS1*GS1;      
     dim3 dimGrid3 = dim3(ceil((ntheta/2+1)/(float)BS1),ceil(nrho/(float)BS2),ceil(nz/(float)BS3)); int step2d3 = BS1*GS1;      
