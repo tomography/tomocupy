@@ -13,7 +13,6 @@ include_directories(${PYTHON_INCLUDE_PATH})
 # TODO: Is NumPy required?
 #find_package(NumPy REQUIRED)
 #include_directories(${NumPy_INCLUDE_DIRS})
-
 # Must tell CMake that SWIG interface files are CXX files
 
 set_source_files_properties(cfunc_fourierrec.i PROPERTIES CPLUSPLUS ON)

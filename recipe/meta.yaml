@@ -39,8 +39,9 @@ requirements:
     - numexpr
     - numpy
     - opencv
+    - opencv-contrib-python
     - pywavelets
-    - tifffile
+    - tifffile    
 
 about:
     home: https://github.com/tomography/tomocupy
