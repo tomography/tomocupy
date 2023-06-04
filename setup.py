@@ -6,8 +6,17 @@ setup(
     version=open('VERSION').read().strip(),
     author='Viktor Nikitin',
     package_dir={"": "src"},
-    scripts=['bin/tomocupy_cli.py'],  
-    entry_points={'console_scripts':['tomocupy = tomocupy_cli:main'],},
+    entry_points={'console_scripts':['tomocupy = tomocupy.__main__:main'],},
     packages=find_packages('src'),
     zip_safe=False,
+    install_requires=[
+        'cupy',
+        'opencv-python',
+        'h5py',
+        'numexpr',
+        'numpy',
+        'pywavelets',
+        'setuptools',  # for pkg_resources at runtime
+        'tifffile',
+    ]
 )
