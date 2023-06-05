@@ -1,8 +1,43 @@
-=======
-Install
-=======
+=====================
+Installation and test
+=====================
 
-1. Create environment with necessary dependencies
+1. Add conda-forge to anaconda channels
+
+::
+
+    (base)$ conda config --add channels conda-forge
+
+2. Create environment with installed tomocupy
+
+::
+
+    (base)$ conda create -n tomocupy tomocupy
+
+3. Activate tomocupy environment
+
+::
+
+    (base)$ conda activate tomocupy
+    
+
+3. Test installation
+
+::
+
+    (tomocupy)$ tomocupy recon -h
+
+============================
+Installation for development
+============================
+
+1. Add conda-forge to anaconda channels
+
+::
+
+    (base)$ conda config --add channels conda-forge
+
+2. Create environment with necessary dependencies
 
 ::
 
@@ -14,13 +49,13 @@ Install
   conda install -c conda-forge cupy cudatoolkit=11.0
   
 
-2. Activate tomocupy environment
+3. Activate tomocupy environment
 
 ::
 
     (base)$ conda activate tomocupy
 
-3*. (If needed) Install meta for supporting hdf meta data writer used by option: --save-format h5
+4*. (If needed) Install meta for supporting hdf meta data writer used by option: --save-format h5
 
 ::
 
@@ -30,7 +65,7 @@ Install
     (tomocupy)$ cd -
 
 
-4. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
+5. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
 
 ::
     
