@@ -90,6 +90,7 @@ https://developer.nvidia.com/cuda-11.2.2-download-archive?target_os=Windows&targ
 Note: it is better to have only 1 version of VS and 1 version of CUDA toolkit on your system to avoid problems with environmental variables
 
 Install Anaconda for windows https://docs.anaconda.com/free/anaconda/install/windows/ and use Powershell in which tomocupy environment can be created
+
 ==========
 Unit tests
 ==========
