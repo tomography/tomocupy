@@ -2,6 +2,9 @@
 Installation and test
 =====================
 
+Tomocupy works in NVidia GPUs of compute capability 6.0 and higher. To run tomocupy the system should have an nvidia driver installed (https://developer.nvidia.com/cuda-downloads). Cuda Toolkit is not necessary.
+Run 'nvidia-smi' to check whether the driver is installed. For check compute capability of the GPU, see http://mylifeismymessage.net/find-the-compute-capability-of-your-nvidia-graphics-card-gpu/. 
+
 1. Add conda-forge to anaconda channels
 
 ::
