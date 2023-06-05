@@ -69,7 +69,7 @@ class FindCenter():
     def __init__(self, args):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
-        signal.signal(signal.SIGTSTP, utils.signal_handler)
+        signal.signal(signal.SIGTERM, utils.signal_handler)
 
         # configure sizes and output files
         cl_reader = reader.Reader(args)
