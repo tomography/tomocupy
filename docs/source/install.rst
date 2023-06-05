@@ -7,6 +7,7 @@ Installation and test
 ::
 
     (base)$ conda config --add channels conda-forge
+    (base)$ conda config --set channel_priority strict
 
 2. Create environment with installed tomocupy
 
@@ -36,6 +37,7 @@ Installation for development
 ::
 
     (base)$ conda config --add channels conda-forge
+    (base)$ conda config --set channel_priority strict
 
 2. Create environment with necessary dependencies
 
@@ -73,6 +75,21 @@ Installation for development
     (tomocupy)$ cd tomocupy
     (tomocupy)$ pip install .
 
+===================================
+Additional instructions for Windows
+===================================
+
+Install Build VS 2019 utils:
+
+https://learn.microsoft.com/en-us/visualstudio/install/use-command-line-parameters-to-install-visual-studio?view=vs-2019
+
+Install CUDA toolkit, e.g. 
+
+https://developer.nvidia.com/cuda-11.2.2-download-archive?target_os=Windows&target_arch=x86_64
+
+Note: it is better to have only 1 version of VS and 1 version of CUDA toolkit on your system to avoid problems with environmental variables
+
+Install Anaconda for windows https://docs.anaconda.com/free/anaconda/install/windows/ and use Powershell in which tomocupy environment can be created
 ==========
 Unit tests
 ==========
