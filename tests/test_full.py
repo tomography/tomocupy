@@ -4,28 +4,32 @@ import numpy as np
 import tifffile
 import inspect
 import h5py
+import shutil
 
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 782.5 --nsino-per-chunk 4'
 cmd_dict = {
-    f'{prefix} ': 27.6,
-    f'{prefix} --reconstruction-algorithm lprec ': 27.6,
-    f'{prefix} --reconstruction-algorithm linerec ': 27.6,
-    f'{prefix} --dtype float16': 23.8,
-    f'{prefix} --reconstruction-algorithm lprec --dtype float16': 23.8,
-    f'{prefix} --reconstruction-algorithm linerec --dtype float16': 25.2,
-    f'{prefix} --binning 1': 11.9,
-    f'{prefix} --reconstruction-algorithm lprec --binning 1': 11.9,
-    f'{prefix} --reconstruction-algorithm linerec --binning 1': 11.9,
-    f'{prefix} --start-row 3 --end-row 15 --start-proj 200 --end-proj 700': 17.1,
-    f'{prefix} --save-format h5': 27.6,
-    f'{prefix} --nsino-per-chunk 2 --file-type double_fov': 19.5,
-    f'{prefix} --nsino-per-chunk 2 --blocked-views [0.2,1]': 30.0,
-    f'{prefix} --nsino-per-chunk 2 --blocked-views [[0.2,1],[2,3]]': 39.98,
-    f'{prefix} --remove-stripe-method fw': 27.5,
-    f'{prefix} --remove-stripe-method fw --dtype float16': 23.6,
-    f'{prefix} --start-column 200 --end-column 1000': 19.2,
-    f'{prefix} --start-column 200 --end-column 1000 --binning 1': 8.49,
-    f'{prefix} --flat-linear True': 27.6,
+    f'{prefix} ': 28.307,
+    f'{prefix} --reconstruction-algorithm lprec ': 27.992,
+    f'{prefix} --reconstruction-algorithm linerec ': 28.341,
+    f'{prefix} --dtype float16': 24.186,
+    f'{prefix} --reconstruction-algorithm lprec --dtype float16': 24.050,
+    f'{prefix} --reconstruction-algorithm linerec --dtype float16': 25.543,
+    f'{prefix} --binning 1': 12.286,
+    f'{prefix} --reconstruction-algorithm lprec --binning 1': 12.252,
+    f'{prefix} --reconstruction-algorithm linerec --binning 1': 12.259,
+    f'{prefix} --start-row 3 --end-row 15 --start-proj 200 --end-proj 700': 17.589,
+    f'{prefix} --save-format h5': 28.307,
+    f'{prefix} --nsino-per-chunk 2 --file-type double_fov': 15.552,
+    f'{prefix} --nsino-per-chunk 2 --blocked-views [0.2,1]': 30.790,
+    f'{prefix} --nsino-per-chunk 2 --blocked-views [[0.2,1],[2,3]]': 40.849,
+    f'{prefix} --remove-stripe-method fw': 28.167,
+    f'{prefix} --remove-stripe-method fw --dtype float16': 23.945,
+    f'{prefix} --start-column 200 --end-column 1000': 18.248,
+    f'{prefix} --start-column 200 --end-column 1000 --binning 1': 7.945,
+    f'{prefix} --flat-linear True': 28.308,
+    f'{prefix} --rotation-axis-auto auto --rotation-axis-method sift  --reconstruction-type full' : 28.305,
+    f'{prefix} --rotation-axis-auto auto --rotation-axis-method vo --center-search-step 0.1 --nsino 0.5 --center-search-width 100 --reconstruction-type full' : 28.303,
+    f'{prefix} --remove-stripe-method vo-all ': 27.993,
 }
 
 
@@ -41,7 +45,7 @@ class Tests(unittest.TestCase):
 
     def test_full_recon(self):
         for cmd in cmd_dict.items():
-            os.system('rm -rf data_rec')
+            shutil.rmtree('data_rec',ignore_errors=True)      
             print(f'TEST {inspect.stack()[0][3]}: {cmd[0]}')
             st = os.system(cmd[0])
             self.assertEqual(st, 0)

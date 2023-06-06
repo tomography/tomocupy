@@ -53,24 +53,24 @@ __device__ real cubicTex2D(cudaTextureObject_t tex, float x, float y, float z, i
 // interpolation to irregular grid
 __global__ void interp(cudaTextureObject_t tex, real *f, float* x, float* y, int w, int np,int n1,int n2, int nz, int* cids, int step2d)
 {
-	uint tx = blockIdx.x*blockDim.x + threadIdx.x;
-	uint ty = blockIdx.y*blockDim.y + threadIdx.y;
-	uint tz = blockIdx.z*blockDim.z + threadIdx.z;
-	uint tid = ty*w+tx;
+	unsigned int tx = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int ty = blockIdx.y*blockDim.y + threadIdx.y;
+	unsigned int tz = blockIdx.z*blockDim.z + threadIdx.z;
+	unsigned int tid = ty*w+tx;
 	if(tid>=np||tz>=nz) return;
 	f[tz*step2d+cids[tid]] += cubicTex2D(tex, x[tid], y[tid], tz,n1,n2);	
 }
 
 //casual cofficients for prefilter
-__device__ real InitialCausalCoefficient(real* c, uint DataLength,int step)
+__device__ real InitialCausalCoefficient(real* c, unsigned int DataLength,int step)
 {
-	const uint Horizon = 12<DataLength?12:DataLength;
+	const unsigned int Horizon = 12<DataLength?12:DataLength;
 
 	// this initialization corresponds to clamping boundaries
 	// accelerated loop
 	real zn = Pole;
 	real Sum = *c;
-	for (uint n = 0; n < Horizon; n++) {
+	for (unsigned int n = 0; n < Horizon; n++) {
 		Sum += zn * *c;
 		zn *= Pole;
 		c = (real*)((unsigned char*)c + step);
@@ -79,14 +79,14 @@ __device__ real InitialCausalCoefficient(real* c, uint DataLength,int step)
 }
 
 //anticasual coffeicients for prefilter
-__device__ real InitialAntiCausalCoefficient(real* c,uint DataLength,int step)
+__device__ real InitialAntiCausalCoefficient(real* c,unsigned int DataLength,int step)
 {
 	// this initialization corresponds to clamping boundaries
 	return((Pole / (Pole - static_cast<real>(1.0f))) * *c);
 }
 
 //compute coefficients from samples c
-__device__ void ConvertToInterpolationCoefficients(real* coeffs,uint DataLength,int step)
+__device__ void ConvertToInterpolationCoefficients(real* coeffs,unsigned int DataLength,int step)
 {
 	// compute the overall gain
 	const real Lambda = (static_cast<real>(1.0f) - Pole) * (static_cast<real>(1.0f) - static_cast<real>(1.0f) / Pole);
@@ -96,7 +96,7 @@ __device__ void ConvertToInterpolationCoefficients(real* coeffs,uint DataLength,
 	real previous_c;  //cache the previously calculated c rather than look it up again (faster!)
 	*c = previous_c = Lambda * InitialCausalCoefficient(c, DataLength, step);
 	// causal recursion
-	for (uint n = 1; n < DataLength; n++) {
+	for (int n = 1; n < DataLength; n++) {
 		c = (real*)((unsigned char*)c + step);
 		*c = previous_c = Lambda * *c + Pole * previous_c;
 	}
@@ -115,13 +115,13 @@ __global__ void transpose(real *odata, real *idata, int width, int height, int n
 	__shared__ real block[BS3][BS2][BS1+1];
 
 	// read the matrix tile into shared memory
-	uint xIndex = blockIdx.x*blockDim.x + threadIdx.x;
-	uint yIndex = blockIdx.y*blockDim.y + threadIdx.y;
-	uint zIndex = blockIdx.z*blockDim.z + threadIdx.z;
+	unsigned int xIndex = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int yIndex = blockIdx.y*blockDim.y + threadIdx.y;
+	unsigned int zIndex = blockIdx.z*blockDim.z + threadIdx.z;
 	if(zIndex>=nz) return;
 	if((xIndex < width) && (yIndex < height))
 	{
-		uint index_in = zIndex*width*height+yIndex * width + xIndex;
+		unsigned int index_in = zIndex*width*height+yIndex * width + xIndex;
 		block[threadIdx.z][threadIdx.y][threadIdx.x] = idata[index_in];
 	}
 
@@ -132,19 +132,19 @@ __global__ void transpose(real *odata, real *idata, int width, int height, int n
 	yIndex = blockIdx.x * blockDim.x + threadIdx.y;// could be wrong Dimx and Dimy
 	if((xIndex < height) && (yIndex < width))
 	{
-		uint index_out = zIndex*width*height+yIndex * height + xIndex;
+		unsigned int index_out = zIndex*width*height+yIndex * height + xIndex;
 		odata[index_out] = block[threadIdx.z][threadIdx.x][threadIdx.y];
 	}
 }
 
 // compute coefficients from samples only for rows (gpu cache optimization) 
-__global__ void SamplesToCoefficients2DY(real* image,uint pitch,uint width,uint height, int nz)
+__global__ void SamplesToCoefficients2DY(real* image,unsigned int pitch,unsigned int width,unsigned int height, int nz)
 {
 	// process lines in x-direction
-	uint yIndex = blockIdx.y*blockDim.y + threadIdx.y;
+	unsigned int yIndex = blockIdx.y*blockDim.y + threadIdx.y;
 	if(yIndex>=nz) return;
 
-	const uint x = blockIdx.x * blockDim.x + threadIdx.x;
+	const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
 	if (x>=width) return;
 
 	real* line = yIndex*width*height+image + x;  //direct access
@@ -155,9 +155,9 @@ __global__ void SamplesToCoefficients2DY(real* image,uint pitch,uint width,uint 
 // real2 multiplication
 __global__ void mul(real2* y,real2* x,int n1,int n2, int nz)
 {
-	uint tx = blockIdx.x*blockDim.x + threadIdx.x;
-	uint ty = blockIdx.y*blockDim.y + threadIdx.y;
-	uint tz = blockIdx.z*blockDim.z + threadIdx.z;
+	unsigned int tx = blockIdx.x*blockDim.x + threadIdx.x;
+	unsigned int ty = blockIdx.y*blockDim.y + threadIdx.y;
+	unsigned int tz = blockIdx.z*blockDim.z + threadIdx.z;
 	if (tx>=n1||ty>=n2||tz>=nz) return;
     real2 x0,y0;
     y0=y[tz*n1*n2+ty*n1+tx];x0=x[ty*n1+tx];

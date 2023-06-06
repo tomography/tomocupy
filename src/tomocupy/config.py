@@ -165,7 +165,7 @@ SECTIONS['remove-stripe'] = {
         'default': 'none',
         'type': str,
         'help': "Remove stripe method: none, fourier-wavelet, titarenko",
-        'choices': ['none', 'fw', 'ti']},
+        'choices': ['none', 'fw', 'ti', 'vo-all']},
 }
 
 
@@ -187,6 +187,25 @@ SECTIONS['fw'] = {
         'default': True,
         'help': "When set, Fourier-Wavelet remove stripe extend the size of the sinogram by padding with zeros",
         'action': 'store_true'},
+}
+
+
+SECTIONS['vo-all'] = {
+    'vo-all-snr': {
+        'default': 3,
+        'type': float,
+        'help': "Ratio used to locate large stripes. Greater is less sensitive."},
+    'vo-all-la-size': {
+        'default': 61,
+        'type': utils.positive_int,
+        'help': "Window size of the median filter to remove large stripes."},        
+    'vo-all-sm-size': {
+        'type': utils.positive_int,
+        'default': 21,
+        'help': "Window size of the median filter to remove small-to-medium stripes."},
+    'vo-all-dim': {
+        'default': 1,
+        'help': "Dimension of the window."},
 }
 
 
@@ -301,7 +320,7 @@ SECTIONS['reconstruction'] = {
         'help': "Location of rotation axis"},
     'center-search-width': {
         'type': float,
-        'default': 10.0,
+        'default': 50.0,
         'help': "+/- center search width (pixel). "},
     'center-search-step': {
         'type': float,
@@ -360,6 +379,11 @@ SECTIONS['reconstruction'] = {
         'default': '0.5',
         'type': float,
         'help': "SIFT threshold for rotation search.", },
+    'rotation-axis-method': {
+        'default': 'sift',  
+        'type': str,        
+        'help': "Method for automatic rotation search.",
+        'choices': ['sift', 'vo']},
     'find-center-start-row': {
         'type': int,
         'default': 0,
@@ -387,7 +411,7 @@ SECTIONS['reconstruction'] = {
         'default': 'parzen',
         'type': str,
         'help': "Filter for FBP reconstruction",
-        'choices': ['shepp', 'parzen']},
+        'choices': ['ramp', 'shepp', 'hann', 'hamming', 'parzen', 'cosine', 'cosine2']},
     'dezinger': {
         'type': int,
         'default': 0,
@@ -417,12 +441,12 @@ SECTIONS['reconstruction'] = {
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'reconstruction-types')
+                'reconstruction', 'fw', 'ti', 'vo-all', 'reconstruction-types')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
-                      'retrieve-phase', 'fw', 'ti', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
+                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
-              'Remove stripe FW', 'Remove stripe Titarenko', 'Retrieve phase', 'Reconstruction')
+              'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo' 'Retrieve phase', 'Reconstruction')
 
 
 def get_config_name():

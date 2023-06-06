@@ -13,7 +13,7 @@ void __global__ divphi(real2 *g, real2 *f, float mu, int n, int nz, int nproj, i
   //note overfilling with computing exp and float16 precision
   real phi = static_cast<real>(__expf(mu * (n * n) * (dx * dx + dy * dy)) / nproj);
   int f_ind = tx + ty * n + tz * n * n;
-  int g_ind = (tx + n / 2 + m) + (ty+1 + n / 2 + m) * (2 * n + 2 * m) + tz * (2 * n + 2 * m) * (2 * n + 2 * m); // ty - 1 adjust for tomopy
+  int g_ind = (tx + n / 2 + m) + (ty+1 + n / 2 + m) * (2 * n + 2 * m) + tz * (2 * n + 2 * m) * (2 * n + 2 * m); // ty + 1 adjust for tomopy
 
   f[f_ind].x = g[g_ind].x * phi;
   f[f_ind].y = g[g_ind].y * phi;
