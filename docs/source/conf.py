@@ -324,6 +324,7 @@ autodoc_mock_imports = [
     'os',
     'pathlib',
     'pytorch_wavelets',
+    'pywt',
     'queue',
     'signal',
     'shutil',
