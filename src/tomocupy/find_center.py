@@ -172,6 +172,7 @@ class FindCenter():
     def find_center_vo(self, ind=None, smin=-50, smax=50, srad=6, step=0.25, ratio=0.5, drop=20):
         """
         Find rotation axis location using Nghia Vo's method. :cite:`Vo:14`.
+        
         Parameters
         ----------
         ind : int, optional
@@ -188,6 +189,7 @@ class FindCenter():
             It's used to generate the mask.
         drop : int, optional
             Drop lines around vertical center of the mask.
+        
         Returns
         -------
         float
