@@ -201,9 +201,10 @@ class TomoFunctions():
             res = cp.zeros(
                 [data.shape[0], data.shape[1], self.n], self.args.dtype)
         # retrieve phase
-        if self.args.retrieve_phase_method == 'paganin':
+        if self.args.retrieve_phase_method == 'Gpaganin' or self.args.retrieve_phase_method == 'paganin':
             data[:] = retrieve_phase.paganin_filter(
-                data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, self.args.retrieve_phase_alpha)
+                data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, \
+                self.args.retrieve_phase_alpha, self.args.retrieve_phase_method, self.args.delta_beta)
         if self.args.rotate_proj_angle != 0:
             data[:] = adjust_projections.rotate(
                 data, self.args.rotate_proj_angle, self.args.rotate_proj_order)
