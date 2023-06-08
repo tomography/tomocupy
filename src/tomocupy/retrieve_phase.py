@@ -168,9 +168,10 @@ def _paganin_filter_factorG(energy, dist, kf, pixel_size, db):
     """
     	Generalized phase retrieval method
     	Paganin et al 2020
+        diffracting feature ~2*pixel size
     """
     aph = db*(dist*_wavelength(energy))/(4*PI)
-    return 1 / (1.0 -(2*aph/pixel_size**2)*(kf-2))
+    return 1 / (1.0 -(2*aph/(2.0*pixel_size**2))*(kf-2))
 
 
 def _calc_pad_width(dim, pixel_size, wavelength, dist):
@@ -223,9 +224,10 @@ def _reciprocal_gridG(pixel_size, nx, ny):
     ndarray
         Grid coordinates.
     """
+    # Considering diffracting feature ~2*pixel size
     # Sampling in reciprocal space.
-    indx = np.cos(_reciprocal_coord(pixel_size, nx)*pixel_size)
-    indy = np.cos(_reciprocal_coord(pixel_size, ny)*pixel_size)
+    indx = np.cos(_reciprocal_coord(pixel_size, nx)*2.0*pixel_size)
+    indy = np.cos(_reciprocal_coord(pixel_size, ny)*2.0*pixel_size)
     
     return np.add.outer(indx, indy)
 
