@@ -57,7 +57,7 @@ def _wavelength(energy):
 
 
 def paganin_filter(
-        data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, pad=True):
+        data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, method='paganin', db=1000, pad=True):
     """
     Perform single-step phase retrieval from phase-contrast measurements
     :cite:`Paganin:02`.
@@ -73,10 +73,13 @@ def paganin_filter(
     energy : float, optional
         Energy of incident wave in keV.
     alpha : float, optional
-        Regularization parameter.
+        Regularization parameter for Paganin method.
+    method : string
+        phase retrieval method. Standard Paganin or Generalized Paganin.
+    db : float, optional
+    	delta/beta for generalized Paganin phase retrieval 
     pad : bool, optional
         If True, extend the size of the projections by padding with zeros.
-
     Returns
     -------
     ndarray
@@ -88,18 +91,19 @@ def paganin_filter(
 
     # Compute the reciprocal grid.
     dx, dy, dz = data.shape
-    w2 = _reciprocal_grid(pixel_size, dy + 2 * py, dz + 2 * pz)
-
-    # Filter in Fourier space.
-    phase_filter = cp.fft.fftshift(
-        _paganin_filter_factor(energy, dist, alpha, w2))
-
+    if method == 'paganin':
+        w2 = _reciprocal_grid(pixel_size, dy + 2 * py, dz + 2 * pz)
+        phase_filter = cp.fft.fftshift(
+            _paganin_filter_factor(energy, dist, alpha, w2))
+    elif method == 'Gpaganin':
+        kf = _reciprocal_gridG(pixel_size, dy + 2 * py, dz + 2 * pz)
+        phase_filter = cp.fft.fftshift(
+            _paganin_filter_factorG(energy, dist, kf, pixel_size, db))
+        
     prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype=data.dtype)
-
     _retrieve_phase(data, phase_filter, py, pz, prj, pad)
-    # data=data[:,npad:-npad]
+    
     return data
-
 
 def _retrieve_phase(data, phase_filter, px, py, prj, pad):
     dx, dy, dz = data.shape
@@ -160,6 +164,14 @@ def _calc_pad(data, pixel_size, dist, energy, pad):
 def _paganin_filter_factor(energy, dist, alpha, w2):
     return 1 / (_wavelength(energy) * dist * w2 / (4 * PI) + alpha)
 
+def _paganin_filter_factorG(energy, dist, kf, pixel_size, db):
+    """
+    	Generalized phase retrieval method
+    	Paganin et al 2020
+    """
+    aph = db*(dist*_wavelength(energy))/(4*PI)
+    return 1 / (1.0 -(2*aph/pixel_size**2)*(kf-2))
+
 
 def _calc_pad_width(dim, pixel_size, wavelength, dist):
     pad_pix = cp.ceil(PI * wavelength * dist / pixel_size ** 2)
@@ -194,6 +206,30 @@ def _reciprocal_grid(pixel_size, nx, ny):
 
     # there is no substitute for np.add.outer using cupy.
     return cp.array(np.add.outer(indx, indy))
+
+def _reciprocal_gridG(pixel_size, nx, ny):
+    """
+    Calculate reciprocal grid for Generalized Paganin method.
+
+    Parameters
+    ----------
+    pixel_size : float
+        Detector pixel size in cm.
+    nx, ny : int
+        Size of the reciprocal grid along x and y axes.
+
+    Returns
+    -------
+    ndarray
+        Grid coordinates.
+    """
+    # Sampling in reciprocal space.
+    indx = np.cos(_reciprocal_coord(pixel_size, nx)*pixel_size)
+    indy = np.cos(_reciprocal_coord(pixel_size, ny)*pixel_size)
+    
+    return np.add.outer(indx, indy)
+
+
 
 
 def _reciprocal_coord(pixel_size, num_grid):
