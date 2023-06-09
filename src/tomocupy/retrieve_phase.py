@@ -229,8 +229,8 @@ def _reciprocal_gridG(pixel_size, nx, ny):
     """
     # Considering diffracting feature ~2*pixel size
     # Sampling in reciprocal space.
-    indx = np.cos(_reciprocal_coordG(pixel_size, nx))
-    indy = np.cos(_reciprocal_coordG(pixel_size, ny))
+    indx = np.cos(_reciprocal_coord(pixel_size, nx)*2*PI*pixel_size)
+    indy = np.cos(_reciprocal_coord(pixel_size, ny)*2*PI*pixel_size)
     
     return np.add.outer(indx, indy)
 
@@ -255,26 +255,3 @@ def _reciprocal_coord(pixel_size, num_grid):
     rc = np.arange(-n, num_grid, 2, dtype=cp.float32)
     rc *= 0.5 / (n * pixel_size)
     return rc
-
-def _reciprocal_coordG(pixel_size, num_grid):
-    """
-    Calculate reciprocal grid coordinates for a given pixel size
-    and discretization.
-
-    Parameters
-    ----------
-    pixel_size : float
-        Detector pixel size in cm.
-    num_grid : int
-        Size of the reciprocal grid.
-
-    Returns
-    -------
-    ndarray
-        Grid coordinates.
-    """
-    n = num_grid - 1
-    rc = np.arange(-n, num_grid, 2, dtype=cp.float32)
-    rc *= PI / n 
-    return rc    
-    
