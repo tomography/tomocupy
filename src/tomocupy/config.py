@@ -246,6 +246,10 @@ SECTIONS['retrieve-phase'] = {
         'default': 1500.0,
         'type': float,
         'help': "delta/beta material for Generalized Paganin"},
+    'W': {
+        'default': 2e-4,
+        'type': float,
+        'help': "Characteristic transverse length for Generalized Paganin"},
     'retrieve-phase-pad': {
         'type': utils.positive_int,
         'default': 1,
