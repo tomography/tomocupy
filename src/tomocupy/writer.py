@@ -212,7 +212,10 @@ class Writer():
 
         try:  # trying to copy meta
             import meta
-            tree, meta_dict = meta.read_hdf(self.args.file_name)
+
+            mp = meta.read_meta.Hdf5MetadataReader(self.args.file_name)
+            meta_dict = mp.readMetadata()
+            mp.close()
             with h5py.File(self.args.file_name,'r') as f:
                 log.info("  *** meta data from raw dataset %s copied to rec hdf file" % self.args.file_name)
                 for key, value in meta_dict.items():
