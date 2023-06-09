@@ -57,7 +57,7 @@ def _wavelength(energy):
 
 
 def paganin_filter(
-        data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, method='paganin', db=1000, pad=True):
+        data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, method='paganin', db=1000, W=2e-4, pad=True):
     """
     Perform single-step phase retrieval from phase-contrast measurements
     :cite:`Paganin:02`.
@@ -78,6 +78,8 @@ def paganin_filter(
         phase retrieval method. Standard Paganin or Generalized Paganin.
     db : float, optional
     	delta/beta for generalized Paganin phase retrieval 
+    W :  float
+        Characteristic transverse lenght scale    	
     pad : bool, optional
         If True, extend the size of the projections by padding with zeros.
     Returns
@@ -85,6 +87,7 @@ def paganin_filter(
     ndarray
         Approximated 3D tomographic phase data.
     """
+
 
     # New dimensions and pad value after padding.
     py, pz, val = _calc_pad(data, pixel_size, dist, energy, pad)
@@ -98,7 +101,7 @@ def paganin_filter(
     elif method == 'Gpaganin':
         kf = _reciprocal_gridG(pixel_size, dy + 2 * py, dz + 2 * pz)
         phase_filter = cp.fft.fftshift(
-            _paganin_filter_factorG(energy, dist, kf, pixel_size, db))
+            _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W))
         
     prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype=data.dtype)
     _retrieve_phase(data, phase_filter, py, pz, prj, pad)
@@ -164,14 +167,14 @@ def _calc_pad(data, pixel_size, dist, energy, pad):
 def _paganin_filter_factor(energy, dist, alpha, w2):
     return 1 / (_wavelength(energy) * dist * w2 / (4 * PI) + alpha)
 
-def _paganin_filter_factorG(energy, dist, kf, pixel_size, db):
+def _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W):
     """
     	Generalized phase retrieval method
     	Paganin et al 2020
         diffracting feature ~2*pixel size
     """
     aph = db*(dist*_wavelength(energy))/(4*PI)
-    return 1 / (1.0 -(2*aph/(2.0*pixel_size**2))*(kf-2))
+    return 1 / (1.0 -(2*aph/(W**2))*(kf-2))
 
 
 def _calc_pad_width(dim, pixel_size, wavelength, dist):
@@ -226,13 +229,10 @@ def _reciprocal_gridG(pixel_size, nx, ny):
     """
     # Considering diffracting feature ~2*pixel size
     # Sampling in reciprocal space.
-    indx = np.cos(_reciprocal_coord(pixel_size, nx)*2.0*pixel_size)
-    indy = np.cos(_reciprocal_coord(pixel_size, ny)*2.0*pixel_size)
+    indx = np.cos(_reciprocal_coordG(pixel_size, nx))
+    indy = np.cos(_reciprocal_coordG(pixel_size, ny))
     
     return np.add.outer(indx, indy)
-
-
-
 
 def _reciprocal_coord(pixel_size, num_grid):
     """
@@ -255,3 +255,26 @@ def _reciprocal_coord(pixel_size, num_grid):
     rc = np.arange(-n, num_grid, 2, dtype=cp.float32)
     rc *= 0.5 / (n * pixel_size)
     return rc
+
+def _reciprocal_coordG(pixel_size, num_grid):
+    """
+    Calculate reciprocal grid coordinates for a given pixel size
+    and discretization.
+
+    Parameters
+    ----------
+    pixel_size : float
+        Detector pixel size in cm.
+    num_grid : int
+        Size of the reciprocal grid.
+
+    Returns
+    -------
+    ndarray
+        Grid coordinates.
+    """
+    n = num_grid - 1
+    rc = np.arange(-n, num_grid, 2, dtype=cp.float32)
+    rc *= PI / n 
+    return rc    
+    
