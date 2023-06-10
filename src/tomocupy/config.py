@@ -242,11 +242,11 @@ SECTIONS['retrieve-phase'] = {
         'default': 0,
         'type': float,
         'help': "Regularization parameter"},
-    'delta-beta': {
+    'retrieve-phase-delta-beta': {
         'default': 1500.0,
         'type': float,
         'help': "delta/beta material for Generalized Paganin"},
-    'W': {
+    'retrieve-phase-W': {
         'default': 2e-4,
         'type': float,
         'help': "Characteristic transverse length for Generalized Paganin"},
