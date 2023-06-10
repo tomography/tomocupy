@@ -208,7 +208,7 @@ def _reciprocal_grid(pixel_size, nx, ny):
     cp.square(indx, out=indx)
     cp.square(indy, out=indy)
 
-    idx, idy = cp.meshgrid(indx, indy)
+    idx, idy = cp.meshgrid(indy, indx)
     return idx + idy
 
 def _reciprocal_gridG(pixel_size, nx, ny):
@@ -231,7 +231,7 @@ def _reciprocal_gridG(pixel_size, nx, ny):
     # Sampling in reciprocal space.
     indx = cp.cos(_reciprocal_coord(pixel_size, nx)*2*PI*pixel_size)
     indy = cp.cos(_reciprocal_coord(pixel_size, ny)*2*PI*pixel_size)
-    idx, idy = cp.meshgrid(indx, indy)
+    idx, idy = cp.meshgrid(indy, indx)
     return idx + idy
 
 def _reciprocal_coord(pixel_size, num_grid):
