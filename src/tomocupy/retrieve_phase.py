@@ -205,11 +205,11 @@ def _reciprocal_grid(pixel_size, nx, ny):
     # Sampling in reciprocal space.
     indx = _reciprocal_coord(pixel_size, nx)
     indy = _reciprocal_coord(pixel_size, ny)
-    np.square(indx, out=indx)
-    np.square(indy, out=indy)
+    cp.square(indx, out=indx)
+    cp.square(indy, out=indy)
 
-    # there is no substitute for np.add.outer using cupy.
-    return cp.array(np.add.outer(indx, indy))
+    idx, idy = cp.meshgrid(indx, indy)
+    return idx + idy
 
 def _reciprocal_gridG(pixel_size, nx, ny):
     """
@@ -229,10 +229,10 @@ def _reciprocal_gridG(pixel_size, nx, ny):
     """
     # Considering diffracting feature ~2*pixel size
     # Sampling in reciprocal space.
-    indx = np.cos(_reciprocal_coord(pixel_size, nx)*2*PI*pixel_size)
-    indy = np.cos(_reciprocal_coord(pixel_size, ny)*2*PI*pixel_size)
-    
-    return np.add.outer(indx, indy)
+    indx = cp.cos(_reciprocal_coord(pixel_size, nx)*2*PI*pixel_size)
+    indy = cp.cos(_reciprocal_coord(pixel_size, ny)*2*PI*pixel_size)
+    idx, idy = cp.meshgrid(indx, indy)
+    return idx + idy
 
 def _reciprocal_coord(pixel_size, num_grid):
     """
@@ -252,6 +252,6 @@ def _reciprocal_coord(pixel_size, num_grid):
         Grid coordinates.
     """
     n = num_grid - 1
-    rc = np.arange(-n, num_grid, 2, dtype=cp.float32)
+    rc = cp.arange(-n, num_grid, 2, dtype=cp.float32)
     rc *= 0.5 / (n * pixel_size)
     return rc
