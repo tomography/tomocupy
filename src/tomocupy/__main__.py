@@ -152,7 +152,11 @@ def main():
 
     args = config.parse_known_args(parser, subparser=True)
     # create logger
-    logs_home = args.logs_home
+    try:
+        logs_home = args.logs_home
+    except AttributeError:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
     # test cupy
     import cupy as cp
     c = cp.ones(1)
