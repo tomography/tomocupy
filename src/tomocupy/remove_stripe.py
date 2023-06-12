@@ -139,20 +139,22 @@ def _conv_transpose2d(x, w, stride, pad, bias=None, groups=1):
 def afb1d(x, h0, h1='zero', dim=-1):
     """ 1D analysis filter bank (along one dimension only) of an image
 
-    Inputs:
-        x (array): 4D input with the last two dimensions the spatial input
-        h0 (array): 4D input for the lowpass filter. Should have shape (1, 1,
-            h, 1) or (1, 1, 1, w)
-        h1 (array): 4D input for the highpass filter. Should have shape (1, 1,
-            h, 1) or (1, 1, 1, w)
-        dim (int) - dimension of filtering. d=2 is for a vertical filter (called
-            column filtering but filters across the rows). d=3 is for a
-            horizontal filter, (called row filtering but filters across the
-            columns).
+    Parameters
+    ----------
+    x (array): 4D input with the last two dimensions the spatial input
+    h0 (array): 4D input for the lowpass filter. Should have shape (1, 1,
+        h, 1) or (1, 1, 1, w)
+    h1 (array): 4D input for the highpass filter. Should have shape (1, 1,
+        h, 1) or (1, 1, 1, w)
+    dim (int) - dimension of filtering. d=2 is for a vertical filter (called
+        column filtering but filters across the rows). d=3 is for a
+        horizontal filter, (called row filtering but filters across the
+        columns).
 
-    Returns:
-        lohi: lowpass and highpass subbands concatenated along the channel
-            dimension
+    Returns
+    -------
+    lohi: lowpass and highpass subbands concatenated along the channel
+        dimension
     """
     C = x.shape[1]
     # Convert the dim to positive
