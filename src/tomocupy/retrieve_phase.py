@@ -57,7 +57,7 @@ def _wavelength(energy):
 
 
 def paganin_filter(
-        data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, pad=True):
+        data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, method='paganin', db=1000, W=2e-4, pad=True):
     """
     Perform single-step phase retrieval from phase-contrast measurements
     :cite:`Paganin:02`.
@@ -73,33 +73,40 @@ def paganin_filter(
     energy : float, optional
         Energy of incident wave in keV.
     alpha : float, optional
-        Regularization parameter.
+        Regularization parameter for Paganin method.
+    method : string
+        phase retrieval method. Standard Paganin or Generalized Paganin.
+    db : float, optional
+    	delta/beta for generalized Paganin phase retrieval 
+    W :  float
+        Characteristic transverse lenght scale    	
     pad : bool, optional
         If True, extend the size of the projections by padding with zeros.
-
     Returns
     -------
     ndarray
         Approximated 3D tomographic phase data.
     """
 
+
     # New dimensions and pad value after padding.
     py, pz, val = _calc_pad(data, pixel_size, dist, energy, pad)
 
     # Compute the reciprocal grid.
     dx, dy, dz = data.shape
-    w2 = _reciprocal_grid(pixel_size, dy + 2 * py, dz + 2 * pz)
-
-    # Filter in Fourier space.
-    phase_filter = cp.fft.fftshift(
-        _paganin_filter_factor(energy, dist, alpha, w2))
-
+    if method == 'paganin':
+        w2 = _reciprocal_grid(pixel_size, dy + 2 * py, dz + 2 * pz)
+        phase_filter = cp.fft.fftshift(
+            _paganin_filter_factor(energy, dist, alpha, w2))
+    elif method == 'Gpaganin':
+        kf = _reciprocal_gridG(pixel_size, dy + 2 * py, dz + 2 * pz)
+        phase_filter = cp.fft.fftshift(
+            _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W))
+        
     prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype=data.dtype)
-
     _retrieve_phase(data, phase_filter, py, pz, prj, pad)
-    # data=data[:,npad:-npad]
+    
     return data
-
 
 def _retrieve_phase(data, phase_filter, px, py, prj, pad):
     dx, dy, dz = data.shape
@@ -160,6 +167,15 @@ def _calc_pad(data, pixel_size, dist, energy, pad):
 def _paganin_filter_factor(energy, dist, alpha, w2):
     return 1 / (_wavelength(energy) * dist * w2 / (4 * PI) + alpha)
 
+def _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W):
+    """
+    	Generalized phase retrieval method
+    	Paganin et al 2020
+        diffracting feature ~2*pixel size
+    """
+    aph = db*(dist*_wavelength(energy))/(4*PI)
+    return 1 / (1.0 -(2*aph/(W**2))*(kf-2))
+
 
 def _calc_pad_width(dim, pixel_size, wavelength, dist):
     pad_pix = cp.ceil(PI * wavelength * dist / pixel_size ** 2)
@@ -189,12 +205,34 @@ def _reciprocal_grid(pixel_size, nx, ny):
     # Sampling in reciprocal space.
     indx = _reciprocal_coord(pixel_size, nx)
     indy = _reciprocal_coord(pixel_size, ny)
-    np.square(indx, out=indx)
-    np.square(indy, out=indy)
+    cp.square(indx, out=indx)
+    cp.square(indy, out=indy)
 
-    # there is no substitute for np.add.outer using cupy.
-    return cp.array(np.add.outer(indx, indy))
+    idx, idy = cp.meshgrid(indy, indx)
+    return idx + idy
 
+def _reciprocal_gridG(pixel_size, nx, ny):
+    """
+    Calculate reciprocal grid for Generalized Paganin method.
+
+    Parameters
+    ----------
+    pixel_size : float
+        Detector pixel size in cm.
+    nx, ny : int
+        Size of the reciprocal grid along x and y axes.
+
+    Returns
+    -------
+    ndarray
+        Grid coordinates.
+    """
+    # Considering diffracting feature ~2*pixel size
+    # Sampling in reciprocal space.
+    indx = cp.cos(_reciprocal_coord(pixel_size, nx)*2*PI*pixel_size)
+    indy = cp.cos(_reciprocal_coord(pixel_size, ny)*2*PI*pixel_size)
+    idx, idy = cp.meshgrid(indy, indx)
+    return idx + idy
 
 def _reciprocal_coord(pixel_size, num_grid):
     """
@@ -214,6 +252,6 @@ def _reciprocal_coord(pixel_size, num_grid):
         Grid coordinates.
     """
     n = num_grid - 1
-    rc = np.arange(-n, num_grid, 2, dtype=cp.float32)
+    rc = cp.arange(-n, num_grid, 2, dtype=cp.float32)
     rc *= 0.5 / (n * pixel_size)
     return rc
