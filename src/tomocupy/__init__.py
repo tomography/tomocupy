@@ -63,5 +63,8 @@ from tomocupy.utils import *
 from tomocupy.conf_sizes import *
 from tomocupy.reader import *
 from tomocupy.writer import *
-from tomocupy.tomo_functions import *
+from tomocupy.proc_functions import *
+from tomocupy.backproj_functions import *
 from tomocupy.adjust_projections import *
+from tomocupy.backproj_parallel import *
+from tomocupy.backproj_lamfourier_parallel import *

@@ -41,7 +41,7 @@
 from tomocupy import utils
 from tomocupy import logging
 from tomocupy import conf_sizes
-from tomocupy import tomo_functions
+from tomocupy import proc_functions
 from tomocupy import reader
 from threading import Thread
 from ast import literal_eval
@@ -76,7 +76,7 @@ class FindCenter():
         cl_conf = conf_sizes.ConfSizes(args, cl_reader)
 
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_proc_func = proc_functions.ProcFunctions(cl_conf)
 
         # additional refs
         self.args = args
@@ -106,8 +106,8 @@ class FindCenter():
         flat = cp.array(flat)
         dark = cp.array(dark)
 
-        data = self.cl_tomo_func.darkflat_correction(data, dark, flat)
-        data = self.cl_tomo_func.minus_log(data)
+        data = self.cl_proc_func.darkflat_correction(data, dark, flat)
+        data = self.cl_proc_func.minus_log(data)
         data = data.get()
         shifts, nmatches = _register_shift_sift(
             data[::2], data[1::2, :, ::-1], self.cl_conf.args.rotation_axis_sift_threshold)
@@ -156,8 +156,8 @@ class FindCenter():
         flat = cp.array(flat)
         dark = cp.array(dark)
 
-        data = self.cl_tomo_func.darkflat_correction(data, dark, flat)
-        data = self.cl_tomo_func.minus_log(data)
+        data = self.cl_proc_func.darkflat_correction(data, dark, flat)
+        data = self.cl_proc_func.minus_log(data)
         data = data.get()
         shifts, nmatches = _register_shift_sift(
             data[::2], data[1::2, :, ::-1], self.cl_conf.args.rotation_axis_sift_threshold)
@@ -218,8 +218,8 @@ class FindCenter():
         flat = cp.array(flat)
         dark = cp.array(dark)
 
-        data = self.cl_tomo_func.darkflat_correction(data, dark, flat)
-        data = self.cl_tomo_func.minus_log(data)
+        data = self.cl_proc_func.darkflat_correction(data, dark, flat)
+        data = self.cl_proc_func.minus_log(data)
 
         _tomo = data.swapaxes(0, 1)[0]
         # Denoising

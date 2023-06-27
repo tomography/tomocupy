@@ -41,7 +41,7 @@
 from tomocupy import utils
 from tomocupy import logging
 from tomocupy import conf_sizes
-from tomocupy import tomo_functions
+from tomocupy import proc_functions
 from threading import Thread
 from tomocupy import reader
 from tomocupy import writer
@@ -91,7 +91,7 @@ class GPUProc():
         self.shape_data_fulln = (cl_conf.nproj, cl_conf.nz, cl_conf.n)
 
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_tomo_func = proc_functions.ProcFunctions(cl_conf)
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)

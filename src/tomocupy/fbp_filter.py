@@ -61,7 +61,6 @@ class FBPFilter():
         t = cp.arange(0, self.n/2+1)/self.n
 
         if filter == 'ramp':
-            # .*(t/(2*d)<=1)%compute the weigths
             wfa = self.n*0.5*self._wint(12, t)
         elif filter == 'shepp':
             wfa = self.n*0.5*self._wint(12, t)*cp.sinc(t/(2*d))*(t/d <= 2)

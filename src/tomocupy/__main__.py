@@ -82,10 +82,10 @@ def run_recstep(args):
     file_name = Path(args.file_name)
     if file_name.is_file():
         t = time.time()
-        if args.lamino_angle != 0 and args.reconstruction_algorithm != 'linesummation':
-            log.warning(
-                'Switching to reconstruction algorithm linesummation for laminography')
-            args.reconstruction_algorithm = 'linesummation'
+        # if args.lamino_angle != 0 and args.reconstruction_algorithm != 'linesummation':
+        #     log.warning(
+        #         'Switching to reconstruction algorithm linesummation for laminography')
+        #     args.reconstruction_algorithm = 'linesummation'
         if args.rotation_axis_auto == 'auto':
             clrotthandle = FindCenter(args)
             args.rotation_axis = clrotthandle.find_center()

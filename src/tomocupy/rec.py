@@ -41,7 +41,8 @@
 from tomocupy import utils
 from tomocupy import logging
 from tomocupy import conf_sizes
-from tomocupy import tomo_functions
+from tomocupy import proc_functions
+from tomocupy import backproj_functions
 from tomocupy import reader
 from tomocupy import writer
 from threading import Thread
@@ -72,6 +73,8 @@ class GPURec():
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
 
+        # use pinned memory
+        cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
         # configure sizes and output files
         cl_reader = reader.Reader(args)
         cl_conf = conf_sizes.ConfSizes(args, cl_reader)
@@ -82,23 +85,10 @@ class GPURec():
         self.shape_recon_chunk = (cl_conf.ncz, cl_conf.n, cl_conf.n)
         self.shape_dark_chunk = (cl_conf.ndark, cl_conf.ncz, cl_conf.ni)
         self.shape_flat_chunk = (cl_conf.nflat, cl_conf.ncz, cl_conf.ni)
-
-        gpu_mem = cp.cuda.Device().mem_info[1]  # (used,total), use total
-        if args.dtype == 'float32':
-            dtype_size = 4
-        else:
-            dtype_size = 2
-        if (cl_conf.ncz*max(cl_conf.n, cl_conf.nproj)*cl_conf.n*50*dtype_size > gpu_mem):
-            log.warning(
-                'Data/chunk is too big, switching to managed GPU memory')
-            cp.cuda.set_allocator(cp.cuda.MemoryPool(
-                cp.cuda.malloc_managed).malloc)
-        else:
-            cp.cuda.set_pinned_memory_allocator(
-                cp.cuda.PinnedMemoryPool().malloc)
-
+        
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_proc_func = proc_functions.ProcFunctions(cl_conf)
+        self.cl_backproj_func = backproj_functions.BackprojFunctions(cl_conf)
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
@@ -209,12 +199,12 @@ class GPURec():
                     flat = item_gpu['flat'][(k-1) % 2]
                     rec = rec_gpu[(k-1) % 2]
 
-                    data = self.cl_tomo_func.proc_sino(data, dark, flat)
-                    data = self.cl_tomo_func.proc_proj(data)
+                    data = self.cl_proc_func.proc_sino(data, dark, flat)
+                    data = self.cl_proc_func.proc_proj(data)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
-                    data = self.cl_tomo_func.fbp_filter_center(data, sht)
-                    self.cl_tomo_func.cl_rec.backprojection(
+                    data = self.cl_backproj_func.fbp_filter_center(data, sht)
+                    self.cl_backproj_func.cl_rec.backprojection(
                         rec, data, self.stream2)
 
             if(k > 1):
@@ -263,8 +253,8 @@ class GPURec():
             flat = cp.array(item['flat'])
 
             # preprocessing
-            data = self.cl_tomo_func.proc_sino(data, dark, flat)
-            data = self.cl_tomo_func.proc_proj(data)
+            data = self.cl_proc_func.proc_sino(data, dark, flat)
+            data = self.cl_proc_func.proc_proj(data)
             data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
             # refs for faster access
@@ -289,8 +279,8 @@ class GPURec():
                         sht = cp.pad(cp.array(self.cl_conf.shift_array[(
                             k-1)*ncz:(k-1)*ncz+lschunk[k-1]]), [0, ncz-lschunk[k-1]])
                         datat = cp.tile(data, [ncz, 1, 1])
-                        datat = self.cl_tomo_func.fbp_filter_center(datat, sht)
-                        self.cl_tomo_func.cl_rec.backprojection(
+                        datat = self.cl_backproj_func.fbp_filter_center(datat, sht)
+                        self.cl_backproj_func.cl_rec.backprojection(
                             rec_gpu[(k-1) % 2], datat, self.stream2)
                 if(k > 1):
                     with self.stream3:  # gpu->cpu copy
