@@ -27,15 +27,15 @@ void __global__ divker2d(float2 *g, float2 *f, int n0, int n1, int n2, int m0,
   float ker = __expf(-mu0 * (tx - n0 / 2) * (tx - n0 / 2) -
                      mu1 * (ty - n1 / 2) * (ty - n1 / 2));
   int f_ind = tx + tz * n0 + ty * n0 * n2;
-  int g_ind = tx + n0 / 2 + m0 + (ty + n1 / 2 + m1) * (2 * n0 + 2 * m0) +
+  int g_ind = tx + n0 / 2 + m0 + (n1-ty-1 + n1 / 2 + m1) * (2 * n0 + 2 * m0) +    //n1-ty-1 instead of ty for consistency with other methods
               tz * (2 * n0 + 2 * m0) * (2 * n1 + 2 * m1);
   
   if (direction == 0){
-    g[g_ind].x = f[f_ind].x / ker / (4 * n0 * n1);
-    g[g_ind].y = f[f_ind].y / ker / (4 * n0 * n1);
+    g[g_ind].x = f[f_ind].x / ker / (n0 * n1);
+    g[g_ind].y = f[f_ind].y / ker / (n0 * n1);
   } else {
-    f[f_ind].x = g[g_ind].x / ker / (4 * n0 * n1);
-    f[f_ind].y = g[g_ind].y / ker / (4 * n0 * n1);
+    f[f_ind].x = g[g_ind].x / ker / (n0 * n1);
+    f[f_ind].y = g[g_ind].y / ker / (n0 * n1);
   }
 }
 

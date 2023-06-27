@@ -40,7 +40,7 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_sizes
+from tomocupy import config_sizes
 from tomocupy import proc_functions
 from tomocupy import backproj_parallel
 from tomocupy import backproj_lamfourier_parallel
@@ -81,7 +81,7 @@ class GPURecSteps():
         cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
         # configure sizes and output files
         cl_reader = reader.Reader(args)
-        cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_conf = config_sizes.ConfigSizes(args, cl_reader)
         cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing
@@ -119,7 +119,7 @@ class GPURecSteps():
         self.cl_writer = cl_writer
     
         # define reconstruction method
-        if self.cl_conf.args.lamino_angle > 0 and self.args.reconstruction_algorithm =='fourierrec':
+        if self.cl_conf.args.lamino_angle != 0 and self.args.reconstruction_algorithm =='fourierrec':
             self.cl_backproj = backproj_lamfourier_parallel.BackprojLamFourierParallel(cl_conf, cl_writer)
         else:
             self.cl_backproj = backproj_parallel.BackprojParallel(cl_conf, cl_writer)

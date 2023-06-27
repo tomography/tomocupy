@@ -40,22 +40,13 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_sizes
-from tomocupy import backproj_functions
-from threading import Thread
-from tomocupy import reader
 from tomocupy import writer
-import signal
+from tomocupy.reconstruction import backproj_functions
+from threading import Thread
 import cupy as cp
 import numpy as np
 
-__author__ = "Viktor Nikitin"
-__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
-__docformat__ = 'restructuredtext en'
-__all__ = ['BackprojParallel', ]
-
 log = logging.getLogger(__name__)
-
 
 class BackprojParallel():
 
@@ -172,7 +163,7 @@ class BackprojParallel():
                 self.stream2.synchronize()
         # wait until reconstructions are written to hard disk
         for t in self.write_threads:
-            t.join()
+            t.join()        
 
     def recon_try_sino_proj_parallel(self, data):
         """Reconstruction of 1 slice with different centers by splitting data into sinogram and projection chunks"""

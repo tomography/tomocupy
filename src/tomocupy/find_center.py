@@ -40,7 +40,7 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_sizes
+from tomocupy import config_sizes
 from tomocupy import proc_functions
 from tomocupy import reader
 from threading import Thread
@@ -51,7 +51,6 @@ import cupy as cp
 import numpy as np
 import signal
 import cv2
-
 
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
@@ -73,7 +72,7 @@ class FindCenter():
 
         # configure sizes and output files
         cl_reader = reader.Reader(args)
-        cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_conf = config_sizes.ConfigSizes(args, cl_reader)
 
         # init tomo functions
         self.cl_proc_func = proc_functions.ProcFunctions(cl_conf)

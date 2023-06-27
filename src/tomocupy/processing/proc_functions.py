@@ -38,18 +38,9 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy import fourierrec
-from tomocupy import lprec
-from tomocupy import fbp_filter
-from tomocupy import linerec
-from tomocupy import utils
-from tomocupy import retrieve_phase, remove_stripe, adjust_projections
+from tomocupy.processing import retrieve_phase, remove_stripe, adjust_projections
 import cupyx.scipy.ndimage as ndimage
-
-
 import cupy as cp
-import numpy as np
-
 
 class ProcFunctions():
     def __init__(self, cl_conf):
@@ -59,6 +50,8 @@ class ProcFunctions():
         self.n = cl_conf.n
         self.nz = cl_conf.nz
         self.nproj = cl_conf.nproj
+        self.center = cl_conf.center
+        self.centeri = cl_conf.centeri
 
 
     def darkflat_correction(self, data, dark, flat):
@@ -75,13 +68,14 @@ class ProcFunctions():
         else:
             flat0 = cp.mean(flat0, axis=0)
         dark0 = cp.mean(dark0, axis=0)
-        res = (data.astype(self.args.dtype, copy=False)-dark0) / (flat0-dark0+1e-3)
-        res[res <= 0] = 1
+        res = (data.astype(self.args.dtype, copy=False)-dark0) / (flat0-dark0+flat0*1e-5)
+        
         return res
 
     def minus_log(self, data):
         """Taking negative logarithm"""
 
+        data[data <= 0] = 1
         data[:] = -cp.log(data)
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0

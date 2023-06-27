@@ -40,11 +40,12 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_sizes
-from tomocupy import proc_functions
-from tomocupy import backproj_functions
+from tomocupy import config_sizes
 from tomocupy import reader
 from tomocupy import writer
+from tomocupy.processing import proc_functions
+from tomocupy.reconstruction import backproj_functions
+
 from threading import Thread
 from queue import Queue
 import cupy as cp
@@ -77,7 +78,7 @@ class GPURec():
         cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
         # configure sizes and output files
         cl_reader = reader.Reader(args)
-        cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_conf = config_sizes.ConfigSizes(args, cl_reader)
         cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing

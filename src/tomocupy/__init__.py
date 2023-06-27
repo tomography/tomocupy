@@ -40,7 +40,7 @@
 
 from pkg_resources import get_distribution, DistributionNotFound
 
-__version__ = '0.9'
+__version__ = '1.0.3'
 
 try:
     __version__ = get_distribution(__name__).version
@@ -49,22 +49,14 @@ except DistributionNotFound:
     pass
 
 from tomocupy.config import *
-from tomocupy.lprec import *
-from tomocupy.fourierrec import *
-from tomocupy.linerec import *
 from tomocupy.logging import *
 from tomocupy.rec import *
 from tomocupy.rec_steps import *
 from tomocupy.proc import *
 from tomocupy.find_center import *
-from tomocupy.remove_stripe import *
-from tomocupy.retrieve_phase import *
 from tomocupy.utils import *
-from tomocupy.conf_sizes import *
+from tomocupy.config_sizes import *
 from tomocupy.reader import *
 from tomocupy.writer import *
-from tomocupy.proc_functions import *
-from tomocupy.backproj_functions import *
-from tomocupy.adjust_projections import *
-from tomocupy.backproj_parallel import *
-from tomocupy.backproj_lamfourier_parallel import *
+from tomocupy.reconstruction import *
+from tomocupy.processing import *

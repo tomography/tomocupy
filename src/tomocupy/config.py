@@ -39,17 +39,17 @@
 # *************************************************************************** #
 
 import sys
-from copy import copy
-from pathlib import Path
 import argparse
 import configparser
-from collections import OrderedDict
 import logging
 import warnings
 import inspect
-
 import h5py
 import numpy as np
+
+from copy import copy
+from pathlib import Path
+from collections import OrderedDict
 
 from tomocupy import utils
 from tomocupy import __version__
@@ -419,7 +419,7 @@ SECTIONS['reconstruction'] = {
         'default': 'parzen',
         'type': str,
         'help': "Filter for FBP reconstruction",
-        'choices': ['ramp', 'shepp', 'hann', 'hamming', 'parzen', 'cosine', 'cosine2']},
+        'choices': ['none', 'ramp', 'shepp', 'hann', 'hamming', 'parzen', 'cosine', 'cosine2']},
     'dezinger': {
         'type': int,
         'default': 0,

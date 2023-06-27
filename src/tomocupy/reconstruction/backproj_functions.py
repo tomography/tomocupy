@@ -38,15 +38,9 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy import fourierrec
-from tomocupy import lprec
-from tomocupy import fbp_filter
-from tomocupy import linerec
-from tomocupy import utils
-import cupyx.scipy.ndimage as ndimage
+from tomocupy.reconstruction import fourierrec,lprec,linerec
+from tomocupy.reconstruction import fbp_filter
 import cupy as cp
-import numpy as np
-
 
 class BackprojFunctions():
     def __init__(self, cl_conf):
@@ -63,7 +57,7 @@ class BackprojFunctions():
         self.ne = 4*self.n
         if self.args.dtype == 'float16':
             # power of 2 for float16
-            self.ne = 2**int(np.ceil(np.log2(self.ne)))
+            self.ne = 2**int(cp.ceil(cp.log2(self.ne)))
 
         if self.args.lamino_angle == 0:
             if self.args.reconstruction_algorithm == 'fourierrec':

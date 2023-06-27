@@ -60,7 +60,10 @@ class FBPFilter():
         d = 0.5
         t = cp.arange(0, self.n/2+1)/self.n
 
-        if filter == 'ramp':
+        if filter == 'none':
+            wfa = self.n*0.5+t*0
+            wfa[0] *=2 # fixed later
+        elif filter == 'ramp':
             wfa = self.n*0.5*self._wint(12, t)
         elif filter == 'shepp':
             wfa = self.n*0.5*self._wint(12, t)*cp.sinc(t/(2*d))*(t/d <= 2)

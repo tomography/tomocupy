@@ -41,11 +41,16 @@
 from tomocupy import logging
 import numpy as np
 from ast import literal_eval
-        
+
+__author__ = "Viktor Nikitin"
+__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
+__all__ = ['ConfigSizes', ]
+
 log = logging.getLogger(__name__)
 
 
-class ConfSizes():
+class ConfigSizes():
     '''
     Class for configuring processing sizes
     '''
