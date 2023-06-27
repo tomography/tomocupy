@@ -112,19 +112,18 @@ void cfunc_lprec::backprojection(size_t f_, size_t g_, size_t stream_)
 
     // set thread block, grid sizes will be computed before cuda kernel execution
     dim3 dimBlock(BS1,BS2,BS3);    
-    uint GS1, GS2, GS3;    
     
     // define all block and grid sizes
-    GS1 = (uint)ceil(n/(float)BS1); GS2 = (uint)ceil(nproj/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid01(GS1,GS2,GS3);    
-	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid02(GS1,GS2,1);    	
-	GS1 = (uint)ceil(nproj/(float)BS1);GS2 = (uint)ceil(n/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid03(GS1,GS2,GS3);    	
-	GS1 = (uint)ceil(n/(float)BS1);GS2 = (uint)ceil(nz/(float)BS2); dim3 dimGrid04(GS1,GS2,1); 
-	GS1 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nlpids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid1(GS1,GS2,GS3);int step2d1 = BS1*GS1;  
-    GS1 = (uint)ceil(ceil(sqrt(nwids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(nwids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid2(GS1,GS2,GS3);int step2d2 = BS1*GS1;      
-    GS1 = (uint)ceil((ntheta/2+1)/(float)BS1); GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid3(GS1,GS2,GS3);int step2d3 = BS1*GS1;      
-    GS1 = (uint)ceil(ceil(sqrt(ncids))/(float)BS1); GS2 = (uint)ceil(ceil(sqrt(ncids))/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3);dim3 dimGrid4(GS1,GS2,GS3);int step2d4 = BS1*GS1;  	
-    GS1 = (uint)ceil(n/(float)BS1);GS2 = (uint)ceil(n/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid11(GS1,GS2,GS3); 
-    GS1 = (uint)ceil(ntheta/(float)BS1);GS2 = (uint)ceil(nrho/(float)BS2);GS3 = (uint)ceil(nz/(float)BS3); dim3 dimGrid12(GS1,GS2,GS3); 
+    dim3 dimGrid01 = dim3(ceil(n/(float)BS1), ceil(nproj/(float)BS2), ceil(nz/(float)BS3));
+	dim3 dimGrid02 = dim3(ceil(nproj/(float)BS1),ceil(nz/(float)BS2),1); 
+	dim3 dimGrid03 = dim3(ceil(nproj/(float)BS1),ceil(n/(float)BS2),ceil(nz/(float)BS3)); 
+	dim3 dimGrid04 = dim3(ceil(n/(float)BS1),ceil(nz/(float)BS2),1); 
+	dim3 dimGrid1 = dim3(ceil(ceil(sqrt(nlpids))/(float)BS1),ceil(ceil(sqrt(nlpids))/(float)BS2),ceil(nz/(float)BS3)); int step2d1 = BS1*dimGrid1.x;  
+    dim3 dimGrid2 = dim3(ceil(ceil(sqrt(nwids))/(float)BS1),ceil(ceil(sqrt(nwids))/(float)BS2),ceil(nz/(float)BS3)); int step2d2 = BS1*dimGrid2.x;      
+    dim3 dimGrid3 = dim3(ceil((ntheta/2+1)/(float)BS1),ceil(nrho/(float)BS2),ceil(nz/(float)BS3)); int step2d3 = BS1*dimGrid3.x;      
+    dim3 dimGrid4 = dim3(ceil(ceil(sqrt(ncids))/(float)BS1),ceil(ceil(sqrt(ncids))/(float)BS2),ceil(nz/(float)BS3));int step2d4 = BS1*dimGrid4.x;  	
+    dim3 dimGrid11 = dim3(ceil(n/(float)BS1),ceil(n/(float)BS2),ceil(nz/(float)BS3));
+    dim3 dimGrid12 = dim3(ceil(ntheta/(float)BS1),ceil(nrho/(float)BS2),ceil(nz/(float)BS3));
 
     ////// Prefilter for cubic interpolation in polar coordinates //////
 	//transpose for optimal cache usage

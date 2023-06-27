@@ -84,7 +84,8 @@ class Writer():
                 self.args.file_name)+'_rec/try_center/'+os.path.basename(self.args.file_name)[:-3]
         else:
             fnameout = str(self.args.out_path_name)            
-        os.system(f'mkdir -p {fnameout}')
+        if not os.path.exists(fnameout):
+            os.makedirs(fnameout)
         fnameout += '/recon'
         self.fnameout = fnameout
         if (self.args.clear_folder=='True'):
@@ -101,8 +102,9 @@ class Writer():
                 self.args.file_name)+'_rec/'+os.path.basename(self.args.file_name)[:-3]+'_rec'            
         else:
             fnameout = str(self.args.out_path_name)
-        os.system(f'mkdir -p {fnameout}')
-
+        if not os.path.exists(fnameout):
+            os.makedirs(fnameout)
+        
         if (self.args.clear_folder=='True'):
             log.info('Clearing the output folder')
             os.system(f'rm {fnameout}/*')
@@ -122,8 +124,9 @@ class Writer():
             fnameout += '.h5'
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
-                self.nzi/2**self.args.binning, self.n, self.n), dtype=self.dtype)
-            os.system(f'mkdir -p {fnameout[:-3]}_parts')
+                self.nzi/2**self.args.binning, self.n, self.n), dtype=self.dtype)            
+            if not os.path.exists(f'{fnameout[:-3]}_parts'):
+                os.makedirs(f'{fnameout[:-3]}_parts')
             for k in range(self.nzchunk):
                 filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                 vsource = h5py.VirtualSource(
@@ -181,7 +184,9 @@ class Writer():
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
                 self.nproj, self.nzi/2**self.args.binning, self.n), dtype=self.dtype)
-            os.system(f'mkdir -p {fnameout[:-3]}_parts')
+            if not os.path.exists(f'{fnameout[:-3]}_parts'):
+                os.makedirs(f'{fnameout[:-3]}_parts')
+
             for k in range(self.nzchunk):
                 filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                 vsource = h5py.VirtualSource(
@@ -207,7 +212,10 @@ class Writer():
 
         try:  # trying to copy meta
             import meta
-            tree, meta_dict = meta.read_hdf(self.args.file_name)
+
+            mp = meta.read_meta.Hdf5MetadataReader(self.args.file_name)
+            meta_dict = mp.readMetadata()
+            mp.close()
             with h5py.File(self.args.file_name,'r') as f:
                 log.info("  *** meta data from raw dataset %s copied to rec hdf file" % self.args.file_name)
                 for key, value in meta_dict.items():

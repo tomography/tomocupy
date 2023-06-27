@@ -4,6 +4,7 @@ import numpy as np
 import tifffile
 import inspect
 import h5py
+import shutil
 
 prefix = 'tomocupy recon_steps --file-name data/test_data.h5 --rotation-axis 782.5 --nsino-per-chunk 4 --reconstruction-type full'
 cmd_dict = {
@@ -31,7 +32,7 @@ class SequentialTestLoader(unittest.TestLoader):
 class Tests(unittest.TestCase):
      def test_full_recon(self):
         for cmd in cmd_dict.items():
-            os.system('rm -rf data_rec')
+            shutil.rmtree('data_rec',ignore_errors=True)      
             print(f'TEST {inspect.stack()[0][3]}: {cmd[0]}')
             st = os.system(cmd[0])
             self.assertEqual(st, 0)

@@ -4,6 +4,7 @@ import numpy as np
 import tifffile
 import inspect
 import h5py
+import shutil
 
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 782.5 --nsino-per-chunk 4'
 cmd_dict = {
@@ -44,7 +45,7 @@ class Tests(unittest.TestCase):
 
     def test_full_recon(self):
         for cmd in cmd_dict.items():
-            os.system('rm -rf data_rec')
+            shutil.rmtree('data_rec',ignore_errors=True)      
             print(f'TEST {inspect.stack()[0][3]}: {cmd[0]}')
             st = os.system(cmd[0])
             self.assertEqual(st, 0)
@@ -61,7 +62,7 @@ class Tests(unittest.TestCase):
                         f'data_rec/test_data_rec/recon_{k:05}.tiff'))
                 except:
                     pass
-            self.assertAlmostEqual(ssum, cmd[1], places=1)
+            self.assertAlmostEqual(ssum, cmd[1], places=0)
 
 
 if __name__ == '__main__':

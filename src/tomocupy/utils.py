@@ -45,6 +45,7 @@ import os
 from threading import Thread
 import time
 import numexpr as ne
+import sys
 
 # Print iterations progress
 
@@ -103,7 +104,7 @@ def signal_handler(sig, frame):
     """Calls abort_scan when ^C or ^Z is typed"""
 
     print('Abort')
-    os.system('kill -9 $PPID')
+    sys.exit(1)
 
 
 class WRThread():
