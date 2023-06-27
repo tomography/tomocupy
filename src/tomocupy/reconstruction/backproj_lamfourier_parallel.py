@@ -45,6 +45,7 @@ from tomocupy import cfunc_usfft1d
 from tomocupy import cfunc_usfft2d
 from tomocupy import cfunc_fft2d
 from tomocupy.reconstruction import fbp_filter
+from tomocupy.reconstruction import lamfourier
 from threading import Thread
 import cupy as cp
 import numpy as np
@@ -70,6 +71,8 @@ class BackprojLamFourierParallel():
         self.cl_usfft2d = cfunc_usfft2d.cfunc_usfft2d(
             self.dethc, self.n1, self.n2, self.ntheta, self.detw, self.dethc)  # n0 becomes deth
         self.cl_fft2d = cfunc_fft2d.cfunc_fft2d(self.nthetac, self.detw, self.deth)
+
+        self.cl_lamfourier = lamfourier.LamFourierRec(self.n0, self.n1, self.n2, self.ntheta, self.detw, self.deth, self.n1c, self.nthetac, self.dethc)        
         
         pinned_block_size = max(self.n1*self.n0*self.n2, self.n1*self.deth*self.n2, self.ntheta*self.deth*self.detw)
         gpu_block_size = max(self.n1c*self.n0*self.n2, self.n1c*self.deth*self.n2, self.n1*self.dethc*self.n2,self.dethc*self.ntheta*self.detw,self.nthetac*self.deth*self.detw)
@@ -121,7 +124,8 @@ class BackprojLamFourierParallel():
         for k in range(nchunk+2):
             if(k > 0 and k < nchunk+1):
                 with self.stream2:
-                    self.cl_usfft1d.adj(out_gpu[(k-1)%2].data.ptr, inp_gpu[(k-1)%2].data.ptr, phi, self.stream2.ptr)
+                    #self.cl_usfft1d.adj(out_gpu[(k-1)%2].data.ptr, inp_gpu[(k-1)%2].data.ptr, phi, self.stream2.ptr)
+                    self.cl_lamfourier.usfft1d_adj(out_gpu[(k-1)%2], inp_gpu[(k-1)%2], phi, self.stream2)
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     st, end = (k-2)*self.n1c, min(self.n1,(k-1)*self.n1c)
@@ -143,7 +147,8 @@ class BackprojLamFourierParallel():
         for k in range(nchunk+2):            
             if(k > 0 and k < nchunk+1):
                 with self.stream2:
-                    self.cl_usfft2d.adj(out_gpu[(k-1)%2].data.ptr, inp_gpu[(k-1)%2].data.ptr,theta.data.ptr, phi, k-1, self.deth, self.stream2.ptr)
+                    # self.cl_usfft2d.adj(out_gpu[(k-1)%2].data.ptr, inp_gpu[(k-1)%2].data.ptr,theta.data.ptr, phi, k-1, self.deth, self.stream2.ptr)
+                    self.cl_lamfourier.usfft2d_adj(out_gpu[(k-1)%2], inp_gpu[(k-1)%2], theta, phi, k-1, self.stream2)
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     for j in range(out.shape[0]):# non-contiguous copy, slow but comparable with gpu computations
@@ -168,8 +173,9 @@ class BackprojLamFourierParallel():
                 with self.stream2:
                     data0 = inp_gpu[(k-1)%2].real
                     data0 = self.fbp_filter_center(
-                        data0, cp.tile(np.float32(0), [data0.shape[0], 1])).astype('complex64')                    
-                    self.cl_fft2d.fwd(out_gpu[(k-1)%2].data.ptr,data0.data.ptr,self.stream2.ptr)
+                        data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
+                    # self.cl_fft2d.fwd(out_gpu[(k-1)%2].data.ptr,data0.data.ptr,self.stream2.ptr)        
+                    self.cl_lamfourier.fft2d_fwd(out_gpu[(k-1)%2],data0,self.stream2)
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy        
                     st, end = (k-2)*self.nthetac, min(self.ntheta,(k-1)*self.nthetac)
@@ -201,8 +207,7 @@ class BackprojLamFourierParallel():
 
         return data  # reuse input memory
 
-    def rec_lam(self, data):
-        data = data.astype('complex64')        
+    def rec_lam(self, data):        
         self.copy(data,self.pa3)
         #steps 1,2,3 of the fwd operator but in reverse order
         self.fft2_chunks(self.pa2, self.pa3, self.ga4, self.ga5, direction='fwd')

@@ -40,11 +40,11 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_sizes
-from tomocupy import proc_functions
+from tomocupy import config_sizes
 from threading import Thread
 from tomocupy import reader
 from tomocupy import writer
+from tomocupy.processing import proc_functions
 import signal
 import cupy as cp
 import numpy as np
@@ -74,7 +74,7 @@ class GPUProc():
 
         # configure sizes and output files
         cl_reader = reader.Reader(args)
-        cl_conf = conf_sizes.ConfSizes(args, cl_reader)
+        cl_conf = config_sizes.ConfigSizes(args, cl_reader)
         cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing

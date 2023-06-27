@@ -41,12 +41,12 @@
 from tomocupy import utils
 from tomocupy import logging
 from tomocupy import config_sizes
-from tomocupy import proc_functions
-from tomocupy import backproj_parallel
-from tomocupy import backproj_lamfourier_parallel
 from threading import Thread
 from tomocupy import reader
 from tomocupy import writer
+from tomocupy.processing import proc_functions
+from tomocupy.reconstruction import backproj_parallel
+from tomocupy.reconstruction import backproj_lamfourier_parallel
 import signal
 import cupy as cp
 import numpy as np
