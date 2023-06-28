@@ -82,10 +82,23 @@ void __global__ gather2d(float2 *g, float2 *f, float *x, float *y, int m0,
   if (tx >= detw || ty >= deth || tz >= ntheta)
     return;
 
-  int g_ind = tx + ty * detw + tz* detw * deth;
+  int txs = tx;
+  int tys = ty; 
+  int tzs = tz; 
+  int conj = 1;
+  if (tx>detw/2) 
+  {    
+    txs = txs - 2*(tx-detw/2);   
+    tys = deth - ty-1;
+    tzs = tz + ntheta;
+    conj = -1;
+  }
+  int g_ind = txs + tys*(detw/2+1) + tzs*(detw/2+1)*deth;
+  int xy_ind = tx + ty * detw + tz* detw * deth;
 
-  float x0 = x[g_ind];
-  float y0 = y[g_ind];
+  
+  float x0 = x[xy_ind];
+  float y0 = y[xy_ind];
 
   float2 g0;
   if (direction == 0) {
@@ -93,7 +106,7 @@ void __global__ gather2d(float2 *g, float2 *f, float *x, float *y, int m0,
     g0.y = 0.0f;
   } else {
     g0.x = g[g_ind].x;
-    g0.y = g[g_ind].y;
+    g0.y = conj*g[g_ind].y;
   }
   for (int i1 = 0; i1 < 2 * m1 + 1; i1++) {
     int ell1 = floorf(2 * n1 * y0) - m1 + i1;

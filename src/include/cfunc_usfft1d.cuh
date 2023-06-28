@@ -8,7 +8,7 @@ class cfunc_usfft1d {
   bool is_free = false;
   
   
-  float2 *f;
+  float *f;
   float2 *g;
   
   float2 *fdee1d;

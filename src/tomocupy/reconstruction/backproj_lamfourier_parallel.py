@@ -75,31 +75,50 @@ class BackprojLamFourierParallel():
         self.cl_lamfourier = lamfourier.LamFourierRec(self.n0, self.n1, self.n2, self.ntheta, self.detw, self.deth, self.n1c, self.nthetac, self.dethc)        
         
         pinned_block_size = max(self.n1*self.n0*self.n2, self.n1*self.deth*self.n2, self.ntheta*self.deth*self.detw)
-        gpu_block_size = max(self.n1c*self.n0*self.n2, self.n1c*self.deth*self.n2, self.n1*self.dethc*self.n2,self.dethc*self.ntheta*self.detw,self.nthetac*self.deth*self.detw)
+        gpu_block_size = max(self.n1c*self.n0*self.n2, self.n1c*self.deth*self.n2, self.n1*self.dethc*self.n2,2*self.dethc*self.ntheta*self.detw,self.nthetac*self.deth*self.detw)
         
-        # reusable pinned memory blocks
-        self.pab0 = utils.pinned_array(np.empty(pinned_block_size,dtype='complex64'))
-        self.pab1 = utils.pinned_array(np.empty(pinned_block_size,dtype='complex64'))
-        self.pab2 = utils.pinned_array(np.empty(pinned_block_size,dtype='complex64'))
-        # pointers (no memory allocation)
-        self.pa0 =  self.pab0[:self.n1*self.n0*self.n2].reshape(self.n1, self.n0, self.n2)
-        self.pa1 =  self.pab1[:self.n1*self.deth*self.n2].reshape(self.n1,self.deth,self.n2)
-        self.pa2 =  self.pab0[:self.ntheta*self.deth*self.detw].reshape(self.ntheta,self.deth,self.detw)
-        self.pa3 =  self.pab1[:self.ntheta*self.deth*self.detw].reshape(self.ntheta,self.deth,self.detw)
+        # # reusable pinned memory blocks
+        # self.pab0 = utils.pinned_array(np.empty(pinned_block_size,dtype='complex64'))
+        # self.pab1 = utils.pinned_array(np.empty(pinned_block_size,dtype='complex64'))
+        # self.pab2 = utils.pinned_array(np.empty(pinned_block_size,dtype='complex64'))
+        # # pointers (no memory allocation)
+        # self.pa0 =  self.pab0[:self.n1*self.n0*self.n2].reshape(self.n1, self.n0, self.n2)
+        # self.pa1 =  self.pab1[:self.n1*self.deth*self.n2].reshape(self.n1,self.deth,self.n2)
+        # self.pa2 =  self.pab0[:self.ntheta*self.deth*self.detw].reshape(self.ntheta,self.deth,self.detw)
+        # self.pa3 =  self.pab1[:self.ntheta*self.deth*self.detw].reshape(self.ntheta,self.deth,self.detw)
         
-        # reusable gpu memory blocks
-        self.gb0 = cp.empty(2*gpu_block_size,dtype='complex64')
-        self.gb1 = cp.empty(2*gpu_block_size,dtype='complex64')
-        self.gb2 = cp.empty(2*gpu_block_size,dtype='complex64')
         
-        # pointers (no memory allocation)
-        self.ga0 = self.gb0[:2*self.n1c*self.n0*self.n2].reshape(2,self.n1c,self.n0,self.n2)
-        self.ga1 = self.gb1[:2*self.n1c*self.deth*self.n2].reshape(2,self.n1c,self.deth,self.n2)
-        self.ga2 = self.gb0[:2*self.n1*self.dethc*self.n2].reshape(2,self.n1,self.dethc,self.n2)
-        self.ga3 = self.gb1[:2*self.dethc*self.ntheta*self.detw].reshape(2,self.ntheta,self.dethc,self.detw)
-        self.ga4 = self.gb0[:2*self.nthetac*self.deth*self.detw].reshape(2,self.nthetac,self.deth,self.detw)
-        self.ga5 = self.gb1[:2*self.nthetac*self.deth*self.detw].reshape(2,self.nthetac,self.deth,self.detw)
+        # # reusable gpu memory blocks
+        # self.gb0 = cp.empty(2*gpu_block_size,dtype='complex64')
+        # self.gb1 = cp.empty(2*gpu_block_size,dtype='complex64')
+        # self.gb2 = cp.empty(2*gpu_block_size,dtype='complex64')
+        
+        # # pointers (no memory allocation)
+        # self.ga0 = self.gb0[:2*self.n1c*self.n0*self.n2].reshape(2,self.n1c,self.n0,self.n2)
+        # self.ga1 = self.gb1[:2*self.n1c*self.deth*self.n2].reshape(2,self.n1c,self.deth,self.n2)
+        # self.ga2 = self.gb0[:2*self.n1*self.dethc*self.n2].reshape(2,self.n1,self.dethc,self.n2)
+        # self.ga3 = self.gb1[:2*2*self.dethc*self.ntheta*self.detw].reshape(2,2*self.ntheta,self.dethc,self.detw)
+        # self.ga4 = self.gb0[:2*self.nthetac*self.deth*self.detw].reshape(2,self.nthetac,self.deth,self.detw)
+        # self.ga5 = self.gb1[:2*self.nthetac*self.deth*self.detw].reshape(2,self.nthetac,self.deth,self.detw)
 
+        ################################
+
+        self.pa33 =  utils.pinned_array(np.empty(self.ntheta*self.deth*self.detw,dtype='float32')).reshape(self.ntheta,self.deth,self.detw)
+        self.pa22 =  utils.pinned_array(np.empty(self.ntheta*self.deth*(self.detw//2+1),dtype='complex64')).reshape(self.ntheta,self.deth,self.detw//2+1)
+        self.pa11 =  utils.pinned_array(np.empty(self.n1*(self.deth//2+1)*self.n2,dtype='complex64')).reshape(self.n1,self.deth//2+1,self.n2)
+        self.pa00 =  utils.pinned_array(np.empty([self.n1, self.n0, self.n2],dtype='float32'))
+        
+        self.ga55 = cp.empty([2,self.nthetac,self.deth,self.detw],dtype='float32')
+        self.ga44 = cp.empty([2,self.nthetac,self.deth,self.detw//2+1],dtype='complex64')
+        self.ga33 = cp.empty([2,2*self.ntheta,self.dethc,self.detw//2+1],dtype='complex64')
+        self.ga22 = cp.empty([2,self.n1,self.dethc,self.n2],dtype='complex64')
+        self.ga11 = cp.empty([2,self.n1c,self.deth//2+1,self.n2],dtype='complex64')
+        self.ga00 = cp.empty([2,self.n1c,self.n0,self.n2],dtype='float32')
+        ################################
+        
+        
+        
+        
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
         self.stream2 = cp.cuda.Stream(non_blocking=False)
@@ -142,8 +161,7 @@ class BackprojLamFourierParallel():
             
     def usfft2d_chunks(self, out, inp, out_gpu, inp_gpu, theta, phi, direction='fwd'):
         theta = cp.array(theta)        
-        nchunk = int(np.ceil(self.deth/self.dethc))
-        
+        nchunk = int(np.ceil((self.deth//2+1)/self.dethc))
         for k in range(nchunk+2):            
             if(k > 0 and k < nchunk+1):
                 with self.stream2:
@@ -152,15 +170,23 @@ class BackprojLamFourierParallel():
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
                     for j in range(out.shape[0]):# non-contiguous copy, slow but comparable with gpu computations
-                        st, end = (k-2)*self.dethc, min(self.deth,(k-1)*self.dethc)
+                        st, end = (k-2)*self.dethc, min(self.deth//2+1,(k-1)*self.dethc)
                         s = end-st
                         out_gpu[(k-2)%2,j,:s].get(out=out[j,st:end])   #added
             if(k<nchunk):
                 with self.stream1:  # cpu->gpu copy           
-                    for j in range(inp.shape[0]):
-                        st, end = k*self.dethc, min(self.deth,(k+1)*self.dethc)
-                        s = end-st
-                        inp_gpu[k%2,j,:s].set(inp[j,st:end])# non-contiguous copy, slow but comparable with gpu computations)                    
+                    st, end = k*self.dethc, min(self.deth//2+1,(k+1)*self.dethc)                                        
+                    s = end-st
+                
+                    for j in range(inp.shape[0]):                        
+                        inp_gpu[k%2,j,:s].set(inp[j,st:end])
+                        # copy the flipped part of the array for handling r2c FFT
+                        if k==0:
+                            inp_gpu[k%2,j+self.ntheta,-s:-1].set(inp[j,self.deth-end+1:self.deth-st+1])
+                            inp_gpu[k%2,j+self.ntheta,-1].set(inp[j,0])
+                        else:
+                            inp_gpu[k%2,j+self.ntheta,-s:].set(inp[j,self.deth-end+1:self.deth-st+1])
+                        
                         
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -171,10 +197,15 @@ class BackprojLamFourierParallel():
         for k in range(nchunk+2):
             if(k > 0 and k < nchunk+1):
                 with self.stream2:
-                    data0 = inp_gpu[(k-1)%2].real
+                    data0 = inp_gpu[(k-1)%2]
                     data0 = self.fbp_filter_center(
                         data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
-                    # self.cl_fft2d.fwd(out_gpu[(k-1)%2].data.ptr,data0.data.ptr,self.stream2.ptr)        
+                    # [tx,ty] = cp.meshgrid(cp.arange(self.detw),cp.arange(self.deth))
+                    # v = (1 - 2 * ((tx + 1) % 2)) * (1 - 2 * ((ty + 1) % 2))
+                    # [tx,ty] = cp.meshgrid(cp.arange(self.detw//2+1),cp.arange(self.deth))
+                    # v1 = (1 - 2 * ((tx + 1) % 2)) * (1 - 2 * ((ty + 1) % 2))
+                    # out_gpu[(k-1)%2] = v1*cp.fft.rfft2(v*data0)/(self.detw*self.deth)                    
+                    # out_gpu[(k-1)%2] = cp.fft.rfft2(data0)                    
                     self.cl_lamfourier.fft2d_fwd(out_gpu[(k-1)%2],data0,self.stream2)
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy        
@@ -208,13 +239,15 @@ class BackprojLamFourierParallel():
         return data  # reuse input memory
 
     def rec_lam(self, data):        
-        self.copy(data,self.pa3)
-        #steps 1,2,3 of the fwd operator but in reverse order
-        self.fft2_chunks(self.pa2, self.pa3, self.ga4, self.ga5, direction='fwd')
-        self.usfft2d_chunks(self.pa1, self.pa2, self.ga2, self.ga3, self.cl_conf.theta, np.pi/2+self.cl_conf.lamino_angle/180*np.pi, direction='adj')
-        self.usfft1d_chunks(self.pa0,self.pa1,self.ga0,self.ga1, np.pi/2+self.cl_conf.lamino_angle/180*np.pi, direction='adj')        
+        self.copy(data,self.pa33)
+        #steps 1,2,3 of the fwd operator but in reverse order        
+        self.fft2_chunks(self.pa22, self.pa33, self.ga44, self.ga55, direction='fwd')
+        self.usfft2d_chunks(self.pa11, self.pa22, self.ga22, self.ga33, self.cl_conf.theta, np.pi/2+self.cl_conf.lamino_angle/180*np.pi, direction='adj')        
+        # self.pa1[:,self.deth//2+1:] = np.conj(self.pa1[:,1:self.deth//2][:,::-1])
+        #self.pa1[:,:self.deth//2+1] = self.pa11
+        self.usfft1d_chunks(self.pa00,self.pa11,self.ga00,self.ga11, np.pi/2+self.cl_conf.lamino_angle/180*np.pi, direction='adj')        
         
-        u = self.copyTransposed(self.pa0).real
+        u = self.copyTransposed(self.pa00)
         self.write_parallel(u)
         
     def _copy(self, res, u, st, end):

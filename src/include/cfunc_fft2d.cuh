@@ -2,12 +2,13 @@
 #define CFUNC_FFT2D_CUH
 
 #include <cufft.h>
+#include <cufftXt.h>
 
 
 class cfunc_fft2d {
   bool is_free = false;
   
-  float2 *f;
+  float *f;
   float2 *g;
   cufftHandle plan2dchunk;
   cudaStream_t stream;
