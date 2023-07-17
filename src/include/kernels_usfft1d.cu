@@ -20,7 +20,7 @@ void __global__ divker1d(float2 *g, float *f, int n0, int n1, int n2, int m2, fl
   int g_ind = tx + ty * n0 + (tz + n2 / 2 + m2) * n0 * n1;
   
 
-  if (n2%2!=0) ker=-ker;// handle sizes not multiples of 4
+  // if (n2%2!=0) ker=-ker;// handle sizes not multiples of 4
 
   if (direction == 0){
     g[g_ind].x = f[f_ind] / ker / (2 * n2);

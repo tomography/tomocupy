@@ -64,7 +64,7 @@ log = logging.getLogger(__name__)
 
 class GPURecSteps():
     """
-    Class for a stepwise tomographic reconstruction on GPU with conveyor data processing by sinogram and projection chunks.
+    Class for a stepwise tomographic reconstruction on GPU with pipeline data processing by sinogram and projection chunks.
     Steps include 1) pre-processing the whole data volume by splitting into sinograms, 2) pre-processing the whole data volume by splitting into proejections,
     3) reconstructing the whole volume by splitting into sinograms and projections
     The implemented reconstruction methods are 
@@ -119,7 +119,7 @@ class GPURecSteps():
         self.cl_writer = cl_writer
     
         # define reconstruction method
-        if self.cl_conf.args.lamino_angle != 0 and self.args.reconstruction_algorithm =='fourierrec':
+        if self.cl_conf.args.lamino_angle != 0 and self.args.reconstruction_algorithm =='fourierrec' and self.args.reconstruction_type=='full': # available only for full recon
             self.cl_backproj = backproj_lamfourier_parallel.BackprojLamFourierParallel(cl_conf, cl_writer)
         else:
             self.cl_backproj = backproj_parallel.BackprojParallel(cl_conf, cl_writer)
@@ -201,7 +201,7 @@ class GPURecSteps():
         # gpu memory for res
         rec_gpu = cp.zeros([2, *self.shape_data_chunk_z], dtype=self.dtype)
 
-        # Conveyor for data cpu-gpu copy and reconstruction
+        # pipeline for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
             utils.printProgressBar(
                 k, nzchunk+1, nzchunk-k+1, length=40)
@@ -256,7 +256,7 @@ class GPURecSteps():
         # gpu memory for processed data
         rec_gpu = cp.zeros([2, *self.shape_data_chunk_tn], dtype=self.dtype)
 
-        # Conveyor for data cpu-gpu copy and reconstruction
+        # pipeline for data cpu-gpu copy and reconstruction
         for k in range(ntchunk+2):
             utils.printProgressBar(k, ntchunk+1, ntchunk-k+1, length=40)
             if(k > 0 and k < ntchunk+1):
