@@ -120,7 +120,7 @@ Update
 
 Installation on Polaris supercomputer
 =====================================
-1. Connect to polaris main node (computing nodes dont have access to the internet)  and install anaconda
+1. connect to Polaris main node (computing nodes don't have access to the internet)  and install anaconda
 
 2. add modules:
 
