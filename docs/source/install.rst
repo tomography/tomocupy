@@ -131,7 +131,7 @@ Installation on Polaris supercomputer
 
 *we work with cuda-11.4 not with cuda-12.1 because the current driver version on polaris is 11.4:
 
-3. create tomocupy environment:
+3. create tomocupy environment, specifying cudatoolkit=11.4
 
 ::
 
