@@ -125,49 +125,46 @@ Installation on Polaris supercomputer
 2. add modules:
 
 ::
+
     module add gcc/11.2.0
     module add cudatoolkit-standalone/11.4.4
 
 *we work with cuda-11.4 not with cuda-12.1 because the current driver version on polaris is 11.4:
-(base) vvnikitin@x3005c0s1b1n0:~> nvidia-smi
-Wed Jul 19 20:43:28 2023
-+-----------------------------------------------------------------------------+
-| NVIDIA-SMI 470.103.04  Driver Version: 470.103.04  CUDA Version: 11.4   |
-|-------------------------------+----------------------+----------------------+
-| GPU Name    Persistence-M| Bus-Id    Disp.A | Volatile Uncorr. ECC |
-| Fan Temp Perf Pwr:Usage/Cap|     Memory-Usage | GPU-Util Compute M. |
-|                |           |        MIG M. |
-|===============================+======================+======================|
-|  0 NVIDIA A100-SXM... On  | 00000000:07:00.0 Off |          0 |
-| N/A  25C  P0  52W / 400W |   0MiB / 40536MiB |   0%   Default |
-|                |           |       Disabled |
-+-------------------------------+----------------------+----------------------+
 
 3. create tomocupy environment:
 
 ::
+
     conda create -n tomocupy -c conda-forge cupy scikit-build swig numexpr opencv tifffile h5py cmake cudatoolkit=11.4
 
 4. clone tomocupy:
 
 ::
+
     git clone https://github.com/tomography/tomocupy
 
 5. install tomocupy
 
 ::
+
     cd tomocupy; pip install .
 
 6. test tomocupy:
+
 :: 
+
     tomocupy recon -h
 
 7. connect to a node with GPUs in interactive mode and a debug allocation for now, smth like
+
 ::
+
     qsub -I -A hp-ptycho -l select=4:system=polaris -l filesystems=home:eagle -l walltime=30:00 -q debug-scaling
 
 *replace hp-ptycho by your project
 
 8. test tomocupy:
+
 ::
+
     cd tests; bash test_all.sh
