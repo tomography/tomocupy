@@ -409,7 +409,7 @@ class BackprojParallel():
                 if(k > 1):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                     for kk in range(lschunk[k-2]):
-                        self.write_threads[ithread].run(cl_writer.write_data_try, (
+                        self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                             rec_pinned[ithread, kk], self.cl_conf.save_centers[(k-2)*ncz+kk],id_slice))
 
                 self.stream1.synchronize()

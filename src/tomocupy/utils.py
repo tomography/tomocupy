@@ -204,3 +204,33 @@ def wint(n, t):
     wn = w
     wn[-40:] = (w[-40])/(N-40)*cp.arange(N-40, N)
     return wn
+
+def _copy(res, u, st, end):
+        res[st:end] = u[st:end]
+        
+def copy(u, res, nthreads=16):
+    nchunk = int(np.ceil(u.shape[0]/nthreads))
+    mthreads = []
+    for k in range(nthreads):
+        th = Thread(target=_copy,args=(res,u,k*nchunk,min((k+1)*nchunk,u.shape[0])))
+        mthreads.append(th)
+        th.start()
+    for th in mthreads:
+        th.join()
+    return res
+
+def _copyTransposed(res, u, st, end):
+    res[st:end] = u[:,st:end].swapaxes(0,1)        
+    
+def copyTransposed(u, res=[], nthreads=16):
+    if res==[]:
+        res = np.empty([u.shape[1],u.shape[0],u.shape[2]],dtype=u.dtype)
+    nchunk = int(np.ceil(u.shape[1]/nthreads))
+    mthreads = []
+    for k in range(nthreads):
+        th = Thread(target=_copyTransposed,args=(res,u,k*nchunk,min((k+1)*nchunk,u.shape[1])))
+        mthreads.append(th)
+        th.start()
+    for th in mthreads:
+        th.join()        
+    return res

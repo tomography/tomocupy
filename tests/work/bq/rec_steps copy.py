@@ -51,6 +51,11 @@ import signal
 import cupy as cp
 import numpy as np
 
+import kvikio
+import zarr
+import kvikio.zarr
+import shutil
+
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
@@ -130,7 +135,11 @@ class GPURecSteps():
         t =np.zeros(4)        
         log.info('Reading data.')        
         t[0]= time.time()
-        data, flat, dark = self.read_data_parallel()        
+        if self.args.use_zarr=='True':
+            data, flat, dark = self.read_to_zarr()
+        else:
+            data, flat, dark = self.read_data_parallel()        
+        
         t[0] = time.time()-t[0]
         if self.args.pre_processing == 'True':
             log.info('Processing by chunks in z.')
@@ -148,6 +157,37 @@ class GPURecSteps():
         np.save(f'time{data.shape[0]}_{data.shape[-1]}_{self.args.reconstruction_algorithm}',t)
 ############################################### Parallel/pipeline execution #############################################
 
+    def read_to_zarr(self, nthreads=16):
+        """Reading data in parallel (good for ssd disks)"""
+
+        st_n = self.cl_conf.st_n
+        end_n = self.cl_conf.end_n
+        flat, dark = self.cl_reader.read_flat_dark(st_n, end_n)
+        dir_path = '/local/tmpdark0'
+        shutil.rmtree(str(dir_path), ignore_errors=True)
+        dark = zarr.array(dark,chunks=[self.shape_data_full[0],1,self.shape_data_full[2]],compressor=None,store=kvikio.zarr.GDSStore(dir_path),meta_array=cp.empty(()))
+        dir_path = '/local/tmpflat0'
+        shutil.rmtree(str(dir_path), ignore_errors=True)
+        flat = zarr.array(flat,chunks=[self.shape_data_full[0],1,self.shape_data_full[2]],compressor=None,store=kvikio.zarr.GDSStore(dir_path),meta_array=cp.empty(()))
+        # parallel read of projections
+        dir_path = '/local/tmpdata0'
+        data = zarr.empty(chunks=self.shape_data_full,dtype=self.in_dtype,compressor=None,store=kvikio.zarr.GDSStore(dir_path),meta_array=cp.empty(()))                    
+        lchunk = int(np.ceil(data.shape[0]/nthreads))
+        procs = []
+        for k in range(nthreads):
+            st_proj = k*lchunk
+            end_proj = min((k+1)*lchunk,self.args.end_proj-self.args.start_proj)
+            if st_proj>=end_proj:
+                continue
+            read_thread = Thread(
+                target=self.cl_reader.read_proj_chunk, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
+            procs.append(read_thread)
+            read_thread.start()
+        for proc in procs:
+            proc.join()
+
+        return data, flat, dark
+    
     def read_data_parallel(self, nthreads=16):
         """Reading data in parallel (good for ssd disks)"""
 
@@ -181,17 +221,23 @@ class GPURecSteps():
         ncz = self.cl_conf.ncz
 
         # result
-        res = np.zeros(data.shape, dtype=self.dtype)
-
-        # pinned memory for data item
-        item_pinned = {}
-        item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_z], dtype=self.in_dtype))
-        item_pinned['dark'] = utils.pinned_array(
-            np.zeros([2, *self.shape_dark_chunk_z], dtype=self.in_dtype))
-        item_pinned['flat'] = utils.pinned_array(
-            np.ones([2, *self.shape_flat_chunk_z], dtype=self.in_dtype))
-
+        if isinstance(data,zarr.core.Array):
+            dir_path = '/local/tmpz0'
+            shutil.rmtree(str(dir_path), ignore_errors=True)
+            res = zarr.empty(data.shape,chunks=self.shape_data_chunk_z,dtype=self.dtype,compressor=None,store=kvikio.zarr.GDSStore(dir_path),meta_array=cp.empty(()))            
+        else:
+            res = np.zeros(data.shape, dtype=self.dtype)                                
+            # pinned memory for data item
+            item_pinned = {}
+            item_pinned['data'] = utils.pinned_array(
+                np.zeros([2, *self.shape_data_chunk_z], dtype=self.in_dtype))
+            item_pinned['dark'] = utils.pinned_array(
+                np.zeros([2, *self.shape_dark_chunk_z], dtype=self.in_dtype))
+            item_pinned['flat'] = utils.pinned_array(
+                np.ones([2, *self.shape_flat_chunk_z], dtype=self.in_dtype))
+            # pinned memory for res
+            rec_pinned = utils.pinned_array(
+                np.zeros([2, *self.shape_data_chunk_z], dtype=self.dtype))
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
@@ -200,10 +246,6 @@ class GPURecSteps():
             [2, *self.shape_dark_chunk_z], dtype=self.in_dtype)
         item_gpu['flat'] = cp.ones(
             [2, *self.shape_flat_chunk_z], dtype=self.in_dtype)
-
-        # pinned memory for res
-        rec_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_z], dtype=self.dtype))
         # gpu memory for res
         rec_gpu = cp.zeros([2, *self.shape_data_chunk_z], dtype=self.dtype)
 
@@ -218,30 +260,30 @@ class GPURecSteps():
                         k-1) % 2], item_gpu['dark'][(k-1) % 2], item_gpu['flat'][(k-1) % 2], rec_gpu[(k-1) % 2])
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
-                    rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
+                    if isinstance(data,zarr.core.Array):
+                        res[:, (k-2)*ncz:(k-2)*ncz+lzchunk[k-2]] = rec_gpu[(k-2) % 2]
+                    else:
+                        rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
+                        
             if(k < nzchunk):
                 # copy to pinned memory
-                # item_pinned['data'][k % 2, :, :lzchunk[k]
-                #                     ] = data[:, k*ncz:k*ncz+lzchunk[k]]
-                
-                # item_pinned['dark'][k % 2, :, :lzchunk[k]
-                #                     ] = dark[:, k*ncz:k*ncz+lzchunk[k]]
-                # item_pinned['flat'][k % 2, :, :lzchunk[k]
-                #                     ] = flat[:, k*ncz:k*ncz+lzchunk[k]]
-                utils.copy(data[:, k*ncz:k*ncz+lzchunk[k]],item_pinned['data'][k % 2, :, :lzchunk[k]])
-                utils.copy(dark[:, k*ncz:k*ncz+lzchunk[k]],item_pinned['dark'][k % 2, :, :lzchunk[k]])
-                utils.copy(flat[:, k*ncz:k*ncz+lzchunk[k]],item_pinned['flat'][k % 2, :, :lzchunk[k]])
-
-                with self.stream1:  # cpu->gpu copy
-                    item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
-                    item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
-                    item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
+                with self.stream1:  # cpu->gpu copy                
+                    if isinstance(data,zarr.core.Array):
+                        item_gpu['data'][k % 2] = data[:, k*ncz:k*ncz+lzchunk[k]]
+                        item_gpu['dark'][k % 2] = dark[:, k*ncz:k*ncz+lzchunk[k]]
+                        item_gpu['flat'][k % 2] = flat[:, k*ncz:k*ncz+lzchunk[k]]
+                    else:
+                        utils.copy(data[:, k*ncz:k*ncz+lzchunk[k]],item_pinned['data'][k % 2, :, :lzchunk[k]])
+                        utils.copy(dark[:, k*ncz:k*ncz+lzchunk[k]],item_pinned['dark'][k % 2, :, :lzchunk[k]])
+                        utils.copy(flat[:, k*ncz:k*ncz+lzchunk[k]],item_pinned['flat'][k % 2, :, :lzchunk[k]])
+                        item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
+                        item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
+                        item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])                    
             self.stream3.synchronize()
             if(k > 1):
-                # copy to result
-                utils.copy(rec_pinned[(k-2) % 2, :, :lzchunk[k-2]],res[:, (k-2)*ncz:(k-2)*ncz+lzchunk[k-2]])
-                # res[:, (k-2)*ncz:(k-2)*ncz+lzchunk[k-2]
-                #     ] = rec_pinned[(k-2) % 2, :, :lzchunk[k-2]].copy()
+                # copy to result                
+                if not isinstance(data,zarr.core.Array):
+                    utils.copy(rec_pinned[(k-2) % 2, :, :lzchunk[k-2]],res[:, (k-2)*ncz:(k-2)*ncz+lzchunk[k-2]])                                
             self.stream1.synchronize()
             self.stream2.synchronize()
         return res
@@ -257,17 +299,23 @@ class GPURecSteps():
         if self.args.file_type!='double_fov':
             res = data
         else:
-            res = np.zeros([*self.shape_data_fulln], dtype=self.dtype)
+            if isinstance(data,zarr.core.Array):
+                dir_path = '/local/tmpz1'
+                shutil.rmtree(str(dir_path), ignore_errors=True)
+                res = zarr.empty(self.shape_data_fulln,chunks=self.shape_data_chunk_tn,dtype=self.dtype,compressor=None,store=kvikio.zarr.GDSStore(dir_path),meta_array=cp.empty(()))    
+            else:
+                res = np.zeros([*self.shape_data_fulln], dtype=self.dtype)
 
-        # pinned memory for data item
-        data_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_t], dtype=self.dtype))
+        if  not isinstance(data,zarr.core.Array):
+            # pinned memory for data item
+            data_pinned = utils.pinned_array(
+                np.zeros([2, *self.shape_data_chunk_t], dtype=self.dtype))
+            # pinned memory for processed data
+            rec_pinned = utils.pinned_array(
+                np.zeros([2, *self.shape_data_chunk_tn], dtype=self.dtype))
+        
         # gpu memory for data item
-        data_gpu = cp.zeros([2, *self.shape_data_chunk_t], dtype=self.dtype)
-
-        # pinned memory for processed data
-        rec_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_tn], dtype=self.dtype))
+        data_gpu = cp.zeros([2, *self.shape_data_chunk_t], dtype=self.dtype)        
         # gpu memory for processed data
         rec_gpu = cp.zeros([2, *self.shape_data_chunk_tn], dtype=self.dtype)
 
@@ -280,21 +328,22 @@ class GPURecSteps():
                         data_gpu[(k-1) % 2], rec_gpu[(k-1) % 2])
             if(k > 1):
                 with self.stream3:  # gpu->cpu copy
-                    rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
+                    if isinstance(data,zarr.core.Array):
+                        utils.copy(rec_gpu[(k-2) % 2, :ltchunk[k-2]],res[(k-2)*ncproj:(k-2)*ncproj+ltchunk[k-2]])
+                    else:
+                        rec_gpu[(k-2) % 2].get(out=rec_pinned[(k-2) % 2])
             if(k < ntchunk):
                 # copy to pinned memory
-                # data_pinned[k % 2, :ltchunk[k]
-                            # ] = data[ncproj*k:ncproj*k+ltchunk[k]]
-                # copy to pinned memory
-                utils.copy(data[ncproj*k:ncproj*k+ltchunk[k]],data_pinned[k % 2, :ltchunk[k]])
                 with self.stream1:  # cpu->gpu copy
-                    data_gpu[k % 2].set(data_pinned[k % 2])
+                    if isinstance(data,zarr.core.Array):
+                        utils.copy(data[ncproj*k:ncproj*k+ltchunk[k]],data_gpu[k%2][ncproj*k:ncproj*k+ltchunk[k]])
+                    else:
+                        utils.copy(data[ncproj*k:ncproj*k+ltchunk[k]],data_pinned[k % 2, :ltchunk[k]])                
+                        data_gpu[k % 2].set(data_pinned[k % 2])
             self.stream3.synchronize()
             if(k > 1):
-                # add a new proc for writing to hard disk (after gpu->cpu copy is done)
-                # res[(k-2)*ncproj:(k-2)*ncproj+ltchunk[k-2]
-                #     ] = rec_pinned[(k-2) % 2, :ltchunk[k-2]].copy()
-                utils.copy(rec_pinned[(k-2) % 2, :ltchunk[k-2]], res[(k-2)*ncproj:(k-2)*ncproj+ltchunk[k-2]])
+                if not isinstance(data,zarr.core.Array):                
+                    utils.copy(rec_pinned[(k-2) % 2, :ltchunk[k-2]], res[(k-2)*ncproj:(k-2)*ncproj+ltchunk[k-2]])
             self.stream1.synchronize()
             self.stream2.synchronize()
         return res

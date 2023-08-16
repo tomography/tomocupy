@@ -225,8 +225,9 @@ class ConfigSizes():
         """Calculating sizes for laminography reconstruction by chunks"""
 
         # calculate reconstruction height        
+        rh0 = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning/2))*2 #- self.args.lamino_start_row//2**self.args.binning
         if self.args.lamino_end_row == -1:
-            rh = int(np.ceil((self.nz*2**self.args.binning/np.cos(self.args.lamino_angle/180*np.pi))/2**self.args.binning)) - self.args.lamino_start_row//2**self.args.binning
+            rh = rh0
         else:
             rh = self.args.lamino_end_row//2**self.args.binning - self.args.lamino_start_row//2**self.args.binning
         
@@ -239,3 +240,6 @@ class ConfigSizes():
         self.lrchunk = lrchunk
         self.rh = rh
         self.lamino_angle = self.args.lamino_angle
+        self.lamino_start_row = self.args.lamino_start_row//2**self.args.binning
+        self.lamino_shift = (rh0//2-rh//2)-self.args.lamino_start_row//2**self.args.binning
+        
