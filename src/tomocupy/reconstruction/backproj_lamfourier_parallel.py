@@ -90,7 +90,7 @@ class BackprojLamFourierParallel():
         self.pa33 =  self.pab0[:np.prod(s3)].reshape(s3)
         self.pa22 =  self.pab1[:np.prod(s2)*2].view('complex64').reshape(s2)        
         self.pa11 =  self.pab0[:np.prod(s1)*2].view('complex64').reshape(s1)        
-        self.pa00 =  self.pab0[:np.prod(s0)].reshape(s0)
+        self.pa00 =  self.pab1[:np.prod(s0)].reshape(s0)
         
         
         self.gab0 = cp.empty(2*gpu_block_size,dtype='float32')
