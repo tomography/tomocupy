@@ -38,12 +38,6 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy import utils
-from tomocupy import logging
-from tomocupy import config_sizes
-from tomocupy import reader
-from tomocupy.processing import proc_functions
-from threading import Thread
 from ast import literal_eval
 from queue import Queue
 import cupyx.scipy.ndimage as ndimage
@@ -52,13 +46,18 @@ import numpy as np
 import signal
 import cv2
 
+from tomocupy import utils
+from tomocupy import logging
+from tomocupy import config_sizes
+from tomocupy import reader
+from tomocupy.processing import proc_functions
+
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['FindCenter', ]
 
 log = logging.getLogger(__name__)
-
 
 class FindCenter():
     '''
@@ -87,7 +86,7 @@ class FindCenter():
             center = self.find_center_sift()
         elif self.args.rotation_axis_method == 'vo':
             center = self.find_center_vo()
-        return center
+        return center*2**self.args.binning
 
     def find_center_sift(self):
         pairs = literal_eval(self.args.rotation_axis_pairs)
@@ -228,19 +227,11 @@ class FindCenter():
         _tomo_fs = ndimage.gaussian_filter(_tomo, (2, 2), mode='reflect')
 
         # Coarse and fine searches for finding the rotation center.
-        # if _tomo.shape[0] * _tomo.shape[1] > 4e6:  # If data is large (>2kx2k)
-        #     _tomo_coarse = _downsample(_tomo_cs, level=2)
-        #     init_cen = _search_coarse(
-        #         _tomo_coarse, smin / 4.0, smax / 4.0, ratio, drop)
-        #     fine_cen = _search_fine(_tomo_fs, srad, step,
-        #                             init_cen * 4.0, ratio, drop)
-        # else:
         init_cen = _search_coarse(_tomo_cs, smin, smax, ratio, drop)
         fine_cen = _search_fine(_tomo_fs, srad, step,
                                     init_cen, ratio, drop)
         log.debug('Rotation center search finished: %i', fine_cen)
         return fine_cen
-
 
 def _find_min_max(data):
     """Find min and max values according to histogram"""
@@ -257,7 +248,6 @@ def _find_min_max(data):
         mmax[k] = e[end+1]
 
     return mmin, mmax
-
 
 def _register_shift_sift(datap1, datap2, th=0.5):
     """Find shifts via SIFT detecting features"""
@@ -305,14 +295,6 @@ def _register_shift_sift(datap1, datap2, th=0.5):
         shifts[id] = np.mean(shift, axis=0)[::-1]
     return shifts, len(good)
 
-
-def _downsample(tomo, level):
-    for k in range(level):
-        tomo = 0.5*(tomo[::2]+tomo[1::2])
-        tomo = 0.5*(tomo[:, ::2]+tomo[:, 1::2])
-    return tomo
-
-
 def _calculate_metric(shift_col, sino1, sino2, sino3, mask):
     """
     Metric calculation.
@@ -339,7 +321,6 @@ def _calculate_metric(shift_col, sino1, sino2, sino3, mask):
     metric = cp.mean(
         cp.abs(cp.fft.fftshift(cp.fft.fft2(mat))) * mask)
     return metric
-
 
 def _search_coarse(sino, smin, smax, ratio, drop):
     """
@@ -370,7 +351,6 @@ def _search_coarse(sino, smin, smax, ratio, drop):
     cor = list_cor[minpos]
     return cor
 
-
 def _search_fine(sino, srad, step, init_cen, ratio, drop):
     """
     Fine search for finding the rotation center.
@@ -392,7 +372,6 @@ def _search_fine(sino, srad, step, init_cen, ratio, drop):
         list_metric[k] = _calculate_metric(s, sino, flip_sino, comp_sino, mask)
     cor = list_cor[np.argmin(list_metric)]
     return cor
-
 
 def _create_mask(nrow, ncol, radius, drop):
     """

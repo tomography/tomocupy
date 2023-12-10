@@ -55,27 +55,24 @@ class BackprojFunctions():
         self.centeri = cl_conf.centeri
         self.center = cl_conf.center
         self.ne = 4*self.n
+        
         if self.args.dtype == 'float16':
             # power of 2 for float16
             self.ne = 2**int(cp.ceil(cp.log2(self.ne)))
 
+        theta = cp.array(cl_conf.theta)        
         if self.args.lamino_angle == 0:
             if self.args.reconstruction_algorithm == 'fourierrec':
-                self.cl_rec = fourierrec.FourierRec(
-                    self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
+                self.cl_rec = fourierrec.FourierRec(self.n, self.nproj, self.ncz, theta, self.args.dtype)
             elif self.args.reconstruction_algorithm == 'lprec':
                 self.centeri += 0.5      # consistence with the Fourier based method
                 self.center += 0.5
-                self.cl_rec = lprec.LpRec(
-                    self.n, self.nproj, self.ncz, cp.array(cl_conf.theta), self.args.dtype)
+                self.cl_rec = lprec.LpRec(self.n, self.nproj, self.ncz, theta, self.args.dtype)
             elif self.args.reconstruction_algorithm == 'linerec':
-                self.cl_rec = linerec.LineRec(
-                    cp.array(cl_conf.theta), self.nproj, self.nproj, self.ncz, self.ncz, self.n, self.args.dtype)
-            self.cl_filter = fbp_filter.FBPFilter(
-                self.ne, self.nproj, self.ncz, self.args.dtype)
+                self.cl_rec = linerec.LineRec(theta, self.nproj, self.nproj, self.ncz, self.ncz, self.n, self.args.dtype)
+            self.cl_filter = fbp_filter.FBPFilter(self.ne, self.nproj, self.ncz, self.args.dtype)
         else:
-            self.cl_rec = linerec.LineRec(
-                cp.array(cl_conf.theta), self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
+            self.cl_rec = linerec.LineRec(theta, self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
             self.cl_filter = fbp_filter.FBPFilter(
                 self.ne, self.ncproj, self.nz, self.args.dtype)  # note ncproj,nz!
         self.wfilter = self.cl_filter.calc_filter(self.args.fbp_filter)
@@ -89,9 +86,8 @@ class BackprojFunctions():
         w = self.wfilter*cp.exp(-2*cp.pi*1j*t*(-self.center +
                                     sht[:, cp.newaxis]+self.n/2))  # center fix
 
-        # tmp = cp.fft.irfft(
-            # w*cp.fft.rfft(tmp, axis=2), axis=2).astype(self.args.dtype)  # note: filter works with complex64, however, it doesnt take much time
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
         data[:] = tmp[:, :, self.ne//2-self.n//2:self.ne//2+self.n//2]
 
         return data  # reuse input memory
+        

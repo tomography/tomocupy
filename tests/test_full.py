@@ -30,6 +30,7 @@ cmd_dict = {
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method sift  --reconstruction-type full' : 28.305,
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method vo --center-search-step 0.1 --nsino 0.5 --center-search-width 100 --reconstruction-type full' : 28.303,
     f'{prefix} --remove-stripe-method vo-all ': 27.993,
+    f'{prefix} --bright-ratio 10': 32.631,
 }
 
 

@@ -187,7 +187,7 @@ class GPURec():
 
         # chunk ids with parallel read
         ids = []
-
+        st = end = []
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
@@ -201,7 +201,7 @@ class GPURec():
                     rec = rec_gpu[(k-1) % 2]
 
                     data = self.cl_proc_func.proc_sino(data, dark, flat)
-                    data = self.cl_proc_func.proc_proj(data)
+                    data = self.cl_proc_func.proc_proj(data, st, end)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
                     sht = cp.tile(np.float32(0), data.shape[0])
                     data = self.cl_backproj_func.fbp_filter_center(data, sht)

@@ -39,10 +39,8 @@
 # *************************************************************************** #
 
 ''' Paganin phase retrieval implementation 
-copied from tomopy
 '''
 
-import numpy as np
 import cupy as cp
 from cupy.fft import fft2, ifft2
 
@@ -51,10 +49,8 @@ SPEED_OF_LIGHT = 299792458e+2  # [cm/s]
 PI = 3.14159265359
 PLANCK_CONSTANT = 6.58211928e-19  # [keV*s]
 
-
 def _wavelength(energy):
     return 2 * PI * PLANCK_CONSTANT * SPEED_OF_LIGHT / energy
-
 
 def paganin_filter(
         data, pixel_size=1e-4, dist=50, energy=20, alpha=1e-3, method='paganin', db=1000, W=2e-4, pad=True):
@@ -126,7 +122,6 @@ def _retrieve_phase(data, phase_filter, px, py, prj, pad):
             proj = proj[px:dy + px, py:dz + py]
         data[m] = proj
 
-
 def _calc_pad(data, pixel_size, dist, energy, pad):
     """
     Calculate new dimensions and pad value after padding.
@@ -163,7 +158,6 @@ def _calc_pad(data, pixel_size, dist, energy, pad):
 
     return py, pz, val
 
-
 def _paganin_filter_factor(energy, dist, alpha, w2):
     return 1 / (_wavelength(energy) * dist * w2 / (4 * PI) + alpha)
 
@@ -176,15 +170,12 @@ def _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W):
     aph = db*(dist*_wavelength(energy))/(4*PI)
     return 1 / (1.0 -(2*aph/(W**2))*(kf-2))
 
-
 def _calc_pad_width(dim, pixel_size, wavelength, dist):
     pad_pix = cp.ceil(PI * wavelength * dist / pixel_size ** 2)
     return int((pow(2, cp.ceil(cp.log2(dim + pad_pix))) - dim) * 0.5)
 
-
 def _calc_pad_val(data):
     return cp.mean((data[..., 0] + data[..., -1]) * 0.5)
-
 
 def _reciprocal_grid(pixel_size, nx, ny):
     """

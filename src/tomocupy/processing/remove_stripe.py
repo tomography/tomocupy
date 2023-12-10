@@ -41,11 +41,10 @@
 import cupy as cp
 import pywt
 from cupyx.scipy.ndimage import median_filter
-from cupyx.scipy import signal
 from cupyx.scipy.ndimage import binary_dilation
 from cupyx.scipy.ndimage import uniform_filter1d
 
-###### Ring removal with wavelet filtering (adapted for cupy from pytroch_wavelet package https://pytorch-wavelets.readthedocs.io/)################################################################################
+###### Ring removal with wavelet filtering (adapted for cupy from pytroch_wavelet package https://pytorch-wavelets.readthedocs.io/)##########
 
 def _reflect(x, minx, maxx):
     """Reflect the values in matrix *x* about the scalar values *minx* and
@@ -65,7 +64,6 @@ def _reflect(x, minx, maxx):
     normed_mod = cp.where(mod < 0, mod + rng_by_2, mod)
     out = cp.where(normed_mod >= rng, rng_by_2 - normed_mod, normed_mod) + minx
     return cp.array(out, dtype=x.dtype)
-
 
 def _mypad(x, pad, value=0):
     """ Function to do numpy like padding on Arrays. Only works for 2-D
@@ -87,7 +85,6 @@ def _mypad(x, pad, value=0):
         l = x.shape[-1]
         xe = _reflect(cp.arange(-m1, l+m2, dtype='int32'), -0.5, l-0.5)
         return x[:, :, :, xe]
-
 
 def _conv2d(x, w, stride, pad, groups=1):
     """ Convolution (equivalent pytorch.conv2d)
@@ -113,7 +110,6 @@ def _conv2d(x, w, stride, pad, groups=1):
                                                         w[:, g*chunko:(g+1)*chunko, :, ii:ii+1, jj:jj+1], axis=2)
     return out
 
-
 def _conv_transpose2d(x, w, stride, pad, bias=None, groups=1):
     """ Transposed convolution (equivalent pytorch.conv_transpose2d)
     """
@@ -134,7 +130,6 @@ def _conv_transpose2d(x, w, stride, pad, bias=None, groups=1):
     if pad != 0:
         out = out[:, :, pad[0]:out.shape[2]-pad[0], pad[1]:out.shape[3]-pad[1]]
     return out
-
 
 def afb1d(x, h0, h1='zero', dim=-1):
     """ 1D analysis filter bank (along one dimension only) of an image
@@ -174,7 +169,6 @@ def afb1d(x, h0, h1='zero', dim=-1):
     lohi = _conv2d(x, h, stride=s, pad=0, groups=C)
     return lohi
 
-
 def sfb1d(lo, hi, g0, g1='zero', dim=-1):
     """ 1D synthesis filter bank of an image Array
     """
@@ -193,7 +187,6 @@ def sfb1d(lo, hi, g0, g1='zero', dim=-1):
         _conv_transpose2d(cp.asarray(hi), cp.asarray(g1),
                           stride=s, pad=pad, groups=C)
     return y
-
 
 class DWTForward():
     """ Performs a 2d DWT Forward decomposition of an image
@@ -246,7 +239,6 @@ class DWTForward():
         yh = cp.ascontiguousarray(y[:, :, 1:])
         return x, yh
 
-
 class DWTInverse():
     """ Performs a 2d DWT Inverse reconstruction of an image
 
@@ -291,7 +283,6 @@ class DWTInverse():
         yl = sfb1d(lo, hi, self.g0_row, self.g1_row, dim=3)
         return yl
 
-
 def remove_stripe_fw(data, sigma, wname, level):
     """Remove stripes with wavelet filtering"""
 
@@ -335,7 +326,7 @@ def remove_stripe_fw(data, sigma, wname, level):
 
     return data
 
-######## Titarenko ring removal ############################################################################################################################################################################
+######## Titarenko ring removal ################
 def remove_stripe_ti(data, beta, mask_size):
     """Remove stripes with a new method by V. Titareno """
     gamma = beta*((1-beta)/(1+beta)
@@ -350,8 +341,7 @@ def remove_stripe_ti(data, beta, mask_size):
     data[:] += v*mask
     return data
 
-
-######## Optimized version for Vo-all ring removal in tomopy################################################################################################################################################################
+######## Optimized version for Vo-all ring removal in tomopy#########
 def _rs_sort(sinogram, size, matindex, dim):
     """
     Remove stripes using the sorting technique.
@@ -498,7 +488,6 @@ def _rs_dead(sinogram, snr, size, matindex, norm=True):
     if norm is True:
         sinogram = _rs_large(sinogram, snr, size, matindex)
     return sinogram
-
 
 def _create_matindex(nrow, ncol):
     """

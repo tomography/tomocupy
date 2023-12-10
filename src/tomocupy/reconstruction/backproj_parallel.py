@@ -40,14 +40,19 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import writer
-from tomocupy.reconstruction import backproj_functions
-from threading import Thread
 import cupy as cp
 import numpy as np
+from tomocupy.reconstruction import backproj_functions
+
+
+__author__ = "Viktor Nikitin"
+__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
+__all__ = ['BackprojParallel']
 
 log = logging.getLogger(__name__)
 
+    
 class BackprojParallel():
 
     def __init__(self, cl_conf, cl_writer):
@@ -417,4 +422,3 @@ class BackprojParallel():
 
             for t in self.write_threads:
                 t.join()
-                

@@ -159,7 +159,6 @@ SECTIONS['file-reading'] = {
         'help': "Angle range for blocked views [st,end]. Can be a list of ranges(e.g. [[0,1.2],[3,3.14]])"},
 }
 
-
 SECTIONS['remove-stripe'] = {
     'remove-stripe-method': {
         'default': 'none',
@@ -167,7 +166,6 @@ SECTIONS['remove-stripe'] = {
         'help': "Remove stripe method: none, fourier-wavelet, titarenko",
         'choices': ['none', 'fw', 'ti', 'vo-all']},
 }
-
 
 SECTIONS['fw'] = {
     'fw-sigma': {
@@ -189,7 +187,6 @@ SECTIONS['fw'] = {
         'action': 'store_true'},
 }
 
-
 SECTIONS['vo-all'] = {
     'vo-all-snr': {
         'default': 3,
@@ -207,7 +204,6 @@ SECTIONS['vo-all'] = {
         'default': 1,
         'help': "Dimension of the window."},
 }
-
 
 SECTIONS['ti'] = {
     'ti-beta': {
@@ -441,17 +437,103 @@ SECTIONS['reconstruction'] = {
         'help': "Take -log or not"},    
     'flat-linear': {
         'default': 'False',
-        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},        
-    'pad-endpoint': {
-        'default': 'False',
-        'help': "Include or not endpoint for smooting in double fov reconstruction (preventing circle in the middle)."},            
+        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},             
+    'bright-ratio': {
+        'type': float,
+        'default': 1,        
+        'help': 'exposure time for flat fields divided by the exposure time of projections' },             
 }
+
+SECTIONS['beam-hardening']= {
+    'beam-hardening-method': {
+        'default': 'none',
+        'type': str,
+        'help': "Beam hardening method.",
+        'choices':['none','standard']},
+    'source-distance': {
+        'default': 36.0,
+        'type': float,
+        'help': 'Distance from source to scintillator in m'},
+    'scintillator-read': {
+        'default': False,
+        'help': "When set, read scintillator properties from the HDF file",
+        'action': 'store_true'},
+    'pixel-size-read': {
+        'default': False,
+        'help': "When set, read effective pixel size from the HDF file",
+        'action': 'store_true'},
+    'scintillator-material': {
+        'default': 'LuAG_Ce',
+        'type': str,
+        'help': 'Scintillator material for beam hardening'},
+    'scintillator-thickness': {
+        'default': 100.0,
+        'type': float,
+        'help': 'Scintillator thickness in microns'},
+    'scintillator-density': {
+        'default': 6.0,
+        'type': float,
+        'help': 'Density of scintillator in g/cm^3'},
+    'sample-material': {
+        'default': 'Fe',
+        'type': str,
+        'help': 'Sample material for beam hardening'},
+    'sample-density': {
+        'default': 1.0,
+        'type': float,
+        'help': 'Density of sample material in g/cm^3'},
+    'filter-1-auto': {
+        'default': False,
+        'help': 'If True, read filter 1 from HDF meta data'},
+    'filter-1-material': {
+        'default': 'none',
+        'type': str,
+        'help': 'Filter 1 material for beam hardening'},
+    'filter-1-thickness': {
+        'default': 0.0,
+        'type': float,
+        'help': 'Filter 1 thickness in microns'},
+    'filter-1-density': {
+        'default': 1.0,
+        'type': float,
+        'help': 'Filter 1 density in g/cm^3'},
+    'filter-2-auto': {
+        'default': False,
+        'help': 'If True, read filter 2 from HDF meta data'},
+    'filter-2-material': {
+        'default': 'none',
+        'type': str,
+        'help': 'Filter 2 material for beam hardening'},
+    'filter-2-thickness': {
+        'default': 0.0,
+        'type': float,
+        'help': 'Filter 2 thickness in microns'},
+    'filter-2-density': {
+        'default': 1.0,
+        'type': float,
+        'help': 'Filter 2 density in g/cm^3'},
+    'filter-3-auto': {
+        'default': False,
+        'help': 'If True, read filter 3 from HDF meta data'},
+    'filter-3-material': {
+        'default': 'none',
+        'type': str,
+        'help': 'Filter 3 material in microns'},
+    'filter-3-thickness': {
+        'default': 0.0,
+        'type': float,
+        'help': 'Filter 3 thickness for beam hardening'},
+    'filter-3-density': {
+        'default': 1.0,
+        'type': float,
+        'help': 'Filter 3 density in g/cm^3'},
+    }
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'vo-all', 'reconstruction-types')
+                'reconstruction', 'fw', 'ti', 'vo-all', 'reconstruction-types','beam-hardening')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
-                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj')
+                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj','beam-hardening')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
               'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo' 'Retrieve phase', 'Reconstruction')
@@ -472,7 +554,6 @@ def get_config_name():
 
     return name
 
-
 def parse_known_args(parser, subparser=False):
     """
     Parse arguments from file and then override by the ones specified on the
@@ -487,7 +568,6 @@ def parse_known_args(parser, subparser=False):
         values = ""
 
     return parser.parse_known_args(values)[0]
-
 
 def config_to_list(config_name=CONFIG_FILE_NAME):
     """
@@ -521,7 +601,6 @@ def config_to_list(config_name=CONFIG_FILE_NAME):
 
     return result
 
-
 class Params(object):
     def __init__(self, sections=()):
         self.sections = sections + ('general', )
@@ -541,7 +620,6 @@ class Params(object):
         self.add_arguments(parser)
 
         return parser.parse_args('')
-
 
 def write(config_file, args=None, sections=None):
     """
@@ -570,7 +648,6 @@ def write(config_file, args=None, sections=None):
     with open(config_file, 'w') as f:
         config.write(f)
 
-
 def show_config(args):
     """Log all values set in the args namespace.
     Arguments are grouped according to their section and logged alphabetically
@@ -588,7 +665,6 @@ def show_config(args):
                 log.info("  {:<16} {}".format(entry, value))
 
     log.warning('tomocupy status end')
-
 
 def log_values(args):
     """Log all values set in the args namespace.
@@ -616,7 +692,6 @@ def log_values(args):
                     log.warning("  {:<16} {}".format(entry, value))
 
     log.warning('tomocupyon status end')
-
 
 def update_hdf_process(fname, args=None, sections=None):
     """

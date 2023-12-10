@@ -41,12 +41,11 @@
 from tomocupy import utils
 from tomocupy import logging
 from tomocupy.reconstruction import fbp_filter
-from tomocupy.reconstruction import lamfourier
+from tomocupy.reconstruction import lamfourierrec
 from threading import Thread
 import cupy as cp
 import numpy as np
 from tomocupy import logging
-
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class BackprojLamFourierParallel():
         self.ne = 4*self.detw
 
         
-        self.cl_lamfourier = lamfourier.LamFourierRec(self.n0, self.n1, self.n2, self.ntheta, self.detw, self.deth, self.n1c, self.nthetac, self.dethc)        
+        self.cl_lamfourier = lamfourierrec.LamFourierRec(self.n0, self.n1, self.n2, self.ntheta, self.detw, self.deth, self.n1c, self.nthetac, self.dethc)        
         
         ################################
         s3 = [self.ntheta,self.deth,self.detw]
@@ -128,8 +127,7 @@ class BackprojLamFourierParallel():
         self.wfilter = self.cl_filter.calc_filter(cl_conf.args.fbp_filter)
         self.cl_conf = cl_conf
         self.cl_writer = cl_writer
-        self.rec_fun = self.rec_lam
-       
+        self.rec_fun = self.rec_lam       
         
     def usfft1d_chunks(self, out_t, inp_t, out_gpu, inp_gpu, out_p, inp_p, phi):    
         log.info("usfft1d by chunks.")               
@@ -164,8 +162,7 @@ class BackprojLamFourierParallel():
                 
             self.stream1.synchronize()
             self.stream2.synchronize()
-            
-            
+                        
     def usfft2d_chunks(self, out, inp, out_gpu, inp_gpu, out_p, inp_p, theta, phi):
         log.info("usfft2d by chunks.")    
                 
@@ -205,8 +202,7 @@ class BackprojLamFourierParallel():
                         
             self.stream1.synchronize()
             self.stream2.synchronize()
-            
-            
+                        
     def fft2_chunks(self, out, inp, out_gpu, inp_gpu, out_p, inp_p):
         log.info("fft2 by chunks.")
         
@@ -239,8 +235,7 @@ class BackprojLamFourierParallel():
                 utils.copy(out_p[:s],out[st:end])                
             self.stream1.synchronize()
             self.stream2.synchronize()
-            
-     
+                 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
 
@@ -258,7 +253,6 @@ class BackprojLamFourierParallel():
         utils.copy(data,self.pa33)
         self.fft2_chunks(self.pa22, self.pa33, self.ga44, self.ga55,self.gpa44, self.gpa55)
         self.usfft2d_chunks(self.pa11, self.pa22, self.ga22, self.ga33, self.gpa22, self.gpa33, self.cl_conf.theta, np.pi/2+self.cl_conf.lamino_angle/180*np.pi)
-        #self.pa11*=np.exp(-2*np.pi*1j*(self.cl_conf.lamino_shift)*np.fft.rfftfreq(self.deth)).reshape(1,self.deth//2+1,1)
         self.usfft1d_chunks(self.pa00,self.pa11,self.ga00,self.ga11,self.gpa00,self.gpa11, np.pi/2+self.cl_conf.lamino_angle/180*np.pi)         
         u = utils.copyTransposed(self.pa00)
         self.write_parallel(u)

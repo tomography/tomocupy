@@ -38,9 +38,10 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
-from tomocupy.processing import retrieve_phase, remove_stripe, adjust_projections
+from tomocupy.processing import retrieve_phase, remove_stripe
 import cupyx.scipy.ndimage as ndimage
 import cupy as cp
+
 
 class ProcFunctions():
     def __init__(self, cl_conf):
@@ -53,12 +54,17 @@ class ProcFunctions():
         self.center = cl_conf.center
         self.centeri = cl_conf.centeri
 
+        # External processing methods initialization
+        if self.args.beam_hardening_method != 'none':
+            from tomocupy.processing.external import hardening
+            self.cl_hardening = hardening.Beam_Corrector(self.args)
 
     def darkflat_correction(self, data, dark, flat):
         """Dark-flat field correction"""
 
         dark0 = dark.astype(self.args.dtype, copy=False)
         flat0 = flat.astype(self.args.dtype, copy=False)
+        flat0 /= self.args.bright_ratio  # == exposure_flat/exposure_proj
         # works only for processing all angles
         if self.args.flat_linear == 'True' and data.shape[0] == self.nproj:
             flat0_p0 = cp.mean(flat0[:flat0.shape[0]//2], axis=0)
@@ -68,8 +74,9 @@ class ProcFunctions():
         else:
             flat0 = cp.mean(flat0, axis=0)
         dark0 = cp.mean(dark0, axis=0)
-        res = (data.astype(self.args.dtype, copy=False)-dark0) / (flat0-dark0+flat0*1e-5)
-        
+        res = (data.astype(self.args.dtype, copy=False)-dark0) / \
+            (flat0-dark0+flat0*1e-5)
+
         return res
 
     def minus_log(self, data):
@@ -80,6 +87,12 @@ class ProcFunctions():
         data[cp.isnan(data)] = 6.0
         data[cp.isinf(data)] = 0
         return data  # reuse input memory
+
+    def beamhardening(self, data, current_rows):
+        """Beam hardening correction"""
+        data[:] = self.cl_hardening.correct_centerline(data)
+        data[:] = self.cl_hardening.correct_angle(data, current_rows)
+        return data
 
     def remove_outliers(self, data):
         """Remove outliers"""
@@ -93,12 +106,6 @@ class ProcFunctions():
             data[:] = cp.where(cp.logical_and(
                 data > fdata, (data - fdata) > self.args.dezinger_threshold), fdata, data)
         return data
-        # if(int(self.args.dezinger) > 0):
-        #     r = int(self.args.dezinger)
-        #     fdata = ndimage.median_filter(data, [1, r, r])
-        #     ids = cp.where(cp.abs(fdata-data) > 0.5*cp.abs(fdata))
-        #     data[ids] = fdata[ids]
-        # return data
 
     def pad360(self, data):
         """Pad data with 0 to handle 360 degrees scan"""
@@ -108,15 +115,27 @@ class ProcFunctions():
             data[:] = data[:, :, ::-1]
         w = max(1, int(2*(self.ni-self.center)))
 
-        if self.args.pad_endpoint == 'True':
-            v = cp.linspace(1, 0, w, endpoint=True)
-        else:
-            v = cp.linspace(1, 0, w, endpoint=False)
+        # smooth transition at the border
+        v = cp.linspace(1, 0, w, endpoint=False)
         v = v**5*(126-420*v+540*v**2-315*v**3+70*v**4)
         data[:, :, -w:] *= v
 
         # double sinogram size with adding 0
         data = cp.pad(data, ((0, 0), (0, 0), (0, data.shape[-1])), 'constant')
+        return data
+
+    def rotate_proj(self, data, angle, order=2):
+        """
+        Rotate projections (fixing the roll issue)
+
+        data: input projection data
+        angle: rotary angle
+        order: interpolation order for rotation
+        """
+
+        data[:] = ndimage.rotate(data, float(
+            angle), reshape=False, order=order, axes=(2, 1), mode='nearest')
+
         return data
 
     def proc_sino(self, data, dark, flat, res=None):
@@ -142,7 +161,7 @@ class ProcFunctions():
 
         return res
 
-    def proc_proj(self, data, res=None):
+    def proc_proj(self, data, st=None, end=None, res=None):
         """Processing a projection data chunk"""
 
         if not isinstance(res, cp.ndarray):
@@ -151,18 +170,22 @@ class ProcFunctions():
         # retrieve phase
         if self.args.retrieve_phase_method == 'Gpaganin' or self.args.retrieve_phase_method == 'paganin':
             data[:] = retrieve_phase.paganin_filter(
-                data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy, \
-                self.args.retrieve_phase_alpha, self.args.retrieve_phase_method, self.args.retrieve_phase_delta_beta, \
-                self.args.retrieve_phase_W*1e-4)
+                data,  self.args.pixel_size*1e-4, self.args.propagation_distance/10, self.args.energy,
+                self.args.retrieve_phase_alpha, self.args.retrieve_phase_method, self.args.retrieve_phase_delta_beta,
+                self.args.retrieve_phase_W*1e-4)  # units adjusted based on the tomopy implementation
         if self.args.rotate_proj_angle != 0:
-            data[:] = adjust_projections.rotate(
+            data[:] = self.rotate_proj(
                 data, self.args.rotate_proj_angle, self.args.rotate_proj_order)
         # minus log
         if self.args.minus_log == 'True':
             data[:] = self.minus_log(data)
+        # beam hardening correction
+        if self.args.beam_hardening_method != 'none':
+            data[:] = self.beamhardening(data, st, end)
         # padding for 360 deg recon
         if self.args.file_type == 'double_fov':
             res[:] = self.pad360(data)
         else:
             res[:] = data[:]
+
         return res
