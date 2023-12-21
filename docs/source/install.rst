@@ -12,6 +12,13 @@ Run 'nvidia-smi' to check whether the driver is installed. For check compute cap
     (base)$ conda config --add channels conda-forge
     (base)$ conda config --set channel_priority strict
 
+
+2. Environmental solver mamba works much faster than the regular one, use
+
+::
+    (base)$ conda install -n base conda-libmamba-solver
+    (base)$ conda config --set solver libmamba
+
 2. Create environment with installed tomocupy
 
 ::
