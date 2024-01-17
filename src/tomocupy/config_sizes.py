@@ -112,6 +112,12 @@ class ConfigSizes():
         st_n = self.args.start_column
         end_n = self.args.end_column
         
+        # work only with multiples of 2
+        nsh = (end_n-st_n)%(2**(self.args.binning+1))
+        if nsh!=0:
+            end_n-=nsh
+            log.warning(f'Decreasing projection width by {nsh} pixel to operate with multiple of 2 sizes. New projection width: {end_n-st_n}')
+
         ni = end_n - st_n        
         centeri -= st_n
         
