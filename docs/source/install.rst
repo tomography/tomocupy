@@ -12,20 +12,27 @@ Run 'nvidia-smi' to check whether the driver is installed. For check compute cap
     (base)$ conda config --add channels conda-forge
     (base)$ conda config --set channel_priority strict
 
-2. Create environment with installed tomocupy
+
+2. Environmental solver mamba works much faster than the regular one, use
+
+::
+    (base)$ conda install -n base conda-libmamba-solver
+    (base)$ conda config --set solver libmamba
+
+3. Create environment with installed tomocupy
 
 ::
 
     (base)$ conda create -n tomocupy tomocupy
 
-3. Activate tomocupy environment
+4. Activate tomocupy environment
 
 ::
 
     (base)$ conda activate tomocupy
     
 
-3. Test installation
+5. Test installation
 
 ::
 
@@ -42,11 +49,17 @@ Installation for development
     (base)$ conda config --add channels conda-forge
     (base)$ conda config --set channel_priority strict
 
-2. Create environment with necessary dependencies
+2. Environmental solver mamba works much faster than the regular one, use
+
+::
+    (base)$ conda install -n base conda-libmamba-solver
+    (base)$ conda config --set solver libmamba
+
+3. Create environment with necessary dependencies
 
 ::
 
-    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig numexpr opencv tifffile h5py python=3.9
+    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig numexpr opencv tifffile h5py cmake pywavelets python=3.10
 
 
 .. warning:: Conda has a built-in mechanism to determine and install the latest version of cudatoolkit supported by your driver. However, if for any reason you need to force-install a particular CUDA version (say 11.0), you can do:
@@ -54,13 +67,13 @@ Installation for development
   conda install -c conda-forge cupy cudatoolkit=11.0
   
 
-3. Activate tomocupy environment
+4. Activate tomocupy environment
 
 ::
 
     (base)$ conda activate tomocupy
 
-4*. (If needed) Install meta for supporting hdf meta data writer used by option: --save-format h5
+5*. (If needed) Install meta for supporting hdf meta data writer used by option: --save-format h5
 
 ::
 
@@ -70,7 +83,7 @@ Installation for development
     (tomocupy)$ cd -
 
 
-5. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
+6. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
 
 ::
     
@@ -115,3 +128,56 @@ Update
     (tomocupy)$ cd tomocupy
     (tomocupy)$ git pull
     (tomocupy)$ pip install .
+
+
+
+Installation on Polaris supercomputer
+=====================================
+1. connect to Polaris main node (computing nodes don't have access to the internet)  and install anaconda
+
+2. add modules:
+
+::
+
+    module add gcc/11.2.0
+    module add cudatoolkit-standalone/11.4.4
+
+*we work with cuda-11.4 not with cuda-12.1 because the current driver version on polaris is 11.4:
+
+3. create tomocupy environment, specifying cudatoolkit=11.4
+
+::
+
+    conda create -n tomocupy -c conda-forge cupy scikit-build swig numexpr opencv tifffile h5py cmake cudatoolkit=11.4
+
+4. clone tomocupy:
+
+::
+
+    git clone https://github.com/tomography/tomocupy
+
+5. install tomocupy
+
+::
+
+    cd tomocupy; pip install .
+
+6. test tomocupy:
+
+:: 
+
+    tomocupy recon -h
+
+7. connect to a node with GPUs in interactive mode and a debug allocation for now, smth like
+
+::
+
+    qsub -I -A hp-ptycho -l select=4:system=polaris -l filesystems=home:eagle -l walltime=30:00 -q debug-scaling
+
+*replace hp-ptycho by your project
+
+8. test tomocupy:
+
+::
+
+    cd tests; bash test_all.sh
