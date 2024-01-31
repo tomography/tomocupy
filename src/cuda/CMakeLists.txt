@@ -8,7 +8,8 @@ find_package(SWIG REQUIRED)
 include(${SWIG_USE_FILE})
 
 # SWIG requires the Python header
-find_package(Python COMPONENTS Development REQUIRED)
+# find_package(Python COMPONENTS Development REQUIRED)
+find_package(Python COMPONENTS Interpreter Development)
 include_directories(${PYTHON_INCLUDE_PATH})
 # TODO: Is NumPy required?
 # find_package(NumPy REQUIRED)
