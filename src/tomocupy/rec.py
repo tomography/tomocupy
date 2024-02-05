@@ -68,15 +68,15 @@ class GPURec():
     The implemented reconstruction method is Fourier-based with exponential functions for interpoaltion in the frequency domain (implemented with CUDA C).
     '''
 
-    def __init__(self, cl_reader):
+    def __init__(self, cl_reader, cl_writer):
 
         # Set ^C, ^Z interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
 
-        # use pinned memory
+        # # use pinned memory
         cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-        cl_writer = writer.Writer(cl_reader)
+        # cl_writer = writer.Writer(cl_reader)
 
         # chunks for processing
         self.shape_data_chunk = (cl_reader.nproj, cl_reader.ncz, cl_reader.ni)
@@ -102,7 +102,7 @@ class GPURec():
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
 
-    def recon_all(self, data_queue, cl_reader):
+    def recon_all(self, data_queue, cl_reader, cl_writer):
         """Reconstruction of data from an h5file by splitting into sinogram chunks"""
 
         # refs for faster access
@@ -182,7 +182,7 @@ class GPURec():
                 st = ids[k-2]*ncz+self.cl_reader.args.start_row//2**self.cl_reader.args.binning
                 end = st+lzchunk[ids[k-2]]
                 self.write_threads[ithread].run(
-                    self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, ids[k-2]))
+                    cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, ids[k-2]))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -190,7 +190,7 @@ class GPURec():
         for t in self.write_threads:
             t.join()
 
-    def recon_try(self, data_queue, cl_reader, id_slice):
+    def recon_try(self, data_queue, id_slice, cl_reader, cl_writer):
         """GPU reconstruction of 1 slice for different centers"""
 
         item = data_queue.get()
@@ -240,7 +240,7 @@ class GPURec():
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 for kk in range(lschunk[k-2]):
                     # print((k-2)*ncz+kk,id_slice)
-                    self.write_threads[ithread].run(self.cl_writer.write_data_try, (
+                    self.write_threads[ithread].run(cl_writer.write_data_try, (
                         rec_pinned[ithread, kk], cl_reader.save_centers[(k-2)*ncz+kk],id_slice))
 
             self.stream1.synchronize()
