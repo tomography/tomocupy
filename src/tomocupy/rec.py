@@ -68,7 +68,7 @@ class GPURec():
     The implemented reconstruction method is Fourier-based with exponential functions for interpoaltion in the frequency domain (implemented with CUDA C).
     '''
 
-    def __init__(self, cl_reader, cl_conf):
+    def __init__(self, cl_reader):
 
         # Set ^C, ^Z interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
@@ -76,17 +76,17 @@ class GPURec():
 
         # use pinned memory
         cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-        cl_writer = writer.Writer(cl_conf)
+        cl_writer = writer.Writer(cl_reader)
 
         # chunks for processing
-        self.shape_data_chunk = (cl_conf.nproj, cl_conf.ncz, cl_conf.ni)
-        self.shape_recon_chunk = (cl_conf.ncz, cl_conf.n, cl_conf.n)
-        self.shape_dark_chunk = (cl_conf.ndark, cl_conf.ncz, cl_conf.ni)
-        self.shape_flat_chunk = (cl_conf.nflat, cl_conf.ncz, cl_conf.ni)
+        self.shape_data_chunk = (cl_reader.nproj, cl_reader.ncz, cl_reader.ni)
+        self.shape_recon_chunk = (cl_reader.ncz, cl_reader.n, cl_reader.n)
+        self.shape_dark_chunk = (cl_reader.ndark, cl_reader.ncz, cl_reader.ni)
+        self.shape_flat_chunk = (cl_reader.nflat, cl_reader.ncz, cl_reader.ni)
         
         # init tomo functions
-        self.cl_proc_func = proc_functions.ProcFunctions(cl_conf)
-        self.cl_backproj_func = backproj_functions.BackprojFunctions(cl_conf)
+        self.cl_proc_func = proc_functions.ProcFunctions(cl_reader)
+        self.cl_backproj_func = backproj_functions.BackprojFunctions(cl_reader)
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
@@ -95,23 +95,22 @@ class GPURec():
 
         # threads for data writing to disk
         self.write_threads = []
-        for k in range(cl_conf.args.max_write_threads):
+        for k in range(cl_reader.args.max_write_threads):
             self.write_threads.append(utils.WRThread())
 
         # additional refs
-        self.cl_conf = cl_conf
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
 
-    def recon_all(self, data_queue, cl_conf):
+    def recon_all(self, data_queue, cl_reader):
         """Reconstruction of data from an h5file by splitting into sinogram chunks"""
 
         # refs for faster access
-        dtype = self.cl_conf.dtype
-        in_dtype = self.cl_conf.in_dtype
-        nzchunk = self.cl_conf.nzchunk
-        lzchunk = self.cl_conf.lzchunk
-        ncz = self.cl_conf.ncz
+        dtype = self.cl_reader.dtype
+        in_dtype = self.cl_reader.in_dtype
+        nzchunk = self.cl_reader.nzchunk
+        lzchunk = self.cl_reader.lzchunk
+        ncz = self.cl_reader.ncz
 
         # pinned memory for data item
         item_pinned = {}
@@ -133,7 +132,7 @@ class GPURec():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
+            np.zeros([self.cl_reader.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
 
@@ -180,7 +179,7 @@ class GPURec():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                st = ids[k-2]*ncz+self.cl_conf.args.start_row//2**self.cl_conf.args.binning
+                st = ids[k-2]*ncz+self.cl_reader.args.start_row//2**self.cl_reader.args.binning
                 end = st+lzchunk[ids[k-2]]
                 self.write_threads[ithread].run(
                     self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, ids[k-2]))
@@ -191,7 +190,7 @@ class GPURec():
         for t in self.write_threads:
             t.join()
 
-    def recon_try(self, data_queue, cl_conf, id_slice):
+    def recon_try(self, data_queue, cl_reader, id_slice):
         """GPU reconstruction of 1 slice for different centers"""
 
         item = data_queue.get()
@@ -207,14 +206,14 @@ class GPURec():
         data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
         # refs for faster access
-        dtype = cl_conf.dtype
-        nschunk = cl_conf.nschunk
-        lschunk = cl_conf.lschunk
-        ncz = cl_conf.ncz
+        dtype = cl_reader.dtype
+        nschunk = cl_reader.nschunk
+        lschunk = cl_reader.lschunk
+        ncz = cl_reader.ncz
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
+            np.zeros([cl_reader.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
         
@@ -225,7 +224,7 @@ class GPURec():
                 k, nschunk+1, data_queue.qsize(), length=40)
             if(k > 0 and k < nschunk+1):
                 with self.stream2:  # reconstruction
-                    sht = cp.pad(cp.array(cl_conf.shift_array[(
+                    sht = cp.pad(cp.array(cl_reader.shift_array[(
                         k-1)*ncz:(k-1)*ncz+lschunk[k-1]]), [0, ncz-lschunk[k-1]])
                     datat = cp.tile(data, [ncz, 1, 1])
                     datat = self.cl_backproj_func.fbp_filter_center(datat, sht)
@@ -242,7 +241,7 @@ class GPURec():
                 for kk in range(lschunk[k-2]):
                     # print((k-2)*ncz+kk,id_slice)
                     self.write_threads[ithread].run(self.cl_writer.write_data_try, (
-                        rec_pinned[ithread, kk], cl_conf.save_centers[(k-2)*ncz+kk],id_slice))
+                        rec_pinned[ithread, kk], cl_reader.save_centers[(k-2)*ncz+kk],id_slice))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
