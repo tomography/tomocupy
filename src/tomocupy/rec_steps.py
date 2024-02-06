@@ -42,8 +42,7 @@ from tomocupy import utils
 from tomocupy import logging
 from tomocupy import config_sizes
 from threading import Thread
-from tomocupy import reader
-from tomocupy import writer
+
 from tomocupy.processing import proc_functions
 from tomocupy.reconstruction import backproj_parallel
 from tomocupy.reconstruction import backproj_lamfourier_parallel
@@ -72,33 +71,29 @@ class GPURecSteps():
     2) Direct discretization of the backprojection intergral
     """
 
-    def __init__(self, args):
+    def __init__(self, cl_reader, cl_writer):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
 
         # use pinned memory
         cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-        # configure sizes and output files
-        cl_reader = reader.Reader(args)
-        cl_conf = config_sizes.ConfigSizes(args, cl_reader)
-        cl_writer = writer.Writer(args, cl_conf)
 
         # chunks for processing
-        self.shape_data_chunk_z = (cl_conf.nproj, cl_conf.ncz, cl_conf.ni)
-        self.shape_dark_chunk_z = (cl_conf.ndark, cl_conf.ncz, cl_conf.ni)
-        self.shape_flat_chunk_z = (cl_conf.nflat, cl_conf.ncz, cl_conf.ni)
-        self.shape_data_chunk_zn = (cl_conf.nproj, cl_conf.ncz, cl_conf.n)
-        self.shape_data_chunk_t = (cl_conf.ncproj, cl_conf.nz, cl_conf.ni)
-        self.shape_data_chunk_tn = (cl_conf.ncproj, cl_conf.nz, cl_conf.n)
-        self.shape_recon_chunk = (cl_conf.ncz, cl_conf.n, cl_conf.n)
+        self.shape_data_chunk_z = (cl_reader.nproj, cl_reader.ncz, cl_reader.ni)
+        self.shape_dark_chunk_z = (cl_reader.ndark, cl_reader.ncz, cl_reader.ni)
+        self.shape_flat_chunk_z = (cl_reader.nflat, cl_reader.ncz, cl_reader.ni)
+        self.shape_data_chunk_zn = (cl_reader.nproj, cl_reader.ncz, cl_reader.n)
+        self.shape_data_chunk_t = (cl_reader.ncproj, cl_reader.nz, cl_reader.ni)
+        self.shape_data_chunk_tn = (cl_reader.ncproj, cl_reader.nz, cl_reader.n)
+        self.shape_recon_chunk = (cl_reader.ncz, cl_reader.n, cl_reader.n)
 
         # full shapes
-        self.shape_data_full = (cl_conf.nproj, cl_conf.nz, cl_conf.ni)
-        self.shape_data_fulln = (cl_conf.nproj, cl_conf.nz, cl_conf.n)
+        self.shape_data_full = (cl_reader.nproj, cl_reader.nz, cl_reader.ni)
+        self.shape_data_fulln = (cl_reader.nproj, cl_reader.nz, cl_reader.n)
 
         # init tomo functions
-        self.cl_proc_func = proc_functions.ProcFunctions(cl_conf)
+        self.cl_proc_func = proc_functions.ProcFunctions(cl_reader)
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
@@ -107,30 +102,29 @@ class GPURecSteps():
 
         # threads for data writing to disk
         self.write_threads = []
-        for k in range(cl_conf.args.max_write_threads):
+        for k in range(cl_reader.args.max_write_threads):
             self.write_threads.append(utils.WRThread())
 
         # additional refs
-        self.dtype = cl_conf.dtype
-        self.in_dtype = cl_conf.in_dtype
-        self.args = args
-        self.cl_conf = cl_conf
+        self.dtype = cl_reader.dtype
+        self.in_dtype = cl_reader.in_dtype
+        self.args = cl_reader.args
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
 
         # define reconstruction method
-        if self.cl_conf.args.lamino_angle != 0 and self.args.reconstruction_algorithm == 'fourierrec' and self.args.reconstruction_type == 'full':  # available only for full recon
+        if self.cl_reader.args.lamino_angle != 0 and self.args.reconstruction_algorithm == 'fourierrec' and self.args.reconstruction_type == 'full':  # available only for full recon
             self.cl_backproj = backproj_lamfourier_parallel.BackprojLamFourierParallel(
-                cl_conf, cl_writer)
+                cl_reader, cl_writer)
         else:
             self.cl_backproj = backproj_parallel.BackprojParallel(
-                cl_conf, cl_writer)
+                cl_reader, cl_writer)
 
-    def recon_steps_all(self):
+    def recon_steps_all(self, data, flat, dark):
         """GPU reconstruction by loading a full dataset in memory and processing by steps, with reading the whole data to memory """
 
-        log.info('Reading data.')
-        data, flat, dark = self.read_data_parallel()
+        # log.info('Reading data.')
+        # data, flat, dark = self.read_data_parallel()
         if self.args.pre_processing == 'True':
             log.info('Processing by chunks in z.')
             data = self.proc_sino_parallel(data, dark, flat)
@@ -139,38 +133,13 @@ class GPURecSteps():
         log.info('Filtered backprojection and writing by chunks.')
         self.cl_backproj.rec_fun(data)
 
-    def read_data_parallel(self, nthreads=16):
-        """Reading data in parallel (good for ssd disks)"""
-
-        st_n = self.cl_conf.st_n
-        end_n = self.cl_conf.end_n
-        flat, dark = self.cl_reader.read_flat_dark(st_n, end_n)
-        # parallel read of projections
-        data = np.zeros([*self.shape_data_full], dtype=self.in_dtype)
-        lchunk = int(np.ceil(data.shape[0]/nthreads))
-        procs = []
-        for k in range(nthreads):
-            st_proj = k*lchunk
-            end_proj = min((k+1)*lchunk, self.args.end_proj -
-                           self.args.start_proj)
-            if st_proj >= end_proj:
-                continue
-            read_thread = Thread(
-                target=self.cl_reader.read_proj_chunk, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
-            procs.append(read_thread)
-            read_thread.start()
-        for proc in procs:
-            proc.join()
-
-        return data, flat, dark
-
     def proc_sino_parallel(self, data, dark, flat):
         """Data processing by splitting into sinogram chunks"""
 
         # refs for faster access
-        nzchunk = self.cl_conf.nzchunk
-        lzchunk = self.cl_conf.lzchunk
-        ncz = self.cl_conf.ncz
+        nzchunk = self.cl_reader.nzchunk
+        lzchunk = self.cl_reader.lzchunk
+        ncz = self.cl_reader.ncz
 
         # result
         res = np.zeros(data.shape, dtype=self.dtype)
@@ -237,9 +206,9 @@ class GPURecSteps():
         """Data processing by splitting into projection chunks"""
 
         # refs for faster access
-        ntchunk = self.cl_conf.ntchunk
-        ltchunk = self.cl_conf.ltchunk
-        ncproj = self.cl_conf.ncproj
+        ntchunk = self.cl_reader.ntchunk
+        ltchunk = self.cl_reader.ltchunk
+        ncproj = self.cl_reader.ncproj
 
         if self.args.file_type != 'double_fov':
             res = data
