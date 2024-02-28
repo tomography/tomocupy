@@ -33,7 +33,7 @@ Laminographic try reconstruction
 Laminographic try angle reconstruction
 ::
 
-    (tomocupy)$ tomocupy recon_steps --file-name data/test_data.h5 --nsino-per-chunk 8 --nproj-per-chunk 8 --rotation-axis 700 --reconstruction-type try-lamino --lamino-search-width 2 --lamino-angle 20
+    (tomocupy)$ tomocupy recon_steps --file-name data/test_data.h5 --nsino-per-chunk 8 --nproj-per-chunk 8 --rotation-axis 700 --reconstruction-type try_lamino --lamino-search-width 2 --lamino-angle 20
 
 Laminographic full reconstruction
 ::
