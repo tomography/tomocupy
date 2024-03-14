@@ -531,7 +531,7 @@ SECTIONS['beam-hardening']= {
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'vo-all', 'reconstruction-types','beam-hardening')
+                'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types','beam-hardening')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
                       'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj','beam-hardening')
 
