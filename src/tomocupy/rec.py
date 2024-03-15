@@ -144,12 +144,27 @@ class GPURec():
         for k in range(nzchunk+2):
             utils.printProgressBar(
                 k, nzchunk+1, data_queue.qsize(), length=40)
+            if(k < nzchunk):
+                # copy to pinned memory
+                item = data_queue.get()
+                ids.append(item['id'])
+                item_pinned['data'][k % 2, :, :lzchunk[ids[k]]] = item['data']
+                item_pinned['dark'][k % 2, :, :lzchunk[ids[k]]] = item['dark']
+                item_pinned['flat'][k % 2, :, :lzchunk[ids[k]]] = item['flat']
+
+                with self.stream1:  # cpu->gpu copy
+                    item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
+                    item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
+                    item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
             if(k > 0 and k < nzchunk+1):
                 with self.stream2:  # reconstruction
                     data = item_gpu['data'][(k-1) % 2]
                     dark = item_gpu['dark'][(k-1) % 2]
                     flat = item_gpu['flat'][(k-1) % 2]
                     rec = rec_gpu[(k-1) % 2]
+
+                    st = ids[k-1]*ncz+self.cl_reader.args.start_row//2**self.cl_reader.args.binning
+                    end = st+lzchunk[ids[k-1]]
 
                     data = self.cl_proc_func.proc_sino(data, dark, flat)
                     data = self.cl_proc_func.proc_proj(data, st, end)
@@ -164,18 +179,6 @@ class GPURec():
                     # find free thread
                     ithread = utils.find_free_thread(self.write_threads)
                     rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
-            if(k < nzchunk):
-                # copy to pinned memory
-                item = data_queue.get()
-                ids.append(item['id'])
-                item_pinned['data'][k % 2, :, :lzchunk[ids[k]]] = item['data']
-                item_pinned['dark'][k % 2, :, :lzchunk[ids[k]]] = item['dark']
-                item_pinned['flat'][k % 2, :, :lzchunk[ids[k]]] = item['flat']
-
-                with self.stream1:  # cpu->gpu copy
-                    item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
-                    item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
-                    item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
