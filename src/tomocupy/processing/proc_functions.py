@@ -88,8 +88,13 @@ class ProcFunctions():
         data[cp.isinf(data)] = 0
         return data  # reuse input memory
 
-    def beamhardening(self, data, current_rows):
+    def beamhardening(self, data, start_row, end_row):
         """Beam hardening correction"""
+        if start_row == None:
+            start_row = 0
+        if end_row == None:
+            end_row = data.shape[-2]
+        current_rows = list(range(start_row, end_row))
         data[:] = self.cl_hardening.correct_centerline(data)
         data[:] = self.cl_hardening.correct_angle(data, current_rows)
         return data

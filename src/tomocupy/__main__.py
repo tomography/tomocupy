@@ -5,12 +5,17 @@ import time
 import os
 from pathlib import Path
 from datetime import datetime
+from threading import Thread
+from queue import Queue
 
 from tomocupy import logging
 from tomocupy import config
 from tomocupy import GPURec
 from tomocupy import FindCenter
 from tomocupy import GPURecSteps
+from tomocupy import reader
+from tomocupy import writer
+from tomocupy import utils
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +28,7 @@ def init(args):
 def run_status(args):
     config.log_values(args)
 
-def run_rec(args):
+def run_rec(args, cl_reader, cl_writer):
     file_name = Path(args.file_name)
     if not file_name.is_file():        
         log.error("File Name does not exist: %s" % args.file_name)
@@ -42,16 +47,24 @@ def run_rec(args):
         log.warning(f'set rotaion  axis {args.rotation_axis}')
     
     # create reconstruction object and run reconstruction    
-    clpthandle = GPURec(args)
+    clpthandle = GPURec(cl_reader, cl_writer)
     if args.reconstruction_type == 'full':
-        clpthandle.recon_all()
+        # ALK 2/19/2024: account for removal of I/O
+        read_threads = []
+        for k in range(cl_reader.args.max_read_threads):
+            read_threads.append(utils.WRThread())
+        data_queue = Queue(32)
+        main_read_thread = Thread(target = cl_reader.read_data_to_queue,
+                                args = (data_queue, read_threads))
+        main_read_thread.start()
+        clpthandle.recon_all(data_queue, cl_reader, cl_writer)
     if args.reconstruction_type == 'try':
         clpthandle.recon_try()
     rec_time = (time.time()-t)  
     
     log.warning(f'Reconstruction time {rec_time:.1e}s')
 
-def run_recsteps(args):
+def run_recsteps(args, cl_reader, cl_writer):
     file_name = Path(args.file_name)
     if not file_name.is_file():        
         log.error("File Name does not exist: %s" % args.file_name)
@@ -115,9 +128,16 @@ def main():
     logging.setup_custom_logger(lfname, level=log_level)
     log.debug("Started tomocupyfp16on")
     log.info("Saving log at %s" % lfname)
+    
+    #ALK 2/19/2024: set reader and writer based on Francesco's test code
+    cl_reader = reader.Reader(args)
+    cl_writer = writer.Writer(cl_reader)
 
     try:
-        args._func(args)
+        if args._func == init:
+            args._func(args)
+        else:
+            args._func(args, cl_reader, cl_writer)
     except RuntimeError as e:
         log.error(str(e))
         sys.exit(1)

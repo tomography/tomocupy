@@ -527,11 +527,41 @@ SECTIONS['beam-hardening']= {
         'default': 1.0,
         'type': float,
         'help': 'Filter 3 density in g/cm^3'},
+    'calculate-source': {
+        'default': 'none',
+        'type': str,
+        'help': "Use tabulated (none, default) or calculated source",
+        'choices':['none','standard']},
+    'e-storage-ring': {
+        'default': 7.0,
+        'type': float,
+        'help': "e-beam energy for BM source in GeV"},
+    'b-storage-ring': {
+        'default': 0.599,
+        'type': float,
+        'help': "Magnetic field for BM source in T"},
+    'minimum-E': {
+        'default': 1000,
+        'type': float,
+        'help': "Minimum energy to model in eV"},
+    'maximum-E': {
+        'default': 200000,
+        'type': float,
+        'help': "Maximum energy to model in eV"},
+    'step-E': {
+        'default': 500,
+        'type': float,
+        'help': "Energy step in eV"},
+    'maximum-psi-urad': {
+        'default': 40,
+        'type': float,
+        'help': "Maximum vertical angle from centerline to model in microradians"},
+
     }
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'vo-all', 'reconstruction-types','beam-hardening')
+                'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types','beam-hardening')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
                       'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj','beam-hardening')
 

@@ -52,11 +52,18 @@ class Beam_Corrector():
         params = self.parse_meta(params)
 
         #Read in the flat and dark
-        with h5py.File(self.args.file_name,'r') as fid:
+        with h5py.File(params.file_name,'r') as fid:
             flat = fid['/exchange/data_white'][:] 
             dark = fid['/exchange/data_dark'][:] 
         median_flat = np.median(flat, axis=0) - np.median(dark, axis=0)
-        self.beam_corr= bh.BeamCorrector()
+        self.beam_corr= bh.BeamCorrector(calculate_source = params.calculate_source,
+                                        e_storage_ring = params.e_storage_ring,
+                                        b_storage_ring = params.b_storage_ring,
+                                        minimum_E = params.minimum_E,
+                                        maximum_E = params.maximum_E,
+                                        step_E = params.step_E,
+                                        maximum_psi_urad = params.maximum_psi_urad,
+                                        )
         self.beam_corr.add_scintillator(
                             params.scintillator_material,
                             params.scintillator_thickness,
@@ -107,7 +114,7 @@ class Beam_Corrector():
         return data
 
     def correct_angle(self, data, current_rows):
-        angles = cp.array(self.beam_corr.angles[current_rows.get()])
+        angles = cp.array(self.beam_corr.angles[current_rows])
         correction = cp.interp(angles, self.interp_angles, self.interp_corrector)
         for i in range(correction.shape[0]):
             data[:,i,:] = data[:,i,:] * correction[i]
