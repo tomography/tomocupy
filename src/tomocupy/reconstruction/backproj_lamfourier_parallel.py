@@ -42,15 +42,17 @@ from tomocupy import utils
 from tomocupy import logging
 from tomocupy.reconstruction import fbp_filter
 from tomocupy.reconstruction import lamfourierrec
+
 from threading import Thread
 import cupy as cp
 import numpy as np
-from tomocupy import logging
 
 log = logging.getLogger(__name__)
 
 class BackprojLamFourierParallel():
-
+    """Fourier-based method for laminography reconstruction with chunk data processing (https://arxiv.org/abs/2401.11101)    
+    """
+    
     def __init__(self, cl_conf, cl_writer):
         self.n0 = cl_conf.rh
         self.n1 = cl_conf.n
@@ -63,7 +65,6 @@ class BackprojLamFourierParallel():
         self.dethc = cl_conf.ncz
         self.center = cl_conf.center
         self.ne = 4*self.detw
-
         
         self.cl_lamfourier = lamfourierrec.LamFourierRec(self.n0, self.n1, self.n2, self.ntheta, self.detw, self.deth, self.n1c, self.nthetac, self.dethc)        
         
@@ -79,7 +80,8 @@ class BackprojLamFourierParallel():
         s2c = [self.n1,self.dethc,self.n2]
         s1c = [self.n1c,self.deth//2+1,self.n2]
         s0c = [self.n1c,self.n0,self.n2]
-               
+
+        # blocks to reuse memory               
         global_block_size = max(np.prod(s0),np.prod(s1)*2,np.prod(s2)*2,np.prod(s3))
         gpu_block_size = max(np.prod(s0c),np.prod(s1c)*2,np.prod(s2c)*2,np.prod(s3c)*2,np.prod(s4c)*2,np.prod(s5c))
         
@@ -110,7 +112,6 @@ class BackprojLamFourierParallel():
         self.gpa22 = self.gpab1[:np.prod(s2c)*2].view('complex64').reshape(s2c)
         self.gpa11 = self.gpab0[:np.prod(s1c)*2].view('complex64').reshape(s1c)
         self.gpa00 = self.gpab1[:np.prod(s0c)].reshape(s0c)        
-        ################################
         
         
         # streams for overlapping data transfers with computations
@@ -122,11 +123,15 @@ class BackprojLamFourierParallel():
         self.write_threads = []
         for k in range(cl_conf.args.max_write_threads):
             self.write_threads.append(utils.WRThread())
+            
         self.cl_filter = fbp_filter.FBPFilter(
-                self.ne, self.deth, self.nthetac, cl_conf.args.dtype)  # note filter is applied on projections, not sinograms as in another methods
+                self.ne, self.deth, self.nthetac, cl_conf.args.dtype)  # note filter is applied on projections, not sinograms as in other methods
+        
         self.wfilter = self.cl_filter.calc_filter(cl_conf.args.fbp_filter)
+        
         self.cl_conf = cl_conf
         self.cl_writer = cl_writer
+        
         self.rec_fun = self.rec_lam       
         
     def usfft1d_chunks(self, out_t, inp_t, out_gpu, inp_gpu, out_p, inp_p, phi):    
@@ -249,7 +254,9 @@ class BackprojLamFourierParallel():
 
         return data  # reuse input memory
 
-    def rec_lam(self, data):        
+    def rec_lam(self, data):      
+        """Reconstruction via the the Fourier-based method"""
+          
         utils.copy(data,self.pa33)
         self.fft2_chunks(self.pa22, self.pa33, self.ga44, self.ga55,self.gpa44, self.gpa55)
         self.usfft2d_chunks(self.pa11, self.pa22, self.ga22, self.ga33, self.gpa22, self.gpa33, self.cl_conf.theta, np.pi/2+self.cl_conf.lamino_angle/180*np.pi)
