@@ -41,12 +41,13 @@
 from tomocupy import utils
 from tomocupy import logging
 from tomocupy import config_sizes
-from threading import Thread
 from tomocupy import reader
 from tomocupy import writer
 from tomocupy.processing import proc_functions
 from tomocupy.reconstruction import backproj_parallel
 from tomocupy.reconstruction import backproj_lamfourier_parallel
+
+from threading import Thread
 import signal
 import cupy as cp
 import numpy as np
@@ -56,9 +57,6 @@ __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
 __docformat__ = 'restructuredtext en'
 __all__ = ['GPURecSteps', ]
 
-pinned_memory_pool = cp.cuda.PinnedMemoryPool()
-cp.cuda.set_pinned_memory_allocator(pinned_memory_pool.malloc)
-
 log = logging.getLogger(__name__)
 
 
@@ -67,9 +65,6 @@ class GPURecSteps():
     Class for a stepwise tomographic reconstruction on GPU with pipeline data processing by sinogram and projection chunks.
     Steps include 1) pre-processing the whole data volume by splitting into sinograms, 2) pre-processing the whole data volume by splitting into proejections,
     3) reconstructing the whole volume by splitting into sinograms and projections
-    The implemented reconstruction methods are 
-    1) Fourier-based method with exponential functions for interpoaltion in the frequency domain (implemented with CUDA C),
-    2) Direct discretization of the backprojection intergral
     """
 
     def __init__(self, args):
@@ -126,6 +121,32 @@ class GPURecSteps():
             self.cl_backproj = backproj_parallel.BackprojParallel(
                 cl_conf, cl_writer)
 
+    def read_data_parallel(self, nthreads=16):
+        """Reading data in parallel (good for ssd disks)"""
+
+        st_n = self.cl_conf.st_n
+        end_n = self.cl_conf.end_n
+        flat, dark = self.cl_reader.read_flat_dark(st_n, end_n)
+        # parallel read of projections
+        data = np.zeros([*self.shape_data_full], dtype=self.in_dtype)
+        lchunk = int(np.ceil(data.shape[0]/nthreads))
+        read_threads = []
+        for k in range(nthreads):
+            st_proj = k*lchunk
+            end_proj = min((k+1)*lchunk, self.args.end_proj -
+                           self.args.start_proj)
+            if st_proj >= end_proj:
+                continue
+            read_thread = Thread(
+                target=self.cl_reader.read_proj_chunk, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
+            read_threads.append(read_thread)
+            read_thread.start()
+        # wait for threads
+        for read_thread in read_threads:
+            read_thread.join()
+
+        return data, flat, dark
+
     def recon_steps_all(self):
         """GPU reconstruction by loading a full dataset in memory and processing by steps, with reading the whole data to memory """
 
@@ -136,33 +157,9 @@ class GPURecSteps():
             data = self.proc_sino_parallel(data, dark, flat)
             log.info('Processing by chunks in angles.')
             data = self.proc_proj_parallel(data)
+
         log.info('Filtered backprojection and writing by chunks.')
         self.cl_backproj.rec_fun(data)
-
-    def read_data_parallel(self, nthreads=16):
-        """Reading data in parallel (good for ssd disks)"""
-
-        st_n = self.cl_conf.st_n
-        end_n = self.cl_conf.end_n
-        flat, dark = self.cl_reader.read_flat_dark(st_n, end_n)
-        # parallel read of projections
-        data = np.zeros([*self.shape_data_full], dtype=self.in_dtype)
-        lchunk = int(np.ceil(data.shape[0]/nthreads))
-        procs = []
-        for k in range(nthreads):
-            st_proj = k*lchunk
-            end_proj = min((k+1)*lchunk, self.args.end_proj -
-                           self.args.start_proj)
-            if st_proj >= end_proj:
-                continue
-            read_thread = Thread(
-                target=self.cl_reader.read_proj_chunk, args=(data, st_proj, end_proj, self.args.start_row, self.args.end_row, st_n, end_n))
-            procs.append(read_thread)
-            read_thread.start()
-        for proc in procs:
-            proc.join()
-
-        return data, flat, dark
 
     def proc_sino_parallel(self, data, dark, flat):
         """Data processing by splitting into sinogram chunks"""
