@@ -40,13 +40,13 @@
 
 from tomocupy.reconstruction import fourierrec, lprec, linerec
 from tomocupy.reconstruction import fbp_filter
+from tomocupy.global_vars import args
 import cupy as cp
 
 
 class BackprojFunctions():
     def __init__(self, cl_conf):
 
-        self.args = cl_conf.args
         self.ni = cl_conf.ni
         self.n = cl_conf.n
         self.nz = cl_conf.nz
@@ -57,37 +57,37 @@ class BackprojFunctions():
         self.center = cl_conf.center
         self.ne = 4*self.n
 
-        if self.args.dtype == 'float16':
+        if args.dtype == 'float16':
             # power of 2 for float16
             self.ne = 2**int(cp.ceil(cp.log2(self.ne)))
 
         theta = cp.array(cl_conf.theta)
 
-        if self.args.lamino_angle != 0:
+        if args.lamino_angle != 0:
             # laminography reconstruction with direct discretization of line integrals
             self.cl_rec = linerec.LineRec(
-                theta, self.nproj, self.ncproj, self.nz, self.ncz, self.n, self.args.dtype)
+                theta, self.nproj, self.ncproj, self.nz, self.ncz, self.n, args.dtype)
             self.cl_filter = fbp_filter.FBPFilter(
-                self.ne, self.ncproj, self.nz, self.args.dtype)  # note ncproj,nz!
+                self.ne, self.ncproj, self.nz, args.dtype)  # note ncproj,nz!
         else:
             # tomography
-            if self.args.reconstruction_algorithm == 'fourierrec':
+            if args.reconstruction_algorithm == 'fourierrec':
                 self.cl_rec = fourierrec.FourierRec(
-                    self.n, self.nproj, self.ncz, theta, self.args.dtype)
-            elif self.args.reconstruction_algorithm == 'lprec':
+                    self.n, self.nproj, self.ncz, theta, args.dtype)
+            elif args.reconstruction_algorithm == 'lprec':
                 self.centeri += 0.5      # consistence with the Fourier based method
                 self.center += 0.5
                 self.cl_rec = lprec.LpRec(
-                    self.n, self.nproj, self.ncz, theta, self.args.dtype)
-            elif self.args.reconstruction_algorithm == 'linerec':
+                    self.n, self.nproj, self.ncz, theta, args.dtype)
+            elif args.reconstruction_algorithm == 'linerec':
                 self.cl_rec = linerec.LineRec(
-                    theta, self.nproj, self.nproj, self.ncz, self.ncz, self.n, self.args.dtype)
+                    theta, self.nproj, self.nproj, self.ncz, self.ncz, self.n, args.dtype)
 
             self.cl_filter = fbp_filter.FBPFilter(
-                self.ne, self.nproj, self.ncz, self.args.dtype)
+                self.ne, self.nproj, self.ncz, args.dtype)
 
         # calculate the FBP filter with quadrature rules
-        self.wfilter = self.cl_filter.calc_filter(self.args.fbp_filter)
+        self.wfilter = self.cl_filter.calc_filter(args.fbp_filter)
 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""

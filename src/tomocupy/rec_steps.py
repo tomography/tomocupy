@@ -40,12 +40,11 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import config_sizes
-from threading import Thread
 
 from tomocupy.processing import proc_functions
 from tomocupy.reconstruction import backproj_parallel
 from tomocupy.reconstruction import backproj_lamfourier_parallel
+from tomocupy.global_vars import args
 import signal
 import cupy as cp
 import numpy as np
@@ -102,18 +101,17 @@ class GPURecSteps():
 
         # threads for data writing to disk
         self.write_threads = []
-        for k in range(cl_reader.args.max_write_threads):
+        for k in range(args.max_write_threads):
             self.write_threads.append(utils.WRThread())
 
         # additional refs
         self.dtype = cl_reader.dtype
         self.in_dtype = cl_reader.in_dtype
-        self.args = cl_reader.args
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
 
         # define reconstruction method
-        if self.cl_reader.args.lamino_angle != 0 and self.args.reconstruction_algorithm == 'fourierrec' and self.args.reconstruction_type == 'full':  # available only for full recon
+        if args.lamino_angle != 0 and args.reconstruction_algorithm == 'fourierrec' and args.reconstruction_type == 'full':  # available only for full recon
             self.cl_backproj = backproj_lamfourier_parallel.BackprojLamFourierParallel(
                 cl_reader, cl_writer)
         else:
@@ -125,7 +123,7 @@ class GPURecSteps():
 
         log.info('Reading data.')
         data, flat, dark = self.cl_reader.read_data_parallel()
-        if self.args.pre_processing == 'True':
+        if args.pre_processing == 'True':
             log.info('Processing by chunks in z.')
             data = self.proc_sino_parallel(data, dark, flat)
             log.info('Processing by chunks in angles.')
@@ -210,7 +208,7 @@ class GPURecSteps():
         ltchunk = self.cl_reader.ltchunk
         ncproj = self.cl_reader.ncproj
 
-        if self.args.file_type != 'double_fov':
+        if args.file_type != 'double_fov':
             res = data
         else:
             res = np.zeros([*self.shape_data_fulln], dtype=self.dtype)

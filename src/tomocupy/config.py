@@ -229,11 +229,7 @@ SECTIONS['retrieve-phase'] = {
     'propagation-distance': {
         'default': 0,
         'type': float,
-        'help': "Sample detector distance [mm]"},
-    'pixel-size': {
-        'default': 0,
-        'type': float,
-        'help': "Pixel size [microns]"},
+        'help': "Sample detector distance [mm]"},    
     'retrieve-phase-alpha': {
         'default': 0,
         'type': float,
@@ -441,7 +437,11 @@ SECTIONS['reconstruction'] = {
     'bright-ratio': {
         'type': float,
         'default': 1,        
-        'help': 'exposure time for flat fields divided by the exposure time of projections' },             
+        'help': 'exposure time for flat fields divided by the exposure time of projections' },    
+    'pixel-size': {
+        'default': 0,
+        'type': float,
+        'help': "Pixel size [microns]"},                 
 }
 
 SECTIONS['beam-hardening']= {
@@ -454,11 +454,11 @@ SECTIONS['beam-hardening']= {
         'default': 36.0,
         'type': float,
         'help': 'Distance from source to scintillator in m'},
-    'scintillator-read': {
+    'read-scintillator': {
         'default': False,
         'help': "When set, read scintillator properties from the HDF file",
         'action': 'store_true'},
-    'pixel-size-read': {
+    'read-pixel-size': {
         'default': False,
         'help': "When set, read effective pixel size from the HDF file",
         'action': 'store_true'},
@@ -614,7 +614,7 @@ def config_to_list(config_name=CONFIG_FILE_NAME):
     for section in SECTIONS:
         for name, opts in ((n, o) for n, o in SECTIONS[section].items() if config.has_option(section, n)):
             value = config.get(section, name)
-
+            
             if value != '' and value != 'None':
                 action = opts.get('action', None)
 

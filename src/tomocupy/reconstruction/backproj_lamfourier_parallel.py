@@ -42,7 +42,7 @@ from tomocupy import utils
 from tomocupy import logging
 from tomocupy.reconstruction import fbp_filter
 from tomocupy.reconstruction import lamfourierrec
-
+from tomocupy.global_vars import args
 from threading import Thread
 import cupy as cp
 import numpy as np
@@ -121,13 +121,13 @@ class BackprojLamFourierParallel():
 
         # threads for data writing to disk
         self.write_threads = []
-        for k in range(cl_conf.args.max_write_threads):
+        for k in range(args.max_write_threads):
             self.write_threads.append(utils.WRThread())
             
         self.cl_filter = fbp_filter.FBPFilter(
-                self.ne, self.deth, self.nthetac, cl_conf.args.dtype)  # note filter is applied on projections, not sinograms as in other methods
+                self.ne, self.deth, self.nthetac, args.dtype)  # note filter is applied on projections, not sinograms as in other methods
         
-        self.wfilter = self.cl_filter.calc_filter(cl_conf.args.fbp_filter)
+        self.wfilter = self.cl_filter.calc_filter(args.fbp_filter)
         
         self.cl_conf = cl_conf
         self.cl_writer = cl_writer

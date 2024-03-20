@@ -42,6 +42,7 @@ from tomocupy import utils
 from tomocupy import logging
 from tomocupy.processing import proc_functions
 from tomocupy.reconstruction import backproj_functions
+from tomocupy.global_vars import args
 
 from threading import Thread
 from queue import Queue
@@ -73,8 +74,7 @@ class GPURec():
 
         # # use pinned memory
         cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-        # cl_writer = writer.Writer(cl_reader)
-
+        
         # chunks for processing
         self.shape_data_chunk = (cl_reader.nproj, cl_reader.ncz, cl_reader.ni)
         self.shape_recon_chunk = (cl_reader.ncz, cl_reader.n, cl_reader.n)
@@ -92,12 +92,12 @@ class GPURec():
 
         # threads for data reading from disk
         self.read_threads = []
-        for k in range(cl_reader.args.max_read_threads):
+        for k in range(args.max_read_threads):
             self.read_threads.append(utils.WRThread())
 
         # threads for data writing to disk
         self.write_threads = []
-        for k in range(cl_reader.args.max_write_threads):
+        for k in range(args.max_write_threads):
             self.write_threads.append(utils.WRThread())
 
         self.data_queue = Queue(32)
@@ -142,7 +142,7 @@ class GPURec():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([self.cl_reader.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
+            np.zeros([args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
 
@@ -160,7 +160,7 @@ class GPURec():
                     dark = item_gpu['dark'][(k-1) % 2]
                     flat = item_gpu['flat'][(k-1) % 2]
                     rec = rec_gpu[(k-1) % 2]
-                    st = ids[k-1]*ncz+self.cl_reader.args.start_row//2**self.cl_reader.args.binning
+                    st = ids[k-1]*ncz+args.start_row//2**args.binning
                     end = st+lzchunk[ids[k-1]]
                     data = self.cl_proc_func.proc_sino(data, dark, flat)
                     data = self.cl_proc_func.proc_proj(data, st, end)
@@ -190,7 +190,7 @@ class GPURec():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                st = ids[k-2]*ncz+self.cl_reader.args.start_row//2**self.cl_reader.args.binning
+                st = ids[k-2]*ncz+args.start_row//2**args.binning
                 end = st+lzchunk[ids[k-2]]
                 self.write_threads[ithread].run(
                     self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, ids[k-2]))
@@ -228,7 +228,7 @@ class GPURec():
 
             # pinned memory for reconstrution
             rec_pinned = utils.pinned_array(
-                np.zeros([self.cl_reader.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
+                np.zeros([args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
             # gpu memory for reconstrution
             rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
             

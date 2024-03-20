@@ -58,3 +58,4 @@ from tomocupy.config_sizes import *
 from tomocupy.reconstruction import *
 from tomocupy.processing import *
 from tomocupy.dataio import *
+from tomocupy.global_vars import *

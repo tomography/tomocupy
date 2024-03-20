@@ -11,10 +11,13 @@ from tomocupy import config
 from tomocupy import GPURec
 from tomocupy import FindCenter
 from tomocupy import GPURecSteps
+from tomocupy.global_vars import args
+
 from tomocupy.dataio import reader
 from tomocupy.dataio import writer
 
 log = logging.getLogger(__name__)
+
 
 def init(args):
     if not os.path.exists(str(args.config)):
@@ -36,7 +39,6 @@ def run_rec(args, cl_reader, cl_writer):
     args.retrieve_phase_method = 'none'
     args.rotate_proj_angle = 0 
     args.lamino_angle = 0
-    
     # rotation axis search
     if args.rotation_axis_auto == 'auto':
         clrotthandle = FindCenter(cl_reader, cl_writer)
@@ -45,7 +47,9 @@ def run_rec(args, cl_reader, cl_writer):
     
     # create reconstruction object and run reconstruction    
     clpthandle = GPURec(cl_reader, cl_writer)
+    
     if args.reconstruction_type == 'full':
+        
         clpthandle.recon_all()
     if args.reconstruction_type == 'try':
         clpthandle.recon_try()
@@ -96,8 +100,10 @@ def main():
             cmd, help=text, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
         cmd_parser = cmd_params.add_arguments(cmd_parser)
         cmd_parser.set_defaults(_func=func)
-
-    args = config.parse_known_args(parser, subparser=True)
+    
+    global args
+    args.__dict__.update(config.parse_known_args(parser, subparser=True).__dict__)
+    
     # create logger
     try:
         logs_home = args.logs_home
@@ -117,14 +123,13 @@ def main():
     logging.setup_custom_logger(lfname, level=log_level)
     log.debug("Started tomocupyfp16on")
     log.info("Saving log at %s" % lfname)
-
-    cl_reader = reader.Reader(args)
-    cl_writer = writer.Writer(cl_reader)
-
+        
     try:
         if args._func == init:
             args._func(args)
         else:
+            cl_reader = reader.Reader()
+            cl_writer = writer.Writer(cl_reader)            
             args._func(args, cl_reader, cl_writer)
     except RuntimeError as e:
         log.error(str(e))
@@ -132,3 +137,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    

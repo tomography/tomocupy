@@ -43,7 +43,7 @@ from tomocupy import logging
 import cupy as cp
 import numpy as np
 from tomocupy.reconstruction import backproj_functions
-
+from tomocupy.global_vars import args
 
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
@@ -65,19 +65,18 @@ class BackprojParallel():
         self.shape_data_chunk_tn = (cl_conf.ncproj, cl_conf.nz, cl_conf.n)
         self.shape_recon_chunk = (cl_conf.ncz, cl_conf.n, cl_conf.n)
         self.dtype = cl_conf.dtype
-        self.args = cl_conf.args
         
-        if self.args.reconstruction_type == 'full':
-            if self.args.lamino_angle == 0:
+        if args.reconstruction_type == 'full':
+            if args.lamino_angle == 0:
                 rec_fun = self.recon_sino_parallel
             else:
                 rec_fun = self.recon_sino_proj_parallel
-        elif self.args.reconstruction_type == 'try':
-            if self.args.lamino_angle == 0:
+        elif args.reconstruction_type == 'try':
+            if args.lamino_angle == 0:
                 rec_fun = self.recon_try_sino_parallel
             else:                
                 rec_fun = self.recon_try_sino_proj_parallel
-        elif self.args.reconstruction_type == 'try_lamino':
+        elif args.reconstruction_type == 'try_lamino':
             rec_fun = self.recon_try_lamino_sino_proj_parallel
         
         # streams for overlapping data transfers with computations
@@ -87,7 +86,7 @@ class BackprojParallel():
 
         # threads for data writing to disk
         self.write_threads = []
-        for k in range(cl_conf.args.max_write_threads):
+        for k in range(args.max_write_threads):
             self.write_threads.append(utils.WRThread())
 
         self.cl_conf = cl_conf
@@ -116,7 +115,7 @@ class BackprojParallel():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
+            np.zeros([args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=self.dtype)
 
@@ -137,7 +136,7 @@ class BackprojParallel():
                         data0 = self.cl_backproj_func.fbp_filter_center(
                             data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
                         self.cl_backproj_func.cl_rec.backprojection(
-                            rec, data0, self.stream2, theta0, self.cl_conf.lamino_angle, (kr-1)*ncz+self.args.lamino_start_row//2**self.args.binning)
+                            rec, data0, self.stream2, theta0, self.cl_conf.lamino_angle, (kr-1)*ncz+args.lamino_start_row//2**args.binning)
 
                 if (kr > 1 and kt == 0):
                     with self.stream3:  # gpu->cpu copy
@@ -147,7 +146,7 @@ class BackprojParallel():
                             if not self.write_threads[ithread].is_alive():
                                 break
                             ithread = (
-                                ithread+1) % self.cl_conf.args.max_write_threads
+                                ithread+1) % args.max_write_threads
                         rec_gpu[(kr-2) % 2].get(out=rec_pinned[ithread])
                 if(kt < ntchunk):
                     # copy to pinned memory
@@ -159,7 +158,7 @@ class BackprojParallel():
                 self.stream3.synchronize()
                 if (kr > 1 and kt == 0):
                     # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                    st = (kr-2)*ncz+self.args.lamino_start_row//2**self.args.binning
+                    st = (kr-2)*ncz+args.lamino_start_row//2**args.binning
                     end = st+lrchunk[kr-2]
                     self.write_threads[ithread].run(
                         self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, kr-2))
@@ -192,7 +191,7 @@ class BackprojParallel():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
+            np.zeros([args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=self.dtype)
 
@@ -216,7 +215,7 @@ class BackprojParallel():
                             data0 = self.cl_backproj_func.fbp_filter_center(
                                 data0, cp.tile(np.float32(0), [data0.shape[0], 1]))                            
                             self.cl_backproj_func.cl_rec.backprojection_try(
-                                rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, int(id_slice//2**self.args.binning))
+                                rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, int(id_slice//2**args.binning))
 
                     if (ks > 1 and kt == 0):
                         with self.stream3:  # gpu->cpu copy
@@ -264,7 +263,7 @@ class BackprojParallel():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
+            np.zeros([args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=self.dtype)
 
@@ -289,7 +288,7 @@ class BackprojParallel():
                             data0 = self.cl_backproj_func.fbp_filter_center(
                                 data0, cp.tile(np.float32(0), [data0.shape[0], 1]))
                             self.cl_backproj_func.cl_rec.backprojection_try_lamino(
-                                rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, int(id_slice//2**self.args.binning))
+                                rec, data0, sht, self.stream2, theta0, self.cl_conf.lamino_angle, int(id_slice//2**args.binning))
 
                     if (ks > 1 and kt == 0):
                         with self.stream3:  # gpu->cpu copy
@@ -332,7 +331,7 @@ class BackprojParallel():
 
         # pinned memory for reconstrution
         rec_pinned = utils.pinned_array(
-            np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
+            np.zeros([args.max_write_threads, *self.shape_recon_chunk], dtype=self.dtype))
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=self.dtype)
 
@@ -364,7 +363,7 @@ class BackprojParallel():
             self.stream3.synchronize()
             if(k > 1):
                 # add a new proc for writing to hard disk (after gpu->cpu copy is done)
-                st = (k-2)*ncz+self.args.start_row//2**self.args.binning
+                st = (k-2)*ncz+args.start_row//2**args.binning
                 end = st+lzchunk[k-2]
                 self.write_threads[ithread].run(
                     self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, k-2))
@@ -380,7 +379,7 @@ class BackprojParallel():
 
         for id_slice in self.cl_conf.id_slices:
             log.info(f'Processing slice {id_slice}')
-            data0 = data[:,id_slice//2**self.args.binning]
+            data0 = data[:,id_slice//2**args.binning]
             # refs for faster access
             dtype = self.cl_conf.dtype
             nschunk = self.cl_conf.nschunk
@@ -389,7 +388,7 @@ class BackprojParallel():
 
             # pinned memory for reconstrution
             rec_pinned = utils.pinned_array(
-                np.zeros([self.cl_conf.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
+                np.zeros([args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
             # gpu memory for reconstrution
             rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
 

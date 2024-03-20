@@ -40,6 +40,7 @@
 
 from tomocupy import config
 from tomocupy import logging
+from tomocupy.global_vars import args
 import numpy as np
 import h5py
 import os
@@ -70,7 +71,7 @@ class Writer():
         self.theta = cl_reader.theta
         self.cl_reader = cl_reader
 
-        if self.cl_reader.args.reconstruction_type[:3] == 'try':
+        if args.reconstruction_type[:3] == 'try':
             self.init_output_files_try()
         else:
             self.init_output_files()
@@ -79,16 +80,16 @@ class Writer():
         """Constructing output file names and initiating the actual files"""
 
         # init output files
-        if(self.cl_reader.args.out_path_name is None):
+        if(args.out_path_name is None):
             fnameout = os.path.dirname(
-                self.cl_reader.args.file_name)+'_rec/try_center/'+os.path.basename(self.cl_reader.args.file_name)[:-3]
+                args.file_name)+'_rec/try_center/'+os.path.basename(args.file_name)[:-3]
         else:
-            fnameout = str(self.cl_reader.args.out_path_name)            
+            fnameout = str(args.out_path_name)            
         if not os.path.exists(fnameout):
             os.makedirs(fnameout)
         fnameout += '/recon'
         self.fnameout = fnameout
-        if (self.cl_reader.args.clear_folder=='True'):
+        if (args.clear_folder=='True'):
             log.info('Clearing the output folder')
             os.system(f'rm {fnameout}*')
         log.info(f'Output: {fnameout}')
@@ -97,19 +98,19 @@ class Writer():
         """Constructing output file names and initiating the actual files"""
 
         # init output files
-        if(self.cl_reader.args.out_path_name is None):
+        if(args.out_path_name is None):
             fnameout = os.path.dirname(
-                self.cl_reader.args.file_name)+'_rec/'+os.path.basename(self.cl_reader.args.file_name)[:-3]+'_rec'            
+                args.file_name)+'_rec/'+os.path.basename(args.file_name)[:-3]+'_rec'            
         else:
-            fnameout = str(self.cl_reader.args.out_path_name)
+            fnameout = str(args.out_path_name)
         if not os.path.exists(fnameout):
             os.makedirs(fnameout)
         
-        if (self.cl_reader.args.clear_folder=='True'):
+        if (args.clear_folder=='True'):
             log.info('Clearing the output folder')
             os.system(f'rm {fnameout}/*')
 
-        if self.cl_reader.args.save_format == 'tiff':
+        if args.save_format == 'tiff':
             # if save results as tiff
             fnameout += '/recon'
             # saving command line for reconstruction
@@ -119,19 +120,19 @@ class Writer():
             with open(fname_rec_line, 'w') as f:
                 f.write(' '.join(rec_line))
 
-        elif self.cl_reader.args.save_format == 'h5':
+        elif args.save_format == 'h5':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
-                self.nzi/2**self.cl_reader.args.binning, self.n, self.n), dtype=self.dtype)            
+                self.nzi/2**args.binning, self.n, self.n), dtype=self.dtype)            
             if not os.path.exists(f'{fnameout[:-3]}_parts'):
                 os.makedirs(f'{fnameout[:-3]}_parts')
             for k in range(self.nzchunk):
                 filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                 vsource = h5py.VirtualSource(
                     filename, "/exchange/data", shape=(self.lzchunk[k], self.n, self.n), dtype=self.dtype)
-                st = self.cl_reader.args.start_row//2**self.cl_reader.args.binning+k*self.ncz
+                st = args.start_row//2**args.binning+k*self.ncz
                 layout[st:st+self.lzchunk[k]] = vsource
 
             # Add virtual dataset to output file
@@ -153,12 +154,12 @@ class Writer():
             self.write_meta(rec_virtual)
 
             rec_virtual.close()
-            config.update_hdf_process(fnameout, self.cl_reader.args, sections=config.RECON_STEPS_PARAMS)
+            config.update_hdf_process(fnameout, args, sections=config.RECON_STEPS_PARAMS)
 
-        elif self.cl_reader.args.save_format == 'h5nolinks':
+        elif args.save_format == 'h5nolinks':
             fnameout += '.h5'
             h5w = h5py.File(fnameout, "w")
-            dset_rec = h5w.create_dataset("/exchange/data", shape=(int(self.nzi/2**self.cl_reader.args.binning), self.n, self.n), dtype=self.dtype)
+            dset_rec = h5w.create_dataset("/exchange/data", shape=(int(self.nzi/2**args.binning), self.n, self.n), dtype=self.dtype)
 
             # saving command line to repeat the reconstruction as attribute of /exchange/data
             rec_line = sys.argv
@@ -176,14 +177,14 @@ class Writer():
             self.h5w = h5w
             self.dset_rec = dset_rec
 
-            config.update_hdf_process(fnameout, self.cl_reader.args, sections=config.RECON_STEPS_PARAMS)
+            config.update_hdf_process(fnameout, args, sections=config.RECON_STEPS_PARAMS)
 
-        elif self.cl_reader.args.save_format == 'h5sino':
+        elif args.save_format == 'h5sino':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
-                self.nproj, self.nzi/2**self.cl_reader.args.binning, self.n), dtype=self.dtype)
+                self.nproj, self.nzi/2**args.binning, self.n), dtype=self.dtype)
             if not os.path.exists(f'{fnameout[:-3]}_parts'):
                 os.makedirs(f'{fnameout[:-3]}_parts')
 
@@ -191,15 +192,15 @@ class Writer():
                 filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                 vsource = h5py.VirtualSource(
                     filename, "/exchange/data", shape=(self.nproj, self.lzchunk[k], self.n), dtype=self.dtype)
-                st = self.cl_reader.args.start_row//2**self.cl_reader.args.binning+k*self.ncz
+                st = args.start_row//2**args.binning+k*self.ncz
                 layout[:,st:st+self.lzchunk[k]] = vsource
             # Add virtual dataset to output file
             rec_virtual = h5py.File(fnameout, "w")
             dset_rec = rec_virtual.create_virtual_dataset(
                 "/exchange/data", layout)
             rec_virtual.create_dataset('/exchange/theta',data = self.theta/np.pi*180)
-            rec_virtual.create_dataset('/exchange/data_white', data = np.ones([1,self.nzi//2**self.cl_reader.args.binning, self.n],dtype='float32'))
-            rec_virtual.create_dataset('/exchange/data_dark', data = np.zeros([1,self.nzi//2**self.cl_reader.args.binning, self.n],dtype='float32'))
+            rec_virtual.create_dataset('/exchange/data_white', data = np.ones([1,self.nzi//2**args.binning, self.n],dtype='float32'))
+            rec_virtual.create_dataset('/exchange/data_dark', data = np.zeros([1,self.nzi//2**args.binning, self.n],dtype='float32'))
 
             self.write_meta(rec_virtual)
 
@@ -213,11 +214,11 @@ class Writer():
         try:  # trying to copy meta
             import meta
 
-            mp = meta.read_meta.Hdf5MetadataReader(self.cl_reader.args.file_name)
+            mp = meta.read_meta.Hdf5MetadataReader(args.file_name)
             meta_dict = mp.readMetadata()
             mp.close()
-            with h5py.File(self.cl_reader.args.file_name,'r') as f:
-                log.info("  *** meta data from raw dataset %s copied to rec hdf file" % self.cl_reader.args.file_name)
+            with h5py.File(args.file_name,'r') as f:
+                log.info("  *** meta data from raw dataset %s copied to rec hdf file" % args.file_name)
                 for key, value in meta_dict.items():
                     # print(key, value)
                     if key.find('exchange') != 1:
@@ -233,18 +234,18 @@ class Writer():
     def write_data_chunk(self, rec, st, end, k):
         """Writing the kth data chunk to hard disk"""
 
-        if self.cl_reader.args.save_format == 'tiff':            
+        if args.save_format == 'tiff':            
             for kk in range(end-st):
                 fid = st+kk
                 tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
-        elif self.cl_reader.args.save_format == 'h5':
+        elif args.save_format == 'h5':
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(1, self.n, self.n))
-        elif self.cl_reader.args.save_format == 'h5nolinks':
+        elif args.save_format == 'h5nolinks':
             self.h5w['/exchange/data'][st:end, :, :] = rec 
-        elif self.cl_reader.args.save_format == 'h5sino':
+        elif args.save_format == 'h5sino':
             filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,

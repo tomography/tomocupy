@@ -5,8 +5,7 @@ import tomocupy
 
 from tomocupy.dataio import reader
 from tomocupy.dataio import writer
-
-from types import SimpleNamespace
+from tomocupy.global_vars import args
 
 def read_aps(fname):
 
@@ -19,8 +18,9 @@ def read_aps(fname):
             params_dict[key] = value['default']
 
     # create a parameter object identical to the one passed using the CLI
-    args = SimpleNamespace(**params_dict)
-
+    global args
+    args.__dict__.update(params_dict)
+    
     # set only the parameters that are different from the default
     args.reconstruction_type          = 'try'
     args.file_name                    = fname
@@ -36,10 +36,9 @@ def read_aps(fname):
     args.retrieve_phase_alpha         = 0.0008
     args.rotation_axis_sift_threshold = 0.5 # remove this once the default for rotation-axis-sift-threshold in config.py is set to 0.5 (now is '0.5')
 
-    return args
 
 
-def main(args):
+def main():
 
     if len(sys.argv) == 1:
         print ('ERROR: Must provide an hdf file name')
@@ -50,9 +49,9 @@ def main(args):
         file_name = sys.argv[1]
         p = pathlib.Path(file_name)
         if p.is_file():
-            args = read_aps(file_name)
+            read_aps(file_name)
             
-            cl_reader = reader.Reader(args)
+            cl_reader = reader.Reader()
             cl_writer = writer.Writer(cl_reader)
 
             clrotthandle = tomocupy.FindCenter(cl_reader, cl_writer)
@@ -71,4 +70,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-   main(sys.argv)
+   main()
