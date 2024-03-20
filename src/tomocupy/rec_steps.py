@@ -120,11 +120,11 @@ class GPURecSteps():
             self.cl_backproj = backproj_parallel.BackprojParallel(
                 cl_reader, cl_writer)
 
-    def recon_steps_all(self, data, flat, dark):
+    def recon_steps_all(self):
         """GPU reconstruction by loading a full dataset in memory and processing by steps, with reading the whole data to memory """
 
-        # log.info('Reading data.')
-        # data, flat, dark = self.read_data_parallel()
+        log.info('Reading data.')
+        data, flat, dark = self.cl_reader.read_data_parallel()
         if self.args.pre_processing == 'True':
             log.info('Processing by chunks in z.')
             data = self.proc_sino_parallel(data, dark, flat)

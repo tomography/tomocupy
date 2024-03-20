@@ -3,17 +3,13 @@ import pathlib
 import dxchange
 import tomocupy
 
-from tomocupy import reader
-from tomocupy import writer
-from tomocupy import utils
+from tomocupy.dataio import reader
+from tomocupy.dataio import writer
 
 from types import SimpleNamespace
-from queue import Queue
-from threading import Thread
 
 def read_aps(fname):
 
-    data, flat, dark, theta = dxchange.read_aps_tomoscan_hdf5(fname)#, sino=(100, 400))
     _, meta_dict = dxchange.read_hdf_meta(fname)
 
     params_dict = {}
@@ -55,28 +51,16 @@ def main(args):
         p = pathlib.Path(file_name)
         if p.is_file():
             args = read_aps(file_name)
-
-            clrotthandle = tomocupy.FindCenter(args)
-            args.rotation_axis = clrotthandle.find_center()*2**args.binning
-            print(f'set rotaion  axis {args.rotation_axis}')
-
+            
             cl_reader = reader.Reader(args)
             cl_writer = writer.Writer(cl_reader)
 
-            # threads for data reading from disk
-            read_threads = []
-            for k in range(cl_reader.args.max_read_threads):
-                read_threads.append(utils.WRThread())
-
-            # queue for streaming projections
-            data_queue = Queue(32)
-
-            # start reading data to a queue
-            main_read_thread = Thread(target=cl_reader.read_data_to_queue, args=(data_queue, read_threads))
-            main_read_thread.start()
+            clrotthandle = tomocupy.FindCenter(cl_reader, cl_writer)
+            args.rotation_axis = clrotthandle.find_center()*2**args.binning
+            print(f'set rotaion  axis {args.rotation_axis}')
 
             clpthandle = tomocupy.GPURec(cl_reader, cl_writer)
-            clpthandle.recon_all(data_queue, cl_reader, cl_writer)
+            clpthandle.recon_all()
 
             print('Done!')
 

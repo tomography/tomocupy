@@ -14,10 +14,6 @@ prefix4 = '--filter-1-density 1.85 --filter-2-density 8.9 --filter-3-density 8.9
 prefix5 = '--filter-1-density 0.0 --filter-2-density 0.0 --filter-3-density 0.0' 
 cmd_dict = {
     f'{prefix} ': 28.307,
-    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3255.912,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3248.832,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3254.634,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0 --b-storage-ring 0.3': 822.178,
     f'{prefix} --reconstruction-algorithm lprec ': 27.992,
     f'{prefix} --reconstruction-algorithm linerec ': 28.341,
     f'{prefix} --dtype float16': 24.186,
@@ -41,9 +37,12 @@ cmd_dict = {
     f'{prefix} --remove-stripe-method vo-all ': 27.993,
     f'{prefix} --bright-ratio 10': 32.631,
     f'{prefix} --end-column 1535': 28.293,
-    f'{prefix} --end-column 1535 --binning 3': 1.82,
+    f'{prefix} --end-column 1535 --binning 3': 1.82,    
+    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3255.912,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3248.832,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3254.634,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0 --b-storage-ring 0.3': 822.178,    
 }
-
 
 class SequentialTestLoader(unittest.TestLoader):
     def getTestCaseNames(self, testCaseClass):
@@ -57,6 +56,13 @@ class Tests(unittest.TestCase):
 
     def test_full_recon(self):
         for cmd in cmd_dict.items():
+            if 'beam-hardening' in cmd[0]:
+                try:
+                    import beamhardening
+                except:
+                    print('Beamhardening is not installed, skip the test')
+                    continue
+
             shutil.rmtree('data_rec',ignore_errors=True)      
             print(f'TEST {inspect.stack()[0][3]}: {cmd[0]}')
             st = os.system(cmd[0])
@@ -65,8 +71,9 @@ class Tests(unittest.TestCase):
             try:
                 file_name = cmd[0].split("--file-name ")[1].split('.')[0].split('/')[-1]
                 data_file = Path('data_rec').joinpath(file_name)
-                with h5py.File('data/test_data_rec.h5', 'r') as fid:
+                with h5py.File('data_rec/test_data_rec.h5', 'r') as fid:
                     data = fid['exchange/data']
+                    print(data.shape)
                     ssum = np.sum(np.linalg.norm(data[:], axis=(1, 2)))
             except:
                 pass
@@ -78,6 +85,7 @@ class Tests(unittest.TestCase):
                 except:
                     pass
             self.assertAlmostEqual(ssum, cmd[1], places=0)
+
 
 
 if __name__ == '__main__':

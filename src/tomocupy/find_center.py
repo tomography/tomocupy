@@ -41,7 +41,6 @@
 from tomocupy import utils
 from tomocupy import logging
 from tomocupy import config_sizes
-from tomocupy import reader
 from tomocupy.processing import proc_functions
 
 from ast import literal_eval
@@ -65,20 +64,20 @@ class FindCenter():
     Find rotation axis by comapring 0 and 180 degrees projection with using SIFT
     '''
 
-    def __init__(self, args):
+    def __init__(self, cl_reader, cl_writer):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
 
         # configure sizes and output files
-        cl_reader = reader.Reader(args)
-        cl_conf = config_sizes.ConfigSizes(args, cl_reader)
+        #cl_reader = reader.Reader(args)
+        cl_conf = config_sizes.ConfigSizes(cl_reader.args, cl_reader)
 
         # init tomo functions
         self.cl_proc_func = proc_functions.ProcFunctions(cl_conf)
 
         # additional refs
-        self.args = args
+        self.args = cl_reader.args
         self.cl_conf = cl_conf
         self.cl_reader = cl_reader
 

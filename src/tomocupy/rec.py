@@ -40,9 +40,6 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import config_sizes
-from tomocupy import reader
-from tomocupy import writer
 from tomocupy.processing import proc_functions
 from tomocupy.reconstruction import backproj_functions
 
@@ -93,17 +90,30 @@ class GPURec():
         self.stream2 = cp.cuda.Stream(non_blocking=False)
         self.stream3 = cp.cuda.Stream(non_blocking=False)
 
+        # threads for data reading from disk
+        self.read_threads = []
+        for k in range(cl_reader.args.max_read_threads):
+            self.read_threads.append(utils.WRThread())
+
         # threads for data writing to disk
         self.write_threads = []
         for k in range(cl_reader.args.max_write_threads):
             self.write_threads.append(utils.WRThread())
 
+        self.data_queue = Queue(32)
+
+        # start reading data to a queue
+        self.main_read_thread = Thread(target=cl_reader.read_data_to_queue, args=(self.data_queue, self.read_threads))
+
         # additional refs
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
 
-    def recon_all(self, data_queue, cl_reader, cl_writer):
-        """Reconstruction of data from an h5file by splitting into sinogram chunks"""
+    def recon_all(self):
+        """Reconstruction of data from an h5file by splitting into sinogram chunks"""            
+
+        # start readint to the queue
+        self.main_read_thread.start()        
 
         # refs for faster access
         dtype = self.cl_reader.dtype
@@ -143,29 +153,15 @@ class GPURec():
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
             utils.printProgressBar(
-                k, nzchunk+1, data_queue.qsize(), length=40)
-            if(k < nzchunk):
-                # copy to pinned memory
-                item = data_queue.get()
-                ids.append(item['id'])
-                item_pinned['data'][k % 2, :, :lzchunk[ids[k]]] = item['data']
-                item_pinned['dark'][k % 2, :, :lzchunk[ids[k]]] = item['dark']
-                item_pinned['flat'][k % 2, :, :lzchunk[ids[k]]] = item['flat']
-
-                with self.stream1:  # cpu->gpu copy
-                    item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
-                    item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
-                    item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
+                k, nzchunk+1, self.data_queue.qsize(), length=40)
             if(k > 0 and k < nzchunk+1):
                 with self.stream2:  # reconstruction
                     data = item_gpu['data'][(k-1) % 2]
                     dark = item_gpu['dark'][(k-1) % 2]
                     flat = item_gpu['flat'][(k-1) % 2]
                     rec = rec_gpu[(k-1) % 2]
-
                     st = ids[k-1]*ncz+self.cl_reader.args.start_row//2**self.cl_reader.args.binning
                     end = st+lzchunk[ids[k-1]]
-
                     data = self.cl_proc_func.proc_sino(data, dark, flat)
                     data = self.cl_proc_func.proc_proj(data, st, end)
                     data = cp.ascontiguousarray(data.swapaxes(0, 1))
@@ -179,13 +175,25 @@ class GPURec():
                     # find free thread
                     ithread = utils.find_free_thread(self.write_threads)
                     rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
+            if(k < nzchunk):
+                # copy to pinned memory
+                item = self.data_queue.get()
+                ids.append(item['id'])
+                item_pinned['data'][k % 2, :, :lzchunk[ids[k]]] = item['data']
+                item_pinned['dark'][k % 2, :, :lzchunk[ids[k]]] = item['dark']
+                item_pinned['flat'][k % 2, :, :lzchunk[ids[k]]] = item['flat']
+
+                with self.stream1:  # cpu->gpu copy
+                    item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
+                    item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
+                    item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
             self.stream3.synchronize()
             if(k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)
                 st = ids[k-2]*ncz+self.cl_reader.args.start_row//2**self.cl_reader.args.binning
                 end = st+lzchunk[ids[k-2]]
                 self.write_threads[ithread].run(
-                    cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, ids[k-2]))
+                    self.cl_writer.write_data_chunk, (rec_pinned[ithread], st, end, ids[k-2]))
 
             self.stream1.synchronize()
             self.stream2.synchronize()
@@ -193,61 +201,64 @@ class GPURec():
         for t in self.write_threads:
             t.join()
 
-    def recon_try(self, data_queue, id_slice, cl_reader, cl_writer):
+    def recon_try(self):
         """GPU reconstruction of 1 slice for different centers"""
 
-        item = data_queue.get()
+        for id_slice in self.cl_reader.id_slices:
+            log.info(f'Processing slice {id_slice}')
+            self.cl_reader.read_data_try(self.data_queue, id_slice)
+            # read slice
+            item = self.data_queue.get()
 
-        # copy to gpu
-        data = cp.array(item['data'])
-        dark = cp.array(item['dark'])
-        flat = cp.array(item['flat'])
+            # copy to gpu
+            data = cp.array(item['data'])
+            dark = cp.array(item['dark'])
+            flat = cp.array(item['flat'])
 
-        # preprocessing
-        data = self.cl_proc_func.proc_sino(data, dark, flat)
-        data = self.cl_proc_func.proc_proj(data)
-        data = cp.ascontiguousarray(data.swapaxes(0, 1))
+            # preprocessing
+            data = self.cl_proc_func.proc_sino(data, dark, flat)
+            data = self.cl_proc_func.proc_proj(data)
+            data = cp.ascontiguousarray(data.swapaxes(0, 1))
 
-        # refs for faster access
-        dtype = cl_reader.dtype
-        nschunk = cl_reader.nschunk
-        lschunk = cl_reader.lschunk
-        ncz = cl_reader.ncz
+            # refs for faster access
+            dtype = self.cl_reader.dtype
+            nschunk = self.cl_reader.nschunk
+            lschunk = self.cl_reader.lschunk
+            ncz = self.cl_reader.ncz
 
-        # pinned memory for reconstrution
-        rec_pinned = utils.pinned_array(
-            np.zeros([cl_reader.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
-        # gpu memory for reconstrution
-        rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
-        
-        
-        # Conveyor for data cpu-gpu copy and reconstruction
-        for k in range(nschunk+2):
-            utils.printProgressBar(
-                k, nschunk+1, data_queue.qsize(), length=40)
-            if(k > 0 and k < nschunk+1):
-                with self.stream2:  # reconstruction
-                    sht = cp.pad(cp.array(cl_reader.shift_array[(
-                        k-1)*ncz:(k-1)*ncz+lschunk[k-1]]), [0, ncz-lschunk[k-1]])
-                    datat = cp.tile(data, [ncz, 1, 1])
-                    datat = self.cl_backproj_func.fbp_filter_center(datat, sht)
-                    self.cl_backproj_func.cl_rec.backprojection(
-                        rec_gpu[(k-1) % 2], datat, self.stream2)
-            if(k > 1):
-                with self.stream3:  # gpu->cpu copy
-                    # find free thread
-                    ithread = utils.find_free_thread(self.write_threads)
-                    rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
-            self.stream3.synchronize()
-            if(k > 1):
-                # add a new thread for writing to hard disk (after gpu->cpu copy is done)
-                for kk in range(lschunk[k-2]):
-                    # print((k-2)*ncz+kk,id_slice)
-                    self.write_threads[ithread].run(cl_writer.write_data_try, (
-                        rec_pinned[ithread, kk], cl_reader.save_centers[(k-2)*ncz+kk],id_slice))
+            # pinned memory for reconstrution
+            rec_pinned = utils.pinned_array(
+                np.zeros([self.cl_reader.args.max_write_threads, *self.shape_recon_chunk], dtype=dtype))
+            # gpu memory for reconstrution
+            rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
+            
+            
+            # Conveyor for data cpu-gpu copy and reconstruction
+            for k in range(nschunk+2):
+                utils.printProgressBar(
+                    k, nschunk+1, self.data_queue.qsize(), length=40)
+                if(k > 0 and k < nschunk+1):
+                    with self.stream2:  # reconstruction
+                        sht = cp.pad(cp.array(self.cl_reader.shift_array[(
+                            k-1)*ncz:(k-1)*ncz+lschunk[k-1]]), [0, ncz-lschunk[k-1]])
+                        datat = cp.tile(data, [ncz, 1, 1])
+                        datat = self.cl_backproj_func.fbp_filter_center(datat, sht)
+                        self.cl_backproj_func.cl_rec.backprojection(
+                            rec_gpu[(k-1) % 2], datat, self.stream2)
+                if(k > 1):
+                    with self.stream3:  # gpu->cpu copy
+                        # find free thread
+                        ithread = utils.find_free_thread(self.write_threads)
+                        rec_gpu[(k-2) % 2].get(out=rec_pinned[ithread])
+                self.stream3.synchronize()
+                if(k > 1):
+                    # add a new thread for writing to hard disk (after gpu->cpu copy is done)
+                    for kk in range(lschunk[k-2]):
+                        self.write_threads[ithread].run(self.cl_writer.write_data_try, (
+                            rec_pinned[ithread, kk], self.cl_reader.save_centers[(k-2)*ncz+kk],id_slice))
 
-            self.stream1.synchronize()
-            self.stream2.synchronize()
+                self.stream1.synchronize()
+                self.stream2.synchronize()
 
-        for t in self.write_threads:
-            t.join()
+            for t in self.write_threads:
+                t.join()
