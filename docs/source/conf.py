@@ -339,5 +339,8 @@ autodoc_mock_imports = [
     'tomocupy.cfunc_filter',
     'tomocupy.cfunc_filterfp16',    
     'tomocupy.cfunc_linerec',    
-    'tomocupy.cfunc_linerecfp16',]
+    'tomocupy.cfunc_linerecfp16',
+    'tomocupy.cfunc_usfft1d',
+    'tomocupy.cfunc_usfft2d',
+    'tomocupy.cfunc_fft2d']
 
