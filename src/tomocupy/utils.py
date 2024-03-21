@@ -38,14 +38,17 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.                #
 # *************************************************************************** #
 
+from pathlib import Path
 import numpy as np
+import h5py
 import cupy as cp
 import argparse
-import os
 from threading import Thread
 import time
 import numexpr as ne
 import sys
+from tomocupy import logging
+log = logging.getLogger(__name__)
 
 # Print iterations progress
 
@@ -152,55 +155,111 @@ def downsample(data, binning):
     return data
 
 
-def take_filter(Ne, filter):
-    d = 0.5
-    t = cp.arange(0, Ne/2+1)/Ne
+def _copy(res, u, st, end):
+    res[st:end] = u[st:end]
 
-    if (filter == 'ramp'):
-        wfa = Ne*0.5*wint(12, t)  # .*(t/(2*d)<=1)%compute the weigths
-    elif (filter == 'shepp'):
-        wfa = Ne*0.5*wint(12, t)*cp.sinc(t/(2*d))*(t/d <= 2)
-    elif (filter == 'cosine'):
-        wfa = Ne*0.5*wint(12, t)*cp.cos(cp.pi*t/(2*d))*(t/d <= 1)
-    elif (filter == 'cosine2'):
-        wfa = Ne*0.5*wint(12, t)*(cp.cos(cp.pi*t/(2*d)))**2*(t/d <= 1)
-    elif (filter == 'hamming'):
-        wfa = Ne*0.5*wint(12, t)*(.54 + .46 * cp.cos(cp.pi*t/d))*(t/d <= 1)
-    elif (filter == 'hann'):
-        wfa = Ne*0.5*wint(12, t)*(1+cp.cos(cp.pi*t/d)) / 2.0*(t/d <= 1)
-    elif (filter == 'parzen'):
-        wfa = Ne*0.5*wint(12, t)*pow(1-t/d, 3)*(t/d <= 1)
 
-    wfa = 2*wfa*(wfa >= 0)
-    wfa[0] *= 2
-    wfa = wfa.astype('float32')
-    return wfa
+def copy(u, res, nthreads=16):
+    nchunk = int(np.ceil(u.shape[0]/nthreads))
+    mthreads = []
+    for k in range(nthreads):
+        th = Thread(target=_copy, args=(
+            res, u, k*nchunk, min((k+1)*nchunk, u.shape[0])))
+        mthreads.append(th)
+        th.start()
+    for th in mthreads:
+        th.join()
+    return res
 
-def wint(n, t):
 
-    N = len(t)
-    s = cp.linspace(1e-40, 1, n)
-    # Inverse vandermonde matrix
-    tmp1 = cp.arange(n)
-    tmp2 = cp.arange(1, n+2)
-    iv = cp.linalg.inv(cp.exp(cp.outer(tmp1, cp.log(s))))    
-    u = cp.diff(cp.exp(cp.outer(tmp2,cp.log(s)))*cp.tile(1.0/tmp2[...,cp.newaxis], [1, n]))  # integration over short intervals                                                                
-    W1 = cp.matmul(iv,u[1:n+1, :])# x*pn(x) term
-    W2 = cp.matmul(iv,u[0:n, :])# const*pn(x) term
+def _copyTransposed(res, u, st, end):
+    res[st:end] = u[:, st:end].swapaxes(0, 1)
 
-    # Compensate for overlapping short intervals
-    tmp1 = cp.arange(1,n)
-    tmp2 = (n-1)*cp.ones((N-2*(n-1)-1))
-    tmp3 = cp.arange(n-1, 0, -1)
-    p = 1/cp.concatenate((tmp1,tmp2,tmp3))
-    w = cp.zeros(N)
-    for j in range(N-n+1):
-        # Change coordinates, and constant and linear parts
-        W = ((t[j+n-1]-t[j])**2)*W1+(t[j+n-1]-t[j])*t[j]*W2
 
-        for k in range(n-1):
-            w[j:j+n] = w[j:j+n] + p[j+k]*W[:, k]
+def copyTransposed(u, res=[], nthreads=16):
+    if res == []:
+        res = np.empty([u.shape[1], u.shape[0], u.shape[2]], dtype=u.dtype)
+    nchunk = int(np.ceil(u.shape[1]/nthreads))
+    mthreads = []
+    for k in range(nthreads):
+        th = Thread(target=_copyTransposed, args=(
+            res, u, k*nchunk, min((k+1)*nchunk, u.shape[1])))
+        mthreads.append(th)
+        th.start()
+    for th in mthreads:
+        th.join()
+    return res
 
-    wn = w
-    wn[-40:] = (w[-40])/(N-40)*cp.arange(N-40, N)
-    return wn
+
+def read_bright_ratio(params):
+    '''Read the ratio between the bright exposure and other exposures.
+    '''
+    log.info('  *** *** Find bright exposure ratio params from the HDF file')
+    try:
+        possible_names = ['/measurement/instrument/detector/different_flat_exposure',
+                          '/process/acquisition/flat_fields/different_flat_exposure']
+        for pn in possible_names:
+            if check_item_exists_hdf(params.file_name, pn):
+                diff_bright_exp = param_from_dxchange(params.file_name, pn,
+                                                      attr=None, scalar=False, char_array=True)
+                break
+        if diff_bright_exp.lower() == 'same':
+            log.error('  *** *** used same flat and data exposures')
+            params.bright_exp_ratio = 1
+            return params
+        possible_names = ['/measurement/instrument/detector/exposure_time_flat',
+                          '/process/acquisition/flat_fields/flat_exposure_time',
+                          '/measurement/instrument/detector/brightfield_exposure_time']
+        for pn in possible_names:
+            if check_item_exists_hdf(params.file_name, pn):
+                bright_exp = param_from_dxchange(params.file_name, pn,
+                                                 attr=None, scalar=True, char_array=False)
+                break
+        log.info('  *** *** %f' % bright_exp)
+        norm_exp = param_from_dxchange(params.file_name,
+                                       '/measurement/instrument/detector/exposure_time',
+                                       attr=None, scalar=True, char_array=False)
+        log.info('  *** *** %f' % norm_exp)
+        params.bright_exp_ratio = bright_exp / norm_exp
+        log.info(
+            '  *** *** found bright exposure ratio of {0:6.4f}'.format(params.bright_exp_ratio))
+    except:
+        log.warning('  *** *** problem getting bright exposure ratio.  Use 1.')
+        params.bright_exp_ratio = 1
+    return params
+
+
+def check_item_exists_hdf(hdf_filename, item_name):
+    '''Checks if an item exists in an HDF file.
+    Inputs
+    hdf_filename: str filename or pathlib.Path object for HDF file to check
+    item_name: name of item whose existence needs to be checked
+    '''
+    with h5py.File(hdf_filename, 'r') as hdf_file:
+        return item_name in hdf_file
+
+
+def param_from_dxchange(hdf_file, data_path, attr=None, scalar=True, char_array=False):
+    """
+    Reads a parameter from the HDF file.
+    Inputs
+    hdf_file: string path or pathlib.Path object for the HDF file.
+    data_path: path to the requested data in the HDF file.
+    attr: name of the attribute if this is stored as an attribute (default: None)
+    scalar: True if the value is a single valued dataset (dafault: True)
+    char_array: if True, interpret as a character array.  Useful for EPICS strings (default: False)
+    """
+    if not Path(hdf_file).is_file():
+        return None
+    with h5py.File(hdf_file, 'r') as f:
+        try:
+            if attr:
+                return f[data_path].attrs[attr].decode('ASCII')
+            elif char_array:
+                return ''.join([chr(i) for i in f[data_path][0]]).strip(chr(0))
+            elif scalar:
+                return f[data_path][0]
+            else:
+                return None
+        except KeyError:
+            return None

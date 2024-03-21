@@ -70,7 +70,7 @@ def log_exception(logger, err, fmt="%s"):
     fmt
       Logging format string for each line of the exception
       (e.g. "  *** %s"")
-    
+
     """
     tb_lines = traceback.format_exception(type(err), err, err.__traceback__)
     tb_lines = [ln for lns in tb_lines for ln in lns.splitlines()]
@@ -78,15 +78,15 @@ def log_exception(logger, err, fmt="%s"):
         logger.error("      %s", tb_line)
 
 
-def setup_custom_logger(lfname: str=None, stream_to_console: bool=True, level=logging.DEBUG):
+def setup_custom_logger(lfname: str = None, stream_to_console: bool = True, level=logging.DEBUG):
     """Prepare the logging system with custom formatting.
-    
+
     This adds handlers to the *tomocupy* parent logger. Any logger
     inside tomocupy will produce output based on this functions
     customization parameters. The file given in *lfname* will receive
     all log message levels, while the console will receive messages
     based on *level*.
-    
+
     Parameters
     ----------
     lfname
@@ -107,7 +107,8 @@ def setup_custom_logger(lfname: str=None, stream_to_console: bool=True, level=lo
     # Set up normal output to a file
     if lfname is not None:
         fHandler = logging.FileHandler(lfname)
-        file_formatter = logging.Formatter('%(asctime)s - %(name)s(%(lineno)s) - %(levelname)s: %(message)s')
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s(%(lineno)s) - %(levelname)s: %(message)s')
         fHandler.setFormatter(file_formatter)
         fHandler.setLevel(logging.DEBUG)
         parent_logger.addHandler(fHandler)
@@ -127,7 +128,7 @@ class ColoredLogFormatter(logging.Formatter):
     __RED_BG = '\033[41m'
     __YELLOW = '\033[33m'
     __ENDC = '\033[0m'
-    
+
     def _format_message_level(self, message, level):
         colors = {
             'INFO': self.__GREEN,
@@ -140,7 +141,8 @@ class ColoredLogFormatter(logging.Formatter):
                                                         message=message,
                                                         ending=self.__ENDC)
         return message
-    
+
     def formatMessage(self, record):
-        record.message = self._format_message_level(record.message, record.levelname)
+        record.message = self._format_message_level(
+            record.message, record.levelname)
         return super().formatMessage(record)

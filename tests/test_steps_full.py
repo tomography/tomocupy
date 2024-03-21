@@ -13,11 +13,12 @@ cmd_dict = {
     f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --propagation-distance 60 --energy 20 --pixel-size 1.17 --dtype float16 ':17.577,
     f'{prefix} --reconstruction-algorithm linerec': 28.341,
     f'{prefix} --lamino-angle 1 --reconstruction-algorithm linerec': 24.804,
+    f'{prefix} --lamino-angle 1 --reconstruction-algorithm fourierrec': 21.42,
     f'{prefix} --lamino-angle 1 --reconstruction-algorithm linerec --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --propagation-distance 60 --energy 20 --pixel-size 1.17': 18.610,        
-    f'{prefix} --lamino-angle 1 --save-format h5': 24.263,
+    f'{prefix} --lamino-angle 1 --reconstruction-algorithm linerec --save-format h5': 24.263,
     f'{prefix} --rotate-proj-angle 1.5': 27.903,
     f'{prefix} --rotate-proj-angle 1.5 --rotate-proj-order 3': 28.216,
-    f'{prefix} --start-column 200 --end-column 1000': 18.248
+    f'{prefix} --start-column 200 --end-column 1000': 18.248,
 }
 
 
