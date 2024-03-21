@@ -5,20 +5,6 @@ Usage
 Examples
 ========
 
-
-Reconstruct APS data 
---------------------
-
-This section contains the readrec_aps script.
-
-Download file: :download:`readrec_aps.py
-<../../docs/demo/readrec_aps.py>`
-
-.. literalinclude:: ../../docs/demo/readrec_aps.py
-    :tab-width: 4
-    :linenos:
-    :language: guess
-
 Command Line Interface
 ----------------------
 
@@ -75,3 +61,17 @@ Laminographic full rec
 ::
     
     (tomocupy)$ tomocupy recon_steps --file-name data/test_data.h5 --nsino-per-chunk 8 --nproj-per-chunk 8--reconstruction-type full --rotation-axis 700 --lamino-angle 20
+
+
+Reconstruct APS data 
+--------------------
+
+This section contains the readrec_aps script.
+
+Download file: :download:`readrec_aps.py
+<../../docs/demo/readrec_aps.py>`
+
+.. literalinclude:: ../../docs/demo/readrec_aps.py
+    :tab-width: 4
+    :linenos:
+    :language: guess
