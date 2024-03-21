@@ -56,6 +56,10 @@ from tomocupy.global_vars import args
 from tomocupy.dataio import reader
 from tomocupy.dataio import writer
 
+__author__ = "Viktor Nikitin"
+__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
+
 log = logging.getLogger(__name__)
 
 

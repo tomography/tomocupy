@@ -52,7 +52,9 @@ import traceback
 import logging
 from logging import *
 
-
+__author__ = "Viktor Nikitin"
+__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
 __all__ = ['setup_custom_logger', 'ColoredLogFormatter'] + logging.__all__
 
 

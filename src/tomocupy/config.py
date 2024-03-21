@@ -54,6 +54,9 @@ from collections import OrderedDict
 from tomocupy import utils
 from tomocupy import __version__
 
+__author__ = "Viktor Nikitin"
+__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
 
 log = logging.getLogger(__name__)
 
