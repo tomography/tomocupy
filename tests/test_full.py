@@ -1,3 +1,4 @@
+from pathlib import Path
 import unittest
 import os
 import numpy as np
@@ -7,6 +8,10 @@ import h5py
 import shutil
 
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 782.5 --nsino-per-chunk 4'
+prefix2 = 'tomocupy recon --file-name data/Downsampled_WB.h5 --reconstruction-type full --nsino-per-chunk 4 --rotation-axis 808 --sample-material Pb '
+prefix3 = '--filter-1-auto True --filter-2-auto True --filter-3-auto True --sample-density 11.34 --dezinger 3 '
+prefix4 = '--filter-1-density 1.85 --filter-2-density 8.9 --filter-3-density 8.9' 
+prefix5 = '--filter-1-density 0.0 --filter-2-density 0.0 --filter-3-density 0.0' 
 cmd_dict = {
     f'{prefix} ': 28.307,
     f'{prefix} --reconstruction-algorithm lprec ': 27.992,
@@ -30,8 +35,14 @@ cmd_dict = {
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method sift  --reconstruction-type full' : 28.305,
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method vo --center-search-step 0.1 --nsino 0.5 --center-search-width 100 --reconstruction-type full' : 28.303,
     f'{prefix} --remove-stripe-method vo-all ': 27.993,
+    f'{prefix} --bright-ratio 10': 32.631,
+    f'{prefix} --end-column 1535': 28.293,
+    f'{prefix} --end-column 1535 --binning 3': 1.82,    
+    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3255.912,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3248.832,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3254.634,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0 --b-storage-ring 0.3': 822.178,    
 }
-
 
 class SequentialTestLoader(unittest.TestLoader):
     def getTestCaseNames(self, testCaseClass):
@@ -45,24 +56,36 @@ class Tests(unittest.TestCase):
 
     def test_full_recon(self):
         for cmd in cmd_dict.items():
+            if 'beam-hardening' in cmd[0]:
+                try:
+                    import beamhardening
+                except:
+                    print('Beamhardening is not installed, skip the test')
+                    continue
+
             shutil.rmtree('data_rec',ignore_errors=True)      
             print(f'TEST {inspect.stack()[0][3]}: {cmd[0]}')
             st = os.system(cmd[0])
             self.assertEqual(st, 0)
             ssum = 0
             try:
+                file_name = cmd[0].split("--file-name ")[1].split('.')[0].split('/')[-1]
+                data_file = Path('data_rec').joinpath(file_name)
                 with h5py.File('data_rec/test_data_rec.h5', 'r') as fid:
                     data = fid['exchange/data']
+                    print(data.shape)
                     ssum = np.sum(np.linalg.norm(data[:], axis=(1, 2)))
             except:
                 pass
             for k in range(24):
+                file_name = cmd[0].split("--file-name ")[1].split('.')[0].split('/')[-1]
                 try:
                     ssum += np.linalg.norm(tifffile.imread(
-                        f'data_rec/test_data_rec/recon_{k:05}.tiff'))
+                        f'data_rec/{file_name}_rec/recon_{k:05}.tiff'))
                 except:
                     pass
             self.assertAlmostEqual(ssum, cmd[1], places=0)
+
 
 
 if __name__ == '__main__':

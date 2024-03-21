@@ -40,10 +40,9 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import conf_sizes
-from tomocupy import tomo_functions
-from tomocupy import reader
-from threading import Thread
+from tomocupy.processing import proc_functions
+from tomocupy.global_vars import args, params
+
 from ast import literal_eval
 from queue import Queue
 import cupyx.scipy.ndimage as ndimage
@@ -51,7 +50,6 @@ import cupy as cp
 import numpy as np
 import signal
 import cv2
-
 
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
@@ -66,52 +64,46 @@ class FindCenter():
     Find rotation axis by comapring 0 and 180 degrees projection with using SIFT
     '''
 
-    def __init__(self, args):
+    def __init__(self, cl_reader):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
 
-        # configure sizes and output files
-        cl_reader = reader.Reader(args)
-        cl_conf = conf_sizes.ConfSizes(args, cl_reader)
-
         # init tomo functions
-        self.cl_tomo_func = tomo_functions.TomoFunctions(cl_conf)
+        self.cl_proc_func = proc_functions.ProcFunctions()
 
         # additional refs
-        self.args = args
-        self.cl_conf = cl_conf
         self.cl_reader = cl_reader
 
     def find_center(self):
-        if self.args.rotation_axis_method == 'sift':
+        if args.rotation_axis_method == 'sift':
             center = self.find_center_sift()
-        elif self.args.rotation_axis_method == 'vo':
+        elif args.rotation_axis_method == 'vo':
             center = self.find_center_vo()
-        return center
+        return center*2**args.binning
 
     def find_center_sift(self):
-        pairs = literal_eval(self.args.rotation_axis_pairs)
+        pairs = literal_eval(args.rotation_axis_pairs)
 
         flat, dark = self.cl_reader.read_flat_dark(
-            self.cl_conf.st_n, self.cl_conf.end_n)
+            params.st_n, params.end_n)
         if pairs[0] == pairs[1]:
             pairs[0] = 0
-            pairs[1] = self.cl_conf.nproj-1
+            pairs[1] = params.nproj-1
 
         data = self.cl_reader.read_pairs(
-            pairs, self.args.start_row, self.args.end_row, self.cl_conf.st_n, self.cl_conf.end_n)
+            pairs, args.start_row, args.end_row, params.st_n, params.end_n)
 
         data = cp.array(data)
         flat = cp.array(flat)
         dark = cp.array(dark)
 
-        data = self.cl_tomo_func.darkflat_correction(data, dark, flat)
-        data = self.cl_tomo_func.minus_log(data)
+        data = self.cl_proc_func.darkflat_correction(data, dark, flat)
+        data = self.cl_proc_func.minus_log(data)
         data = data.get()
         shifts, nmatches = _register_shift_sift(
-            data[::2], data[1::2, :, ::-1], self.cl_conf.args.rotation_axis_sift_threshold)
-        centers = self.cl_conf.n//2-shifts[:, 1]/2+self.cl_conf.st_n
+            data[::2], data[1::2, :, ::-1], args.rotation_axis_sift_threshold)
+        centers = params.n//2-shifts[:, 1]/2+params.st_n
         log.info(f'Number of matched features {nmatches}')
         log.info(
             f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
@@ -120,59 +112,56 @@ class FindCenter():
         return np.mean(centers)
 
     def read_data_try(self, data_queue, id_slice):
-        in_dtype = self.cl_conf.in_dtype
-        ids_proj = self.cl_conf.ids_proj
-        st_n = self.cl_conf.st_n
-        end_n = self.cl_conf.end_n
 
         st_z = id_slice
-        end_z = id_slice + 2**self.args.binning
+        end_z = id_slice + 2**args.binning
 
         self.cl_reader.read_data_chunk_to_queue(
-            data_queue, ids_proj, st_z, end_z, st_n, end_n, 0, in_dtype)
+            data_queue, params.ids_proj, st_z, end_z,
+            params.st_n, params.end_n, 0, params.in_dtype)
 
     def find_center_sift(self):
         from ast import literal_eval
-        pairs = literal_eval(self.args.rotation_axis_pairs)
+        pairs = literal_eval(args.rotation_axis_pairs)
 
         flat, dark = self.cl_reader.read_flat_dark(
-            self.cl_conf.st_n, self.cl_conf.end_n)
+            params.st_n, params.end_n)
 
-        st_row = self.args.find_center_start_row
-        end_row = self.args.find_center_end_row
+        st_row = args.find_center_start_row
+        end_row = args.find_center_end_row
         if end_row == -1:
-            end_row = self.args.end_row
+            end_row = args.end_row
         flat = flat[:, st_row:end_row]
         dark = dark[:, st_row:end_row]
 
         if pairs[0] == pairs[1]:
             pairs[0] = 0
-            pairs[1] = self.cl_conf.nproj-1
+            pairs[1] = params.nproj-1
 
         data = self.cl_reader.read_pairs(
-            pairs, st_row, end_row, self.cl_conf.st_n, self.cl_conf.end_n)
+            pairs, st_row, end_row, params.st_n, params.end_n)
 
         data = cp.array(data)
         flat = cp.array(flat)
         dark = cp.array(dark)
 
-        data = self.cl_tomo_func.darkflat_correction(data, dark, flat)
-        data = self.cl_tomo_func.minus_log(data)
+        data = self.cl_proc_func.darkflat_correction(data, dark, flat)
+        data = self.cl_proc_func.minus_log(data)
         data = data.get()
         shifts, nmatches = _register_shift_sift(
-            data[::2], data[1::2, :, ::-1], self.cl_conf.args.rotation_axis_sift_threshold)
-        centers = self.cl_conf.n//2-shifts[:, 1]/2+self.cl_conf.st_n
+            data[::2], data[1::2, :, ::-1], args.rotation_axis_sift_threshold)
+        centers = params.n//2-shifts[:, 1]/2+params.st_n
         log.info(f'Number of matched features {nmatches}')
         log.info(
             f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
         log.info(
             f'Vertical misalignment {shifts[:, 0]}, mean: {np.mean(shifts[:, 0])}')
-        return np.mean(centers)*2**self.args.binning
+        return np.mean(centers)*2**args.binning
 
     def find_center_vo(self, ind=None, smin=-50, smax=50, srad=6, step=0.25, ratio=0.5, drop=20):
         """
         Find rotation axis location using Nghia Vo's method. :cite:`Vo:14`.
-        
+
         Parameters
         ----------
         ind : int, optional
@@ -189,7 +178,7 @@ class FindCenter():
             It's used to generate the mask.
         drop : int, optional
             Drop lines around vertical center of the mask.
-        
+
         Returns
         -------
         float
@@ -202,12 +191,12 @@ class FindCenter():
         ratio = 0.5
         drop = 20  # Drop lines around vertical center of the mask.
 
-        step = self.args.center_search_step
-        smin = -self.args.center_search_width
-        smax = self.args.center_search_width
+        step = args.center_search_step
+        smin = -args.center_search_width
+        smax = args.center_search_width
 
         data_queue = Queue(1)
-        self.read_data_try(data_queue, self.cl_conf.id_slices[0])
+        self.read_data_try(data_queue, params.id_slices[0])
         item = data_queue.get()
         # copy to gpu
         data = cp.array(item['data'])
@@ -218,8 +207,8 @@ class FindCenter():
         flat = cp.array(flat)
         dark = cp.array(dark)
 
-        data = self.cl_tomo_func.darkflat_correction(data, dark, flat)
-        data = self.cl_tomo_func.minus_log(data)
+        data = self.cl_proc_func.darkflat_correction(data, dark, flat)
+        data = self.cl_proc_func.minus_log(data)
 
         _tomo = data.swapaxes(0, 1)[0]
         # Denoising
@@ -229,16 +218,9 @@ class FindCenter():
         _tomo_fs = ndimage.gaussian_filter(_tomo, (2, 2), mode='reflect')
 
         # Coarse and fine searches for finding the rotation center.
-        # if _tomo.shape[0] * _tomo.shape[1] > 4e6:  # If data is large (>2kx2k)
-        #     _tomo_coarse = _downsample(_tomo_cs, level=2)
-        #     init_cen = _search_coarse(
-        #         _tomo_coarse, smin / 4.0, smax / 4.0, ratio, drop)
-        #     fine_cen = _search_fine(_tomo_fs, srad, step,
-        #                             init_cen * 4.0, ratio, drop)
-        # else:
         init_cen = _search_coarse(_tomo_cs, smin, smax, ratio, drop)
         fine_cen = _search_fine(_tomo_fs, srad, step,
-                                    init_cen, ratio, drop)
+                                init_cen, ratio, drop)
         log.debug('Rotation center search finished: %i', fine_cen)
         return fine_cen
 
@@ -305,13 +287,6 @@ def _register_shift_sift(datap1, datap2, th=0.5):
         shift = (src_pts-dst_pts)[:, 0, :]
         shifts[id] = np.mean(shift, axis=0)[::-1]
     return shifts, len(good)
-
-
-def _downsample(tomo, level):
-    for k in range(level):
-        tomo = 0.5*(tomo[::2]+tomo[1::2])
-        tomo = 0.5*(tomo[:, ::2]+tomo[:, 1::2])
-    return tomo
 
 
 def _calculate_metric(shift_col, sino1, sino2, sino3, mask):

@@ -1,5 +1,5 @@
-#ifndef CFUNC_DEFS_CUH
-#define CFUNC_DEFS_CUH
+#ifndef CFUNC_FILTER_CUH
+#define CFUNC_FILTER_CUH
 
 #include <cufft.h>
 #include <cufftXt.h>
