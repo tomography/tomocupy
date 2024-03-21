@@ -2,8 +2,8 @@
 Installation and test
 =====================
 
-Tomocupy works in NVidia GPUs of compute capability 6.0 and higher. To run tomocupy the system should have an nvidia driver installed (https://developer.nvidia.com/cuda-downloads). Cuda Toolkit is not necessary.
-Run 'nvidia-smi' to check whether the driver is installed. For check compute capability of the GPU, see http://mylifeismymessage.net/find-the-compute-capability-of-your-nvidia-graphics-card-gpu/. 
+Tomocupy works in NVidia GPUs of compute capability 6.0 and higher. To run tomocupy the system should have an `nvidia driver installed <https://developer.nvidia.com/cuda-downloads>`_. Cuda Toolkit is not necessary.
+Run ``nvidia-smi`` to check whether the driver is installed. For check compute capability of the GPU, see `this document <http://mylifeismymessage.net/find-the-compute-capability-of-your-nvidia-graphics-card-gpu/>`_. 
 
 1. Add conda-forge to anaconda channels
 
@@ -16,6 +16,7 @@ Run 'nvidia-smi' to check whether the driver is installed. For check compute cap
 2. Environmental solver mamba works much faster than the regular one, use
 
 ::
+
     (base)$ conda install -n base conda-libmamba-solver
     (base)$ conda config --set solver libmamba
 
@@ -52,6 +53,7 @@ Installation for development
 2. Environmental solver mamba works much faster than the regular one, use
 
 ::
+
     (base)$ conda install -n base conda-libmamba-solver
     (base)$ conda config --set solver libmamba
 
@@ -83,7 +85,7 @@ Installation for development
     (tomocupy)$ cd -
 
 
-6. Make sure that the path to nvcc compiler is set (or set it by e.g. 'export CUDACXX=/local/cuda-11.7/bin/nvcc') and install tomocupy
+6. Make sure that the path to nvcc compiler is set (or set it by e.g. ``export CUDACXX=/local/cuda-11.7/bin/nvcc``) and install tomocupy
 
 ::
     
@@ -95,22 +97,19 @@ Installation for development
 Additional instructions for Windows
 ===================================
 
-Install Build VS 2019 utils:
+#. Install `Build VS 2019 utils <https://learn.microsoft.com/en-us/visualstudio/install/use-command-line-parameters-to-install-visual-studio?view=vs-2019>`_
 
-https://learn.microsoft.com/en-us/visualstudio/install/use-command-line-parameters-to-install-visual-studio?view=vs-2019
+#. Install CUDA toolkit, e.g. `cuda 11_2_2 <https://developer.nvidia.com/cuda-11.2.2-download-archive?target_os=Windows&target_arch=x86_64>`_
 
-Install CUDA toolkit, e.g. 
+#. Install `Anaconda for windows <https://docs.anaconda.com/free/anaconda/install/windows/>`_ and use Powershell in which tomocupy environment can be created
 
-https://developer.nvidia.com/cuda-11.2.2-download-archive?target_os=Windows&target_arch=x86_64
-
-Note: it is better to have only 1 version of VS and 1 version of CUDA toolkit on your system to avoid problems with environmental variables
-
-Install Anaconda for windows https://docs.anaconda.com/free/anaconda/install/windows/ and use Powershell in which tomocupy environment can be created
+.. note::
+    It is better to have only one version of VS and one version of CUDA toolkit on your system to avoid problems with environmental variables
 
 ==========
 Unit tests
 ==========
-Check the library path to cuda or set it by 'export LD_LIBRARY_PATH=/local/cuda-11.7/lib64'
+Check the library path to cuda or set it by ``export LD_LIBRARY_PATH=/local/cuda-11.7/lib64``
 
 Run the following to check all functionality
 ::
@@ -142,7 +141,8 @@ Installation on Polaris supercomputer
     module add gcc/11.2.0
     module add cudatoolkit-standalone/11.4.4
 
-*we work with cuda-11.4 not with cuda-12.1 because the current driver version on polaris is 11.4:
+.. note::
+    We work with cuda-11.4 not with cuda-12.1 because the current driver version on polaris is 11.4
 
 3. create tomocupy environment, specifying cudatoolkit=11.4
 
@@ -174,7 +174,8 @@ Installation on Polaris supercomputer
 
     qsub -I -A hp-ptycho -l select=4:system=polaris -l filesystems=home:eagle -l walltime=30:00 -q debug-scaling
 
-*replace hp-ptycho by your project
+.. note::
+    Replace hp-ptycho by your project
 
 8. test tomocupy:
 

@@ -10,4 +10,9 @@
 
    .. autosummary::
    
+      DWTForward
+      DWTInverse
+      afb1d
+      remove_all_stripe
       remove_stripe_fw
+      remove_stripe_ti
