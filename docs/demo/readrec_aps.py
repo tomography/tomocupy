@@ -52,9 +52,9 @@ def main():
             read_aps(file_name)
             
             cl_reader = reader.Reader()
-            cl_writer = writer.Writer(cl_reader)
+            cl_writer = writer.Writer()
 
-            clrotthandle = tomocupy.FindCenter(cl_reader, cl_writer)
+            clrotthandle = tomocupy.FindCenter(cl_reader)
             args.rotation_axis = clrotthandle.find_center()*2**args.binning
             print(f'set rotaion  axis {args.rotation_axis}')
 

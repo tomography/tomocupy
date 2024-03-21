@@ -40,9 +40,8 @@
 
 from tomocupy import utils
 from tomocupy import logging
-from tomocupy import config_sizes
 from tomocupy.processing import proc_functions
-from tomocupy.global_vars import args
+from tomocupy.global_vars import args, params
 
 from ast import literal_eval
 from queue import Queue
@@ -65,16 +64,13 @@ class FindCenter():
     Find rotation axis by comapring 0 and 180 degrees projection with using SIFT
     '''
 
-    def __init__(self, cl_reader, cl_writer):
+    def __init__(self, cl_reader):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
 
-        # configure sizes and output files
-        #cl_reader = reader.Reader(args)
-        
         # init tomo functions
-        self.cl_proc_func = proc_functions.ProcFunctions(cl_reader)
+        self.cl_proc_func = proc_functions.ProcFunctions()
 
         # additional refs
         self.cl_reader = cl_reader
@@ -90,13 +86,13 @@ class FindCenter():
         pairs = literal_eval(args.rotation_axis_pairs)
 
         flat, dark = self.cl_reader.read_flat_dark(
-            self.cl_reader.st_n, self.cl_reader.end_n)
+            params.st_n, params.end_n)
         if pairs[0] == pairs[1]:
             pairs[0] = 0
-            pairs[1] = self.cl_reader.nproj-1
+            pairs[1] = params.nproj-1
 
         data = self.cl_reader.read_pairs(
-            pairs, args.start_row, args.end_row, self.cl_reader.st_n, self.cl_reader.end_n)
+            pairs, args.start_row, args.end_row, params.st_n, params.end_n)
 
         data = cp.array(data)
         flat = cp.array(flat)
@@ -107,7 +103,7 @@ class FindCenter():
         data = data.get()
         shifts, nmatches = _register_shift_sift(
             data[::2], data[1::2, :, ::-1], args.rotation_axis_sift_threshold)
-        centers = self.cl_reader.n//2-shifts[:, 1]/2+self.cl_reader.st_n
+        centers = params.n//2-shifts[:, 1]/2+params.st_n
         log.info(f'Number of matched features {nmatches}')
         log.info(
             f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
@@ -116,23 +112,20 @@ class FindCenter():
         return np.mean(centers)
 
     def read_data_try(self, data_queue, id_slice):
-        in_dtype = self.cl_reader.in_dtype
-        ids_proj = self.cl_reader.ids_proj
-        st_n = self.cl_reader.st_n
-        end_n = self.cl_reader.end_n
 
         st_z = id_slice
         end_z = id_slice + 2**args.binning
 
         self.cl_reader.read_data_chunk_to_queue(
-            data_queue, ids_proj, st_z, end_z, st_n, end_n, 0, in_dtype)
+            data_queue, params.ids_proj, st_z, end_z,
+            params.st_n, params.end_n, 0, params.in_dtype)
 
     def find_center_sift(self):
         from ast import literal_eval
         pairs = literal_eval(args.rotation_axis_pairs)
 
         flat, dark = self.cl_reader.read_flat_dark(
-            self.cl_reader.st_n, self.cl_reader.end_n)
+            params.st_n, params.end_n)
 
         st_row = args.find_center_start_row
         end_row = args.find_center_end_row
@@ -143,10 +136,10 @@ class FindCenter():
 
         if pairs[0] == pairs[1]:
             pairs[0] = 0
-            pairs[1] = self.cl_reader.nproj-1
+            pairs[1] = params.nproj-1
 
         data = self.cl_reader.read_pairs(
-            pairs, st_row, end_row, self.cl_reader.st_n, self.cl_reader.end_n)
+            pairs, st_row, end_row, params.st_n, params.end_n)
 
         data = cp.array(data)
         flat = cp.array(flat)
@@ -157,7 +150,7 @@ class FindCenter():
         data = data.get()
         shifts, nmatches = _register_shift_sift(
             data[::2], data[1::2, :, ::-1], args.rotation_axis_sift_threshold)
-        centers = self.cl_reader.n//2-shifts[:, 1]/2+self.cl_reader.st_n
+        centers = params.n//2-shifts[:, 1]/2+params.st_n
         log.info(f'Number of matched features {nmatches}')
         log.info(
             f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
@@ -203,7 +196,7 @@ class FindCenter():
         smax = args.center_search_width
 
         data_queue = Queue(1)
-        self.read_data_try(data_queue, self.cl_reader.id_slices[0])
+        self.read_data_try(data_queue, params.id_slices[0])
         item = data_queue.get()
         # copy to gpu
         data = cp.array(item['data'])

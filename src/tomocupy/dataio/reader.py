@@ -40,7 +40,7 @@
 
 from tomocupy import logging
 from tomocupy import utils
-from tomocupy.global_vars import args
+from tomocupy.global_vars import args, params
 from ast import literal_eval
 
 import numpy as np
@@ -62,7 +62,7 @@ class Reader():
     '''
 
     def __init__(self):
-        
+
         if args.dark_file_name == None:
             args.dark_file_name = args.file_name
         else:
@@ -72,7 +72,6 @@ class Reader():
             args.flat_file_name = args.file_name
         else:
             log.warning(f'Using flat fields from {args.flat_file_name}')
-
 
         self.init_sizes()
         if args.reconstruction_type[:3] == 'try':
@@ -106,45 +105,44 @@ class Reader():
             args.end_proj = nproji
         if (args.end_column == -1):
             args.end_column = ni
-        
+
         # find numebr of rows
         nz = args.end_row-args.start_row
-        
-        # define z chunk size for processing        
+
+        # define z chunk size for processing
         ncz = args.nsino_per_chunk
         if ncz == 1 and args.reconstruction_algorithm == 'fourierrec':
-            ncz = 2 # 2 rows are processed at the same time since fourierrec works with complex numbers
-                
-        
+            ncz = 2  # 2 rows are processed at the same time since fourierrec works with complex numbers
+
         # define projection chunk size for processing
         ncproj = args.nproj_per_chunk
-        
 
         centeri = args.rotation_axis
         if centeri == -1:
             centeri = ni/2
-        
+
         st_n = args.start_column
         end_n = args.end_column
-        
-        # work only with multiples of 2
-        nsh = (end_n-st_n)%(2**(args.binning+1))
-        if nsh!=0:
-            end_n-=nsh
-            log.warning(f'Decreasing projection width by {nsh} pixel to operate with multiple of 2 sizes. New projection width: {end_n-st_n}')
 
-        ni = end_n - st_n        
+        # work only with multiples of 2
+        nsh = (end_n-st_n) % (2**(args.binning+1))
+        if nsh != 0:
+            end_n -= nsh
+            log.warning(
+                f'Decreasing projection width by {nsh} pixel to operate with multiple of 2 sizes. New projection width: {end_n-st_n}')
+
+        ni = end_n - st_n
         centeri -= st_n
-        
+
         # update sizes wrt binning
         ni //= 2**args.binning
         centeri /= 2**args.binning
         nz //= 2**args.binning
-        
+
         # change sizes for 360 deg scans with rotation axis at the border
-        if(args.file_type == 'double_fov'):
+        if (args.file_type == 'double_fov'):
             n = 2*ni
-            if(centeri < ni//2):
+            if (centeri < ni//2):
                 # if rotation center is on the left side of the ROI
                 center = ni-centeri
             else:
@@ -162,27 +160,27 @@ class Reader():
             n0 = n
             n = 2**int(np.log2(n))
 
-            if n!=n0:
+            if n != n0:
                 log.warning(
                     f'Crop data to the power of 2 sizes to work with 16bit precision, output size in x dimension {ni}')
-        
+
         # blocked views fix
         ids_proj = [args.start_proj, args.end_proj]
         theta = theta[ids_proj[0]:ids_proj[1]]
-        if args.blocked_views !='none':            
+        if args.blocked_views != 'none':
             tmp = literal_eval(args.blocked_views)
-            if not isinstance(tmp[0],list):
+            if not isinstance(tmp[0], list):
                 tmp = [tmp]
             ids = np.arange(len(theta))
             for pairs in tmp:
-                [st,end] = pairs
-                ids = np.intersect1d(ids,np.where(((theta) % np.pi < st) +
-                    ((theta-st) % np.pi > end-st))[0])
+                [st, end] = pairs
+                ids = np.intersect1d(ids, np.where(((theta) % np.pi < st) +
+                                                   ((theta-st) % np.pi > end-st))[0])
             theta = theta[ids]
             ids_proj = np.arange(ids_proj[0], ids_proj[1])[ids]
             log.info(f'angles {theta}')
-        nproj = len(theta)        
-        
+        nproj = len(theta)
+
         # calculate chunks
         nzchunk = int(np.ceil(nz/ncz))
         lzchunk = np.minimum(
@@ -193,36 +191,35 @@ class Reader():
 
         tmp = literal_eval(args.nsino)
         if not isinstance(tmp, list):
-            tmp = [tmp]  
-        
-        
-        self.id_slices = np.int32(np.array(tmp)*(nz*2**args.binning-1) /
-                            2**args.binning)*2**args.binning
-        self.n = n
-        self.nz = nz
-        self.ncz = ncz
-        self.nproj = nproj
-        self.ncproj = ncproj
-        self.center = center
-        self.ni = ni
-        self.nzi = nzi
-        self.centeri = centeri
-        self.ndark = ndark
-        self.nflat = nflat
-        self.ids_proj = ids_proj
-        self.theta = theta
-        self.nzchunk = nzchunk
-        self.lzchunk = lzchunk
-        self.ntchunk = ntchunk
-        self.ltchunk = ltchunk
-        self.dtype = args.dtype
-        self.in_dtype = in_dtype
-        self.st_n = st_n
-        self.end_n = end_n
+            tmp = [tmp]
+
+        params.id_slices = np.int32(np.array(tmp)*(nz*2**args.binning-1) /
+                                    2**args.binning)*2**args.binning
+        params.n = n
+        params.nz = nz
+        params.ncz = ncz
+        params.nproj = nproj
+        params.ncproj = ncproj
+        params.center = center
+        params.ni = ni
+        params.nzi = nzi
+        params.centeri = centeri
+        params.ndark = ndark
+        params.nflat = nflat
+        params.ids_proj = ids_proj
+        params.theta = theta
+        params.nzchunk = nzchunk
+        params.lzchunk = lzchunk
+        params.ntchunk = ntchunk
+        params.ltchunk = ltchunk
+        params.dtype = args.dtype
+        params.in_dtype = in_dtype
+        params.st_n = st_n
+        params.end_n = end_n
 
         # full shapes
-        self.shape_data_full = (nproj, nz, ni)
-        self.shape_data_fulln = (nproj, nz, n)
+        params.shape_data_full = (nproj, nz, ni)
+        params.shape_data_fulln = (nproj, nz, n)
 
     def init_sizes_try(self):
         """Calculating sizes for try reconstruction by chunks"""
@@ -231,45 +228,49 @@ class Reader():
             # invert shifts for calculations if centeri<ni for double_fov
             shift_array = np.arange(-args.center_search_width,
                                     args.center_search_width, args.center_search_step*2**args.binning).astype('float32')/2**args.binning
-            save_centers = (self.centeri - shift_array)*2**args.binning+self.st_n
-            if (args.file_type == 'double_fov') and (self.centeri < self.ni//2):
+            save_centers = (params.centeri - shift_array) * \
+                2**args.binning+params.st_n
+            if (args.file_type == 'double_fov') and (params.centeri < params.ni//2):
                 shift_array = -shift_array
-            
+
         elif args.reconstruction_type == 'try_lamino':
             shift_array = np.arange(-args.lamino_search_width,
                                     args.lamino_search_width, args.lamino_search_step).astype('float32')
             save_centers = args.lamino_angle + shift_array
         # calculate chunks
-        nschunk = int(np.ceil(len(shift_array)/self.ncz))
-        lschunk = np.minimum(self.ncz, np.int32(
-            len(shift_array)-np.arange(nschunk)*self.ncz)) 
-        self.shift_array = shift_array
-        self.save_centers = save_centers
-        self.nschunk = nschunk
-        self.lschunk = lschunk        
+        nschunk = int(np.ceil(len(shift_array)/params.ncz))
+        lschunk = np.minimum(params.ncz, np.int32(
+            len(shift_array)-np.arange(nschunk)*params.ncz))
+        params.shift_array = shift_array
+        params.save_centers = save_centers
+        params.nschunk = nschunk
+        params.lschunk = lschunk
 
     def init_sizes_lamino(self):
         """Calculating sizes for laminography reconstruction by chunks"""
 
-        # calculate reconstruction height        
-        rh0 = int(np.ceil((self.nz*2**args.binning/np.cos(args.lamino_angle/180*np.pi))/2**args.binning/2))*2 #- args.lamino_start_row//2**args.binning
+        # calculate reconstruction height
+        rh0 = int(np.ceil((params.nz*2**args.binning/np.cos(args.lamino_angle/180*np.pi)
+                           )/2**args.binning/2))*2  # - args.lamino_start_row//2**args.binning
         if args.lamino_end_row == -1:
             rh = rh0
         else:
-            rh = args.lamino_end_row//2**args.binning - args.lamino_start_row//2**args.binning
-        
+            rh = args.lamino_end_row//2**args.binning - \
+                args.lamino_start_row//2**args.binning
+
         # calculate chunks
-        nrchunk = int(np.ceil(rh/self.ncz))
+        nrchunk = int(np.ceil(rh/params.ncz))
         lrchunk = np.minimum(
-            self.ncz, np.int32(rh-np.arange(nrchunk)*self.ncz))
-            
-        self.nrchunk = nrchunk
-        self.lrchunk = lrchunk
-        self.rh = rh
-        self.lamino_angle = args.lamino_angle
-        self.lamino_start_row = args.lamino_start_row//2**args.binning
-        self.lamino_shift = (rh0//2-rh//2)-args.lamino_start_row//2**args.binning
-        
+            params.ncz, np.int32(rh-np.arange(nrchunk)*params.ncz))
+
+        params.nrchunk = nrchunk
+        params.lrchunk = lrchunk
+        params.rh = rh
+        params.lamino_angle = args.lamino_angle
+        params.lamino_start_row = args.lamino_start_row//2**args.binning
+        params.lamino_shift = (rh0//2-rh//2) - \
+            args.lamino_start_row//2**args.binning
+
     def read_sizes(self):
         '''
         Read data sizes        
@@ -330,19 +331,17 @@ class Reader():
 
         with h5py.File(args.file_name) as fid:
             if isinstance(ids_proj, np.ndarray):
-                #data = fid['/exchange/data'][ids_proj, st_z:end_z,
+                # data = fid['/exchange/data'][ids_proj, st_z:end_z,
                 #                             st_n:end_n].astype(in_dtype, copy=False)
                 data = fid['/exchange/data'][:, st_z:end_z,
-                                             st_n:end_n][ids_proj].astype(in_dtype, copy=False) 
+                                             st_n:end_n][ids_proj].astype(in_dtype, copy=False)
             else:
                 data = fid['/exchange/data'][ids_proj[0]:ids_proj[1],
                                              st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
-                                             
 
         with h5py.File(args.dark_file_name) as fid:
             data_dark = fid['/exchange/data_dark'][:,
                                                    st_z:end_z, st_n:end_n].astype(in_dtype, copy=False)
-
 
         with h5py.File(args.flat_file_name) as fid:
             data_flat = fid['/exchange/data_white'][:,
@@ -358,7 +357,7 @@ class Reader():
 
     def read_proj_chunk(self, data, st_proj, end_proj, st_z, end_z, st_n, end_n):
         """Read a chunk of projections with binning"""
-        
+
         with h5py.File(args.file_name) as fid:
             d = fid['/exchange/data'][args.start_proj +
                                       st_proj:args.start_proj+end_proj, st_z:end_z, st_n:end_n]
@@ -393,27 +392,25 @@ class Reader():
         end_z = id_slice + 2**args.binning
 
         self.read_data_chunk_to_queue(
-            data_queue, self.ids_proj, st_z, end_z, self.st_n, self.end_n, 0, self.in_dtype)
+            data_queue, params.ids_proj, st_z, end_z, params.st_n, params.end_n, 0, params.in_dtype)
 
     def read_data_to_queue(self, data_queue, read_threads):
         """Reading data from hard disk and putting it to a queue"""
 
-        for k in range(self.nzchunk):
-            st_z = args.start_row+k*self.ncz*2**args.binning
+        for k in range(params.nzchunk):
+            st_z = args.start_row+k*params.ncz*2**args.binning
             end_z = args.start_row + \
-                (k*self.ncz+self.lzchunk[k])*2**args.binning
+                (k*params.ncz+params.lzchunk[k])*2**args.binning
             ithread = utils.find_free_thread(read_threads)
             read_threads[ithread].run(self.read_data_chunk_to_queue, (
-                data_queue, self.ids_proj, st_z, end_z, self.st_n, self.end_n, k, self.in_dtype))
+                data_queue, params.ids_proj, st_z, end_z, params.st_n, params.end_n, k, params.in_dtype))
 
     def read_data_parallel(self, nthreads=16):
         """Reading data in parallel (good for ssd disks)"""
 
-        st_n = self.st_n
-        end_n = self.end_n
-        flat, dark = self.read_flat_dark(st_n, end_n)
+        flat, dark = self.read_flat_dark(params.st_n, params.end_n)
         # parallel read of projections
-        data = np.zeros([*self.shape_data_full], dtype=self.in_dtype)
+        data = np.zeros(params.shape_data_full, dtype=params.in_dtype)
         lchunk = int(np.ceil(data.shape[0]/nthreads))
         procs = []
         for k in range(nthreads):
@@ -423,7 +420,7 @@ class Reader():
             if st_proj >= end_proj:
                 continue
             read_thread = Thread(
-                target=self.read_proj_chunk, args=(data, st_proj, end_proj, args.start_row, args.end_row, st_n, end_n))
+                target=self.read_proj_chunk, args=(data, st_proj, end_proj, args.start_row, args.end_row, params.st_n, params.end_n))
             procs.append(read_thread)
             read_thread.start()
         for proc in procs:

@@ -42,6 +42,7 @@ from tomocupy import cfunc_filter
 from tomocupy import cfunc_filterfp16
 import cupy as cp
 
+
 class FBPFilter():
     def __init__(self, n, ntheta, nz, dtype):
         if dtype == 'float16':
@@ -62,7 +63,7 @@ class FBPFilter():
 
         if filter == 'none':
             wfa = self.n*0.5+t*0
-            wfa[0] *=2 # fixed later
+            wfa[0] *= 2  # fixed later
         elif filter == 'ramp':
             wfa = self.n*0.5*self._wint(12, t)
         elif filter == 'shepp':

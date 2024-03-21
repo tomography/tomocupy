@@ -40,19 +40,12 @@
 
 from tomocupy.processing import retrieve_phase, remove_stripe
 import cupyx.scipy.ndimage as ndimage
-from tomocupy.global_vars import args
+from tomocupy.global_vars import args, params
 import cupy as cp
 
 
 class ProcFunctions():
-    def __init__(self, cl_conf):
-
-        self.ni = cl_conf.ni
-        self.n = cl_conf.n
-        self.nz = cl_conf.nz
-        self.nproj = cl_conf.nproj
-        self.center = cl_conf.center
-        self.centeri = cl_conf.centeri
+    def __init__(self):
 
         # External processing methods initialization
         if args.beam_hardening_method != 'none':
@@ -66,10 +59,10 @@ class ProcFunctions():
         flat0 = flat.astype(args.dtype, copy=False)
         flat0 /= args.bright_ratio  # == exposure_flat/exposure_proj
         # works only for processing all angles
-        if args.flat_linear == 'True' and data.shape[0] == self.nproj:
+        if args.flat_linear == 'True' and data.shape[0] == params.nproj:
             flat0_p0 = cp.mean(flat0[:flat0.shape[0]//2], axis=0)
             flat0_p1 = cp.mean(flat0[flat0.shape[0]//2+1:], axis=0)
-            v = cp.linspace(0, 1, self.nproj)[..., cp.newaxis, cp.newaxis]
+            v = cp.linspace(0, 1, params.nproj)[..., cp.newaxis, cp.newaxis]
             flat0 = (1-v)*flat0_p0+v*flat0_p1
         else:
             flat0 = cp.mean(flat0, axis=0)
@@ -115,10 +108,10 @@ class ProcFunctions():
     def pad360(self, data):
         """Pad data with 0 to handle 360 degrees scan"""
 
-        if (self.centeri < self.ni//2):
+        if (params.centeri < params.ni//2):
             # if rotation center is on the left side of the ROI
             data[:] = data[:, :, ::-1]
-        w = max(1, int(2*(self.ni-self.center)))
+        w = max(1, int(2*(params.ni-params.center)))
 
         # smooth transition at the border
         v = cp.linspace(1, 0, w, endpoint=False)
@@ -171,7 +164,7 @@ class ProcFunctions():
 
         if not isinstance(res, cp.ndarray):
             res = cp.zeros(
-                [data.shape[0], data.shape[1], self.n], args.dtype)
+                [data.shape[0], data.shape[1], params.n], args.dtype)
         # retrieve phase
         if args.retrieve_phase_method == 'Gpaganin' or args.retrieve_phase_method == 'paganin':
             data[:] = retrieve_phase.paganin_filter(

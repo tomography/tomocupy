@@ -40,7 +40,7 @@
 
 from tomocupy import config
 from tomocupy import logging
-from tomocupy.global_vars import args
+from tomocupy.global_vars import args, params
 import numpy as np
 import h5py
 import os
@@ -60,17 +60,7 @@ class Writer():
     Class for configuring write operations.
     '''
 
-    def __init__(self, cl_reader):
-        self.n = cl_reader.n
-        self.nzi = cl_reader.nzi
-        self.dtype = cl_reader.dtype
-        self.nzchunk = cl_reader.nzchunk
-        self.lzchunk = cl_reader.lzchunk
-        self.ncz = cl_reader.ncz
-        self.nproj = cl_reader.nproj
-        self.theta = cl_reader.theta
-        self.cl_reader = cl_reader
-
+    def __init__(self):
         if args.reconstruction_type[:3] == 'try':
             self.init_output_files_try()
         else:
@@ -80,33 +70,34 @@ class Writer():
         """Constructing output file names and initiating the actual files"""
 
         # init output files
-        if(args.out_path_name is None):
+        if (args.out_path_name is None):
             fnameout = os.path.dirname(
                 args.file_name)+'_rec/try_center/'+os.path.basename(args.file_name)[:-3]
         else:
-            fnameout = str(args.out_path_name)            
+            fnameout = str(args.out_path_name)
         if not os.path.exists(fnameout):
             os.makedirs(fnameout)
         fnameout += '/recon'
-        self.fnameout = fnameout
-        if (args.clear_folder=='True'):
+
+        if (args.clear_folder == 'True'):
             log.info('Clearing the output folder')
             os.system(f'rm {fnameout}*')
         log.info(f'Output: {fnameout}')
+        params.fnameout = fnameout
 
     def init_output_files(self):
         """Constructing output file names and initiating the actual files"""
 
         # init output files
-        if(args.out_path_name is None):
+        if (args.out_path_name is None):
             fnameout = os.path.dirname(
-                args.file_name)+'_rec/'+os.path.basename(args.file_name)[:-3]+'_rec'            
+                args.file_name)+'_rec/'+os.path.basename(args.file_name)[:-3]+'_rec'
         else:
             fnameout = str(args.out_path_name)
         if not os.path.exists(fnameout):
             os.makedirs(fnameout)
-        
-        if (args.clear_folder=='True'):
+
+        if (args.clear_folder == 'True'):
             log.info('Clearing the output folder')
             os.system(f'rm {fnameout}/*')
 
@@ -125,15 +116,15 @@ class Writer():
             fnameout += '.h5'
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
-                self.nzi/2**args.binning, self.n, self.n), dtype=self.dtype)            
+                params.nzi/2**args.binning, params.n, params.n), dtype=params.dtype)
             if not os.path.exists(f'{fnameout[:-3]}_parts'):
                 os.makedirs(f'{fnameout[:-3]}_parts')
-            for k in range(self.nzchunk):
+            for k in range(params.nzchunk):
                 filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                 vsource = h5py.VirtualSource(
-                    filename, "/exchange/data", shape=(self.lzchunk[k], self.n, self.n), dtype=self.dtype)
-                st = args.start_row//2**args.binning+k*self.ncz
-                layout[st:st+self.lzchunk[k]] = vsource
+                    filename, "/exchange/data", shape=(params.lzchunk[k], params.n, params.n), dtype=params.dtype)
+                st = args.start_row//2**args.binning+k*params.ncz
+                layout[st:st+params.lzchunk[k]] = vsource
 
             # Add virtual dataset to output file
             rec_virtual = h5py.File(fnameout, "w")
@@ -154,12 +145,14 @@ class Writer():
             self.write_meta(rec_virtual)
 
             rec_virtual.close()
-            config.update_hdf_process(fnameout, args, sections=config.RECON_STEPS_PARAMS)
+            config.update_hdf_process(
+                fnameout, args, sections=config.RECON_STEPS_PARAMS)
 
         elif args.save_format == 'h5nolinks':
             fnameout += '.h5'
             h5w = h5py.File(fnameout, "w")
-            dset_rec = h5w.create_dataset("/exchange/data", shape=(int(self.nzi/2**args.binning), self.n, self.n), dtype=self.dtype)
+            dset_rec = h5w.create_dataset("/exchange/data", shape=(
+                int(params.nzi/2**args.binning), params.n, params.n), dtype=params.dtype)
 
             # saving command line to repeat the reconstruction as attribute of /exchange/data
             rec_line = sys.argv
@@ -177,36 +170,40 @@ class Writer():
             self.h5w = h5w
             self.dset_rec = dset_rec
 
-            config.update_hdf_process(fnameout, args, sections=config.RECON_STEPS_PARAMS)
+            config.update_hdf_process(
+                fnameout, args, sections=config.RECON_STEPS_PARAMS)
 
         elif args.save_format == 'h5sino':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
-                self.nproj, self.nzi/2**args.binning, self.n), dtype=self.dtype)
+                params.nproj, params.nzi/2**args.binning, params.n), dtype=params.dtype)
             if not os.path.exists(f'{fnameout[:-3]}_parts'):
                 os.makedirs(f'{fnameout[:-3]}_parts')
 
-            for k in range(self.nzchunk):
+            for k in range(params.nzchunk):
                 filename = f"{fnameout[:-3]}_parts/p{k:04d}.h5"
                 vsource = h5py.VirtualSource(
-                    filename, "/exchange/data", shape=(self.nproj, self.lzchunk[k], self.n), dtype=self.dtype)
-                st = args.start_row//2**args.binning+k*self.ncz
-                layout[:,st:st+self.lzchunk[k]] = vsource
+                    filename, "/exchange/data", shape=(params.nproj, params.lzchunk[k], params.n), dtype=params.dtype)
+                st = args.start_row//2**args.binning+k*params.ncz
+                layout[:, st:st+params.lzchunk[k]] = vsource
             # Add virtual dataset to output file
             rec_virtual = h5py.File(fnameout, "w")
             dset_rec = rec_virtual.create_virtual_dataset(
                 "/exchange/data", layout)
-            rec_virtual.create_dataset('/exchange/theta',data = self.theta/np.pi*180)
-            rec_virtual.create_dataset('/exchange/data_white', data = np.ones([1,self.nzi//2**args.binning, self.n],dtype='float32'))
-            rec_virtual.create_dataset('/exchange/data_dark', data = np.zeros([1,self.nzi//2**args.binning, self.n],dtype='float32'))
+            rec_virtual.create_dataset(
+                '/exchange/theta', data=params.theta/np.pi*180)
+            rec_virtual.create_dataset('/exchange/data_white', data=np.ones(
+                [1, params.nzi//2**args.binning, params.n], dtype='float32'))
+            rec_virtual.create_dataset('/exchange/data_dark', data=np.zeros(
+                [1, params.nzi//2**args.binning, params.n], dtype='float32'))
 
             self.write_meta(rec_virtual)
 
             rec_virtual.close()
-            
-        self.fnameout = fnameout
+
+        params.fnameout = fnameout
         log.info(f'Output: {fnameout}')
 
     def write_meta(self, rec_virtual):
@@ -217,41 +214,45 @@ class Writer():
             mp = meta.read_meta.Hdf5MetadataReader(args.file_name)
             meta_dict = mp.readMetadata()
             mp.close()
-            with h5py.File(args.file_name,'r') as f:
-                log.info("  *** meta data from raw dataset %s copied to rec hdf file" % args.file_name)
+            with h5py.File(args.file_name, 'r') as f:
+                log.info(
+                    "  *** meta data from raw dataset %s copied to rec hdf file" % args.file_name)
                 for key, value in meta_dict.items():
                     # print(key, value)
                     if key.find('exchange') != 1:
-                        dset = rec_virtual.create_dataset(key, data=value[0], dtype=f[key].dtype, shape=(1,))
+                        dset = rec_virtual.create_dataset(
+                            key, data=value[0], dtype=f[key].dtype, shape=(1,))
                         if value[1] is not None:
                             s = value[1]
                             utf8_type = h5py.string_dtype('utf-8', len(s)+1)
-                            dset.attrs['units'] =  np.array(s.encode("utf-8"), dtype=utf8_type)
+                            dset.attrs['units'] = np.array(
+                                s.encode("utf-8"), dtype=utf8_type)
         except:
             log.error('write_meta() error: Skip copying meta')
-            pass        
+            pass
 
     def write_data_chunk(self, rec, st, end, k):
         """Writing the kth data chunk to hard disk"""
 
-        if args.save_format == 'tiff':            
+        if args.save_format == 'tiff':
             for kk in range(end-st):
                 fid = st+kk
-                tifffile.imwrite(f'{self.fnameout}_{fid:05}.tiff', rec[kk])
+                tifffile.imwrite(f'{params.fnameout}_{fid:05}.tiff', rec[kk])
         elif args.save_format == 'h5':
-            filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
+            filename = f"{params.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
-                                   chunks=(1, self.n, self.n))
+                                   chunks=(1, params.n, params.n))
         elif args.save_format == 'h5nolinks':
-            self.h5w['/exchange/data'][st:end, :, :] = rec 
+            self.h5w['/exchange/data'][st:end, :, :] = rec
         elif args.save_format == 'h5sino':
-            filename = f"{self.fnameout[:-3]}_parts/p{k:04d}.h5"
+            filename = f"{params.fnameout[:-3]}_parts/p{k:04d}.h5"
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
-                                   chunks=(self.nproj, 1, self.n))
+                                   chunks=(params.nproj, 1, params.n))
 
     def write_data_try(self, rec, cid, id_slice):
         """Write tiff reconstruction with a given name"""
 
-        tifffile.imwrite(f'{self.fnameout}_slice{id_slice:04d}_center{cid:05.2f}.tiff', rec)
+        tifffile.imwrite(
+            f'{params.fnameout}_slice{id_slice:04d}_center{cid:05.2f}.tiff', rec)

@@ -92,7 +92,7 @@ def create_gl(N, Nproj, Ntheta, Nrho):
     thsp = (cp.arange(-Ntheta/2, Ntheta/2) *
             cp.float32(dtheta)).astype('float32')
     rhosp = (cp.arange(-Nrho, 0)*drho).astype('float32')
-    #erho = cp.tile(cp.exp(rhosp)[..., cp.newaxis], [1, Ntheta])
+    # erho = cp.tile(cp.exp(rhosp)[..., cp.newaxis], [1, Ntheta])
     # compensation for cubic interpolation
     B3th = splineB3(thsp, 1)
     B3th = cp.fft.fft(cp.fft.ifftshift(B3th))
@@ -139,7 +139,7 @@ def splineB3(x2, r):
         if d[id] < 1:  # use the first polynomial
             B3[id] = (3*d[id]**3-6*d[id]**2+4)/6
         else:
-            if(d[id] < 2):
+            if (d[id] < 2):
                 B3[id] = (-d[id]**3+6*d[id]**2-12*d[id]+8)/6
     B3f = x2*0
     B3f[int(cp.ceil((sizex+1)/2.0)-ri-1):int(cp.ceil((sizex+1)/2.0)+ri)] = B3
@@ -224,7 +224,7 @@ def create_adj(P):
         proj0[k] = P.proj[pids[k][0]]
         projl[k] = P.proj[pids[k][-1]]-P.proj[pids[k][0]]
 
-    #shift in angles
+    # shift in angles
     projp = (P.Nproj-1)/(proj0[P.Nspan-1]+projl[P.Nspan-1]-proj0[0])
 
     # adapt for interpolation

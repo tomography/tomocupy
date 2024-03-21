@@ -42,6 +42,7 @@ from tomocupy import cfunc_usfft1d
 from tomocupy import cfunc_usfft2d
 from tomocupy import cfunc_fft2d
 
+
 class LamFourierRec():
     """Laminographic backprojection by the Fourier-based method"""
 

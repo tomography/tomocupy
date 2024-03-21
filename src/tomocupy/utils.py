@@ -51,6 +51,8 @@ from tomocupy import logging
 log = logging.getLogger(__name__)
 
 # Print iterations progress
+
+
 def printProgressBar(iteration, total, qsize, prefix='', suffix='', decimals=1, length=100, fill='█', printEnd="\r"):
     """
     Call in a loop to create terminal progress bar
@@ -74,6 +76,7 @@ def printProgressBar(iteration, total, qsize, prefix='', suffix='', decimals=1, 
     if iteration == total:
         print()
 
+
 def positive_int(value):
     """Convert *value* to an integer and make sure it is positive."""
     result = int(value)
@@ -81,12 +84,14 @@ def positive_int(value):
         raise argparse.ArgumentTypeError('Only positive integers are allowed')
     return result
 
+
 def restricted_float(x):
 
     x = float(x)
     if x < 0.0 or x > 1.0:
         raise argparse.ArgumentTypeError("%r not in range [0.0, 1.0]" % (x,))
     return x
+
 
 def pinned_array(array):
     """Allocate pinned memory and associate it with numpy array"""
@@ -97,11 +102,13 @@ def pinned_array(array):
     src[...] = array
     return src
 
+
 def signal_handler(sig, frame):
     """Calls abort_scan when ^C or ^Z is typed"""
 
     print('Abort')
     sys.exit(1)
+
 
 class WRThread():
     def __init__(self):
@@ -121,6 +128,7 @@ class WRThread():
             return
         self.thread.join()
 
+
 def find_free_thread(threads):
     ithread = 0
     while True:
@@ -132,6 +140,7 @@ def find_free_thread(threads):
             ithread = 0
             time.sleep(0.01)
     return ithread
+
 
 def downsample(data, binning):
     """Downsample data"""
@@ -145,34 +154,40 @@ def downsample(data, binning):
         data = ne.evaluate('x + y')
     return data
 
+
 def _copy(res, u, st, end):
-        res[st:end] = u[st:end]
-        
+    res[st:end] = u[st:end]
+
+
 def copy(u, res, nthreads=16):
     nchunk = int(np.ceil(u.shape[0]/nthreads))
     mthreads = []
     for k in range(nthreads):
-        th = Thread(target=_copy,args=(res,u,k*nchunk,min((k+1)*nchunk,u.shape[0])))
+        th = Thread(target=_copy, args=(
+            res, u, k*nchunk, min((k+1)*nchunk, u.shape[0])))
         mthreads.append(th)
         th.start()
     for th in mthreads:
         th.join()
     return res
 
+
 def _copyTransposed(res, u, st, end):
-    res[st:end] = u[:,st:end].swapaxes(0,1)        
-    
+    res[st:end] = u[:, st:end].swapaxes(0, 1)
+
+
 def copyTransposed(u, res=[], nthreads=16):
-    if res==[]:
-        res = np.empty([u.shape[1],u.shape[0],u.shape[2]],dtype=u.dtype)
+    if res == []:
+        res = np.empty([u.shape[1], u.shape[0], u.shape[2]], dtype=u.dtype)
     nchunk = int(np.ceil(u.shape[1]/nthreads))
     mthreads = []
     for k in range(nthreads):
-        th = Thread(target=_copyTransposed,args=(res,u,k*nchunk,min((k+1)*nchunk,u.shape[1])))
+        th = Thread(target=_copyTransposed, args=(
+            res, u, k*nchunk, min((k+1)*nchunk, u.shape[1])))
         mthreads.append(th)
         th.start()
     for th in mthreads:
-        th.join()        
+        th.join()
     return res
 
 
@@ -182,31 +197,32 @@ def read_bright_ratio(params):
     log.info('  *** *** Find bright exposure ratio params from the HDF file')
     try:
         possible_names = ['/measurement/instrument/detector/different_flat_exposure',
-                        '/process/acquisition/flat_fields/different_flat_exposure']
+                          '/process/acquisition/flat_fields/different_flat_exposure']
         for pn in possible_names:
             if check_item_exists_hdf(params.file_name, pn):
                 diff_bright_exp = param_from_dxchange(params.file_name, pn,
-                                    attr = None, scalar = False, char_array = True)
+                                                      attr=None, scalar=False, char_array=True)
                 break
         if diff_bright_exp.lower() == 'same':
             log.error('  *** *** used same flat and data exposures')
             params.bright_exp_ratio = 1
             return params
         possible_names = ['/measurement/instrument/detector/exposure_time_flat',
-                        '/process/acquisition/flat_fields/flat_exposure_time',
-                        '/measurement/instrument/detector/brightfield_exposure_time']
+                          '/process/acquisition/flat_fields/flat_exposure_time',
+                          '/measurement/instrument/detector/brightfield_exposure_time']
         for pn in possible_names:
             if check_item_exists_hdf(params.file_name, pn):
                 bright_exp = param_from_dxchange(params.file_name, pn,
-                                    attr = None, scalar = True, char_array = False)
-                break    
+                                                 attr=None, scalar=True, char_array=False)
+                break
         log.info('  *** *** %f' % bright_exp)
         norm_exp = param_from_dxchange(params.file_name,
-                                    '/measurement/instrument/detector/exposure_time',
-                                    attr = None, scalar = True, char_array = False)
+                                       '/measurement/instrument/detector/exposure_time',
+                                       attr=None, scalar=True, char_array=False)
         log.info('  *** *** %f' % norm_exp)
         params.bright_exp_ratio = bright_exp / norm_exp
-        log.info('  *** *** found bright exposure ratio of {0:6.4f}'.format(params.bright_exp_ratio))
+        log.info(
+            '  *** *** found bright exposure ratio of {0:6.4f}'.format(params.bright_exp_ratio))
     except:
         log.warning('  *** *** problem getting bright exposure ratio.  Use 1.')
         params.bright_exp_ratio = 1
@@ -235,7 +251,7 @@ def param_from_dxchange(hdf_file, data_path, attr=None, scalar=True, char_array=
     """
     if not Path(hdf_file).is_file():
         return None
-    with h5py.File(hdf_file,'r') as f:
+    with h5py.File(hdf_file, 'r') as f:
         try:
             if attr:
                 return f[data_path].attrs[attr].decode('ASCII')

@@ -40,51 +40,43 @@
 
 from tomocupy.reconstruction import fourierrec, lprec, linerec
 from tomocupy.reconstruction import fbp_filter
-from tomocupy.global_vars import args
+from tomocupy.global_vars import args, params
 import cupy as cp
 
 
 class BackprojFunctions():
-    def __init__(self, cl_conf):
+    def __init__(self):
 
-        self.ni = cl_conf.ni
-        self.n = cl_conf.n
-        self.nz = cl_conf.nz
-        self.ncz = cl_conf.ncz
-        self.nproj = cl_conf.nproj
-        self.ncproj = cl_conf.ncproj
-        self.centeri = cl_conf.centeri
-        self.center = cl_conf.center
-        self.ne = 4*self.n
+        params.ne = 4*params.n
 
         if args.dtype == 'float16':
             # power of 2 for float16
-            self.ne = 2**int(cp.ceil(cp.log2(self.ne)))
+            params.ne = 2**int(cp.ceil(cp.log2(params.ne)))
 
-        theta = cp.array(cl_conf.theta)
+        theta = cp.array(params.theta)
 
         if args.lamino_angle != 0:
             # laminography reconstruction with direct discretization of line integrals
             self.cl_rec = linerec.LineRec(
-                theta, self.nproj, self.ncproj, self.nz, self.ncz, self.n, args.dtype)
+                theta, params.nproj, params.ncproj, params.nz, params.ncz, params.n, args.dtype)
             self.cl_filter = fbp_filter.FBPFilter(
-                self.ne, self.ncproj, self.nz, args.dtype)  # note ncproj,nz!
+                params.ne, params.ncproj, params.nz, args.dtype)  # note ncproj,nz!
         else:
             # tomography
             if args.reconstruction_algorithm == 'fourierrec':
                 self.cl_rec = fourierrec.FourierRec(
-                    self.n, self.nproj, self.ncz, theta, args.dtype)
+                    params.n, params.nproj, params.ncz, theta, args.dtype)
             elif args.reconstruction_algorithm == 'lprec':
-                self.centeri += 0.5      # consistence with the Fourier based method
-                self.center += 0.5
+                params.centeri += 0.5      # consistence with the Fourier based method
+                params.center += 0.5
                 self.cl_rec = lprec.LpRec(
-                    self.n, self.nproj, self.ncz, theta, args.dtype)
+                    params.n, params.nproj, params.ncz, theta, args.dtype)
             elif args.reconstruction_algorithm == 'linerec':
                 self.cl_rec = linerec.LineRec(
-                    theta, self.nproj, self.nproj, self.ncz, self.ncz, self.n, args.dtype)
+                    theta, params.nproj, params.nproj, params.ncz, params.ncz, params.n, args.dtype)
 
             self.cl_filter = fbp_filter.FBPFilter(
-                self.ne, self.nproj, self.ncz, args.dtype)
+                params.ne, params.nproj, params.ncz, args.dtype)
 
         # calculate the FBP filter with quadrature rules
         self.wfilter = self.cl_filter.calc_filter(args.fbp_filter)
@@ -93,12 +85,12 @@ class BackprojFunctions():
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
 
         tmp = cp.pad(
-            data, ((0, 0), (0, 0), (self.ne//2-self.n//2, self.ne//2-self.n//2)), mode='edge')
-        t = cp.fft.rfftfreq(self.ne).astype('float32')
-        w = self.wfilter*cp.exp(-2*cp.pi*1j*t*(-self.center +
-                                               sht[:, cp.newaxis]+self.n/2))  # center fix
+            data, ((0, 0), (0, 0), (params.ne//2-params.n//2, params.ne//2-params.n//2)), mode='edge')
+        t = cp.fft.rfftfreq(params.ne).astype('float32')
+        w = self.wfilter*cp.exp(-2*cp.pi*1j*t*(-params.center +
+                                               sht[:, cp.newaxis]+params.n/2))  # center fix
 
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
-        data[:] = tmp[:, :, self.ne//2-self.n//2:self.ne//2+self.n//2]
+        data[:] = tmp[:, :, params.ne//2-params.n//2:params.ne//2+params.n//2]
 
         return data  # reuse input memory

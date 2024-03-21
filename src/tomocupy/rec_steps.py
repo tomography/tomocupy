@@ -44,7 +44,7 @@ from tomocupy import logging
 from tomocupy.processing import proc_functions
 from tomocupy.reconstruction import backproj_parallel
 from tomocupy.reconstruction import backproj_lamfourier_parallel
-from tomocupy.global_vars import args
+from tomocupy.global_vars import args, params
 import signal
 import cupy as cp
 import numpy as np
@@ -79,20 +79,20 @@ class GPURecSteps():
         cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
 
         # chunks for processing
-        self.shape_data_chunk_z = (cl_reader.nproj, cl_reader.ncz, cl_reader.ni)
-        self.shape_dark_chunk_z = (cl_reader.ndark, cl_reader.ncz, cl_reader.ni)
-        self.shape_flat_chunk_z = (cl_reader.nflat, cl_reader.ncz, cl_reader.ni)
-        self.shape_data_chunk_zn = (cl_reader.nproj, cl_reader.ncz, cl_reader.n)
-        self.shape_data_chunk_t = (cl_reader.ncproj, cl_reader.nz, cl_reader.ni)
-        self.shape_data_chunk_tn = (cl_reader.ncproj, cl_reader.nz, cl_reader.n)
-        self.shape_recon_chunk = (cl_reader.ncz, cl_reader.n, cl_reader.n)
+        self.shape_data_chunk_z = (params.nproj, params.ncz, params.ni)
+        self.shape_dark_chunk_z = (params.ndark, params.ncz, params.ni)
+        self.shape_flat_chunk_z = (params.nflat, params.ncz, params.ni)
+        self.shape_data_chunk_zn = (params.nproj, params.ncz, params.n)
+        self.shape_data_chunk_t = (params.ncproj, params.nz, params.ni)
+        self.shape_data_chunk_tn = (params.ncproj, params.nz, params.n)
+        self.shape_recon_chunk = (params.ncz, params.n, params.n)
 
         # full shapes
-        self.shape_data_full = (cl_reader.nproj, cl_reader.nz, cl_reader.ni)
-        self.shape_data_fulln = (cl_reader.nproj, cl_reader.nz, cl_reader.n)
+        self.shape_data_full = (params.nproj, params.nz, params.ni)
+        self.shape_data_fulln = (params.nproj, params.nz, params.n)
 
         # init tomo functions
-        self.cl_proc_func = proc_functions.ProcFunctions(cl_reader)
+        self.cl_proc_func = proc_functions.ProcFunctions()
 
         # streams for overlapping data transfers with computations
         self.stream1 = cp.cuda.Stream(non_blocking=False)
@@ -104,19 +104,15 @@ class GPURecSteps():
         for k in range(args.max_write_threads):
             self.write_threads.append(utils.WRThread())
 
-        # additional refs
-        self.dtype = cl_reader.dtype
-        self.in_dtype = cl_reader.in_dtype
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
 
         # define reconstruction method
         if args.lamino_angle != 0 and args.reconstruction_algorithm == 'fourierrec' and args.reconstruction_type == 'full':  # available only for full recon
             self.cl_backproj = backproj_lamfourier_parallel.BackprojLamFourierParallel(
-                cl_reader, cl_writer)
+                cl_writer)
         else:
-            self.cl_backproj = backproj_parallel.BackprojParallel(
-                cl_reader, cl_writer)
+            self.cl_backproj = backproj_parallel.BackprojParallel(cl_writer)
 
     def recon_steps_all(self):
         """GPU reconstruction by loading a full dataset in memory and processing by steps, with reading the whole data to memory """
@@ -135,36 +131,36 @@ class GPURecSteps():
         """Data processing by splitting into sinogram chunks"""
 
         # refs for faster access
-        nzchunk = self.cl_reader.nzchunk
-        lzchunk = self.cl_reader.lzchunk
-        ncz = self.cl_reader.ncz
+        nzchunk = params.nzchunk
+        lzchunk = params.lzchunk
+        ncz = params.ncz
 
         # result
-        res = np.zeros(data.shape, dtype=self.dtype)
+        res = np.zeros(data.shape, dtype=params.dtype)
 
         # pinned memory for data item
         item_pinned = {}
         item_pinned['data'] = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_z], dtype=self.in_dtype))
+            np.zeros([2, *self.shape_data_chunk_z], dtype=params.in_dtype))
         item_pinned['dark'] = utils.pinned_array(
-            np.zeros([2, *self.shape_dark_chunk_z], dtype=self.in_dtype))
+            np.zeros([2, *self.shape_dark_chunk_z], dtype=params.in_dtype))
         item_pinned['flat'] = utils.pinned_array(
-            np.ones([2, *self.shape_flat_chunk_z], dtype=self.in_dtype))
+            np.ones([2, *self.shape_flat_chunk_z], dtype=params.in_dtype))
 
         # gpu memory for data item
         item_gpu = {}
         item_gpu['data'] = cp.zeros(
-            [2, *self.shape_data_chunk_z], dtype=self.in_dtype)
+            [2, *self.shape_data_chunk_z], dtype=params.in_dtype)
         item_gpu['dark'] = cp.zeros(
-            [2, *self.shape_dark_chunk_z], dtype=self.in_dtype)
+            [2, *self.shape_dark_chunk_z], dtype=params.in_dtype)
         item_gpu['flat'] = cp.ones(
-            [2, *self.shape_flat_chunk_z], dtype=self.in_dtype)
+            [2, *self.shape_flat_chunk_z], dtype=params.in_dtype)
 
         # pinned memory for res
         rec_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_z], dtype=self.dtype))
+            np.zeros([2, *self.shape_data_chunk_z], dtype=params.dtype))
         # gpu memory for res
-        rec_gpu = cp.zeros([2, *self.shape_data_chunk_z], dtype=self.dtype)
+        rec_gpu = cp.zeros([2, *self.shape_data_chunk_z], dtype=params.dtype)
 
         # pipeline for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
@@ -204,26 +200,26 @@ class GPURecSteps():
         """Data processing by splitting into projection chunks"""
 
         # refs for faster access
-        ntchunk = self.cl_reader.ntchunk
-        ltchunk = self.cl_reader.ltchunk
-        ncproj = self.cl_reader.ncproj
+        ntchunk = params.ntchunk
+        ltchunk = params.ltchunk
+        ncproj = params.ncproj
 
         if args.file_type != 'double_fov':
             res = data
         else:
-            res = np.zeros([*self.shape_data_fulln], dtype=self.dtype)
+            res = np.zeros([*self.shape_data_fulln], dtype=params.dtype)
 
         # pinned memory for data item
         data_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_t], dtype=self.dtype))
+            np.zeros([2, *self.shape_data_chunk_t], dtype=params.dtype))
         # gpu memory for data item
-        data_gpu = cp.zeros([2, *self.shape_data_chunk_t], dtype=self.dtype)
+        data_gpu = cp.zeros([2, *self.shape_data_chunk_t], dtype=params.dtype)
 
         # pinned memory for processed data
         rec_pinned = utils.pinned_array(
-            np.zeros([2, *self.shape_data_chunk_tn], dtype=self.dtype))
+            np.zeros([2, *self.shape_data_chunk_tn], dtype=params.dtype))
         # gpu memory for processed data
-        rec_gpu = cp.zeros([2, *self.shape_data_chunk_tn], dtype=self.dtype)
+        rec_gpu = cp.zeros([2, *self.shape_data_chunk_tn], dtype=params.dtype)
 
         # pipeline for data cpu-gpu copy and reconstruction
         for k in range(ntchunk+2):

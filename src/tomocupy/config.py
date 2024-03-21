@@ -195,7 +195,7 @@ SECTIONS['vo-all'] = {
     'vo-all-la-size': {
         'default': 61,
         'type': utils.positive_int,
-        'help': "Window size of the median filter to remove large stripes."},        
+        'help': "Window size of the median filter to remove large stripes."},
     'vo-all-sm-size': {
         'type': utils.positive_int,
         'default': 21,
@@ -211,7 +211,7 @@ SECTIONS['ti'] = {
         'type': float,
         'help': "Parameter for ring removal (0,1)"},
     'ti-mask': {
-        'default': 1,  
+        'default': 1,
         'type': float,
         'help': "Mask size for ring removal (0,1)"},
 }
@@ -221,7 +221,7 @@ SECTIONS['retrieve-phase'] = {
         'default': 'none',
         'type': str,
         'help': "Phase retrieval correction method",
-        'choices': ['none', 'paganin','Gpaganin']},
+        'choices': ['none', 'paganin', 'Gpaganin']},
     'energy': {
         'default': 0,
         'type': float,
@@ -229,7 +229,7 @@ SECTIONS['retrieve-phase'] = {
     'propagation-distance': {
         'default': 0,
         'type': float,
-        'help': "Sample detector distance [mm]"},    
+        'help': "Sample detector distance [mm]"},
     'retrieve-phase-alpha': {
         'default': 0,
         'type': float,
@@ -380,8 +380,8 @@ SECTIONS['reconstruction'] = {
         'type': float,
         'help': "SIFT threshold for rotation search.", },
     'rotation-axis-method': {
-        'default': 'sift',  
-        'type': str,        
+        'default': 'sift',
+        'type': str,
         'help': "Method for automatic rotation search.",
         'choices': ['sift', 'vo']},
     'find-center-start-row': {
@@ -430,26 +430,26 @@ SECTIONS['reconstruction'] = {
         'help': "Max number of threads for reading by chunks"},
     'minus-log': {
         'default': 'True',
-        'help': "Take -log or not"},    
+        'help': "Take -log or not"},
     'flat-linear': {
         'default': 'False',
-        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},             
+        'help': "Interpolate flat fields for each projections, assumes the number of flat fields at the beginning of the scan is as the same as a the end."},
     'bright-ratio': {
         'type': float,
-        'default': 1,        
-        'help': 'exposure time for flat fields divided by the exposure time of projections' },    
+        'default': 1,
+        'help': 'exposure time for flat fields divided by the exposure time of projections'},
     'pixel-size': {
         'default': 0,
         'type': float,
-        'help': "Pixel size [microns]"},                 
+        'help': "Pixel size [microns]"},
 }
 
-SECTIONS['beam-hardening']= {
+SECTIONS['beam-hardening'] = {
     'beam-hardening-method': {
         'default': 'none',
         'type': str,
         'help': "Beam hardening method.",
-        'choices':['none','standard']},
+        'choices': ['none', 'standard']},
     'source-distance': {
         'default': 36.0,
         'type': float,
@@ -531,7 +531,7 @@ SECTIONS['beam-hardening']= {
         'default': 'none',
         'type': str,
         'help': "Use tabulated (none, default) or calculated source",
-        'choices':['none','standard']},
+        'choices': ['none', 'standard']},
     'e-storage-ring': {
         'default': 7.0,
         'type': float,
@@ -557,13 +557,13 @@ SECTIONS['beam-hardening']= {
         'type': float,
         'help': "Maximum vertical angle from centerline to model in microradians"},
 
-    }
+}
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types','beam-hardening')
+                'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types', 'beam-hardening')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
-                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj','beam-hardening')
+                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj', 'beam-hardening')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
               'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo' 'Retrieve phase', 'Reconstruction')
@@ -584,6 +584,7 @@ def get_config_name():
 
     return name
 
+
 def parse_known_args(parser, subparser=False):
     """
     Parse arguments from file and then override by the ones specified on the
@@ -598,6 +599,7 @@ def parse_known_args(parser, subparser=False):
         values = ""
 
     return parser.parse_known_args(values)[0]
+
 
 def config_to_list(config_name=CONFIG_FILE_NAME):
     """
@@ -614,7 +616,7 @@ def config_to_list(config_name=CONFIG_FILE_NAME):
     for section in SECTIONS:
         for name, opts in ((n, o) for n, o in SECTIONS[section].items() if config.has_option(section, n)):
             value = config.get(section, name)
-            
+
             if value != '' and value != 'None':
                 action = opts.get('action', None)
 
@@ -630,6 +632,7 @@ def config_to_list(config_name=CONFIG_FILE_NAME):
                         result.append('--{}={}'.format(name, value))
 
     return result
+
 
 class Params(object):
     def __init__(self, sections=()):
@@ -650,6 +653,7 @@ class Params(object):
         self.add_arguments(parser)
 
         return parser.parse_args('')
+
 
 def write(config_file, args=None, sections=None):
     """
@@ -678,6 +682,7 @@ def write(config_file, args=None, sections=None):
     with open(config_file, 'w') as f:
         config.write(f)
 
+
 def show_config(args):
     """Log all values set in the args namespace.
     Arguments are grouped according to their section and logged alphabetically
@@ -695,6 +700,7 @@ def show_config(args):
                 log.info("  {:<16} {}".format(entry, value))
 
     log.warning('tomocupy status end')
+
 
 def log_values(args):
     """Log all values set in the args namespace.
@@ -723,6 +729,7 @@ def log_values(args):
 
     log.warning('tomocupyon status end')
 
+
 def update_hdf_process(fname, args=None, sections=None):
     """
     Write in the hdf raw data file the content of *config_file* with values from *args* 
@@ -736,8 +743,8 @@ def update_hdf_process(fname, args=None, sections=None):
         with h5py.File(fname, 'r+') as hdf_file:
             # If the group we will write to already exists, remove it
             if hdf_file.get('/process/tomocupy-' + __version__):
-                del(hdf_file['/process/tomocupy-' + __version__])
-            #dt = h5py.string_dtype(encoding='ascii')
+                del (hdf_file['/process/tomocupy-' + __version__])
+            # dt = h5py.string_dtype(encoding='ascii')
             log.info("  *** tomopy.conf parameter written to /process%s in file %s " %
                      (__version__, fname))
             config = configparser.ConfigParser()

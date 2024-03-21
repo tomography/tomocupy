@@ -52,31 +52,34 @@ class LineRec():
         self.ncproj = ncproj
         self.nz = nz
         self.ncz = ncz
-        self.n = n        
+        self.n = n
         self.dtype = dtype
         self.theta = cp.array(theta)
-        
+
         if dtype == 'float16':
-            self.fslv = cfunc_linerecfp16.cfunc_linerec(nproj, nz, n, ncproj, ncz)
+            self.fslv = cfunc_linerecfp16.cfunc_linerec(
+                nproj, nz, n, ncproj, ncz)
         else:
             self.fslv = cfunc_linerec.cfunc_linerec(nproj, nz, n, ncproj, ncz)
-        
 
     def backprojection(self, f, data, stream=0, theta=[], lamino_angle=0, sz=0):
-        if len(theta)==0:
+        if len(theta) == 0:
             theta = self.theta
-            f[:]=0
+            f[:] = 0
         phi = cp.pi/2+(lamino_angle)/180*cp.pi
-        self.fslv.backprojection(f.data.ptr, data.data.ptr, theta.data.ptr, phi, sz, stream.ptr)
-        
+        self.fslv.backprojection(
+            f.data.ptr, data.data.ptr, theta.data.ptr, phi, sz, stream.ptr)
+
     def backprojection_try(self, f, data, sh, stream=0, theta=[], lamino_angle=0, sz=0):
-        if len(theta)==0:
+        if len(theta) == 0:
             theta = self.theta
         phi = cp.pi/2+(lamino_angle)/180*cp.pi
-        self.fslv.backprojection_try(f.data.ptr, data.data.ptr, theta.data.ptr, sh.data.ptr, phi, sz, stream.ptr)
+        self.fslv.backprojection_try(
+            f.data.ptr, data.data.ptr, theta.data.ptr, sh.data.ptr, phi, sz, stream.ptr)
 
     def backprojection_try_lamino(self, f, data, sh, stream=0, theta=[], lamino_angle=0, sz=0):
-        if len(theta)==0:
+        if len(theta) == 0:
             theta = self.theta
         phi = (cp.pi/2+(lamino_angle+sh)/180*cp.pi).astype('float32')
-        self.fslv.backprojection_try_lamino(f.data.ptr, data.data.ptr, theta.data.ptr, phi.data.ptr, sz, stream.ptr)
+        self.fslv.backprojection_try_lamino(
+            f.data.ptr, data.data.ptr, theta.data.ptr, phi.data.ptr, sz, stream.ptr)

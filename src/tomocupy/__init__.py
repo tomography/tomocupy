@@ -54,7 +54,6 @@ from tomocupy.rec import *
 from tomocupy.rec_steps import *
 from tomocupy.find_center import *
 from tomocupy.utils import *
-from tomocupy.config_sizes import *
 from tomocupy.reconstruction import *
 from tomocupy.processing import *
 from tomocupy.dataio import *
