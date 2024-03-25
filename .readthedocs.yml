@@ -11,3 +11,7 @@ python:
     - requirements: envs/requirements-doc.txt
 submodules:
   recursive: false
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3"
