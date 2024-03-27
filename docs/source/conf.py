@@ -148,9 +148,8 @@ html_theme_options = {
     'logo_only': True,
 }
 
-html_logo = 'img/tomocupy-logo-wide.svg'
-
-html_favicon = 'img/tomocupy-logo.svg'
+html_logo = 'img/tomocupy-logo-wide-mono.svg'
+html_favicon = 'img/tomocupy-logo-wide-mono.svg'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
