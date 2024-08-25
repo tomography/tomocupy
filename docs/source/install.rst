@@ -45,6 +45,8 @@ Run ``nvidia-smi`` to check whether the driver is installed. For check compute c
 Installation for development
 ============================
 
+0. For faster installation of packages, it is better to use `Miniforge <https://github.com/conda-forge/miniforge>`_. Then go to Step 3.
+
 1. Add conda-forge to anaconda channels
 
 ::
