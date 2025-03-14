@@ -47,6 +47,15 @@ from threading import Thread
 import time
 import numexpr as ne
 import sys
+import os
+import tifffile as tiff
+from scipy.ndimage import zoom
+import time
+from functools import wraps
+import subprocess
+
+
+
 from tomocupy import logging
 log = logging.getLogger(__name__)
 
@@ -265,3 +274,41 @@ def param_from_dxchange(hdf_file, data_path, attr=None, scalar=True, char_array=
                 return None
         except KeyError:
             return None
+
+
+def downsampleZarr(volume, scale_factor):
+    """
+    Downsample a 3D volume by a given scale factor using scipy.ndimage.zoom.
+
+    Parameters:
+    - volume (numpy array): Input 3D volume (e.g., [z, y, x]).
+    - scale_factor (int): Factor by which to downsample (e.g., 2 for halving).
+
+    Returns:
+    - numpy array: Downsampled volume.
+    """
+    if scale_factor == 1:
+        return volume  # No downsampling needed for the highest resolution
+
+    # Calculate the zoom factors for each axis
+    zoom_factors = (1 / scale_factor, 1 / scale_factor, 1 / scale_factor)
+
+    # Perform downsampling using interpolation
+    downsampled = zoom(volume, zoom_factors, order=1)  # Use order=1 for bilinear interpolation
+
+    return downsampled
+    
+    
+    
+def clean_zarr(output_path):
+    if os.path.exists(output_path):
+        try:
+            subprocess.run(["mv", output_path, output_path + "_tmp"], check=True)
+            subprocess.run(["ls -lrt", output_path + "_tmp"], check=True)
+            subprocess.run(["rm", "-rf", output_path + "_tmp"], check=True)
+            log.info(f"Successfully removed directory: {output_path}")
+        except subprocess.CalledProcessError as e:
+            log.error(f"Error removing directory {output_path}: {e}")
+            raise
+    else:
+        log.warning(f"Path does not exist: {output_path}")      
