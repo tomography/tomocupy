@@ -69,8 +69,6 @@ class ProcFunctions():
         dark0 = cp.mean(dark0, axis=0)
         res = (data.astype(args.dtype, copy=False)-dark0) / \
             (flat0-dark0+flat0*1e-5)
-        # Account for data with a different bright correction
-        res *= self.bright_exp_ratio 
         return res
 
     def minus_log(self, data):

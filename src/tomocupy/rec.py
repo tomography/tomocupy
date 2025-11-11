@@ -188,9 +188,6 @@ class GPURec():
                     item_gpu['data'][k % 2].set(item_pinned['data'][k % 2])
                     item_gpu['dark'][k % 2].set(item_pinned['dark'][k % 2])
                     item_gpu['flat'][k % 2].set(item_pinned['flat'][k % 2])
-                    st = ids[k]*ncz+self.args.start_row//2**self.args.binning
-                    end = st+lzchunk[ids[k]]
-                    #current_rows = cp.arange(st, end)
             self.stream3.synchronize()
             if (k > 1):
                 # add a new thread for writing to hard disk (after gpu->cpu copy is done)

@@ -17,7 +17,7 @@ cmd_dict = {
     f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3251.278,
     f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3250.038,
     f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3250.038,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0': 1588.259,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0': 1590.9,
     f'{prefix} --reconstruction-algorithm lprec ': 27.992,
     f'{prefix} --reconstruction-algorithm linerec ': 28.341,
     f'{prefix} --dtype float16': 24.186,
@@ -42,9 +42,9 @@ cmd_dict = {
     f'{prefix} --bright-ratio 10': 32.631,
     f'{prefix} --end-column 1535': 28.293,
     f'{prefix} --end-column 1535 --binning 3': 1.82,    
-    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3255.912,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3248.832,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3254.634,
+    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3256.6,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3250.0,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3255.3,
     f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0 --b-storage-ring 0.3': 822.178,    
 }
 
