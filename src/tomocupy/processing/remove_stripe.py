@@ -344,33 +344,6 @@ def remove_stripe_ti(data, beta, mask_size):
     return data
 
 ######## Optimized version for Vo-all ring removal in tomopy#########
-def _rs_sort(sinogram, size, matindex, dim):
-    """
-    Remove stripes using the sorting technique.
-    """
-    sinogram = cp.transpose(sinogram)
-    matcomb = cp.asarray(cp.dstack((matindex, sinogram)))
-    
-    # matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcomb])
-    ids = cp.argsort(matcomb[:,:,1],axis=1)
-    matsort = matcomb.copy()
-    matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
-    matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
-    if dim == 1:
-        matsort[:, :, 1] = median_filter(matsort[:, :, 1], (size, 1))
-    else:
-        matsort[:, :, 1] = median_filter(matsort[:, :, 1], (size, size))
-    
-    # matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
-    
-    ids = cp.argsort(matsort[:,:,0],axis=1)
-    matsortback = matsort.copy()
-    matsortback[:,:,0] = cp.take_along_axis(matsortback[:,:,0],ids,axis=1)
-    matsortback[:,:,1] = cp.take_along_axis(matsortback[:,:,1],ids,axis=1)
-    
-    sino_corrected = matsortback[:, :, 1]
-    return cp.transpose(sino_corrected)
-
 def _mpolyfit(x,y):
     n= len(x)
     x_mean = cp.mean(x)
@@ -408,96 +381,6 @@ def _detect_stripe(listdata, snr):
         lower_thresh = numt1 - noiselevel * snr * 0.5
         listmask[listdata <= lower_thresh] = 1.0
     return listmask
-
-def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
-    """
-    Remove large stripes.
-    """
-    drop_ratio = max(min(drop_ratio,0.8),0)# = cp.clip(drop_ratio, 0.0, 0.8)
-    (nrow, ncol) = sinogram.shape
-    ndrop = int(0.5 * drop_ratio * nrow)
-    sinosort = cp.sort(sinogram, axis=0)
-    sinosmooth = median_filter(sinosort, (1, size))
-    list1 = cp.mean(sinosort[ndrop:nrow - ndrop], axis=0)
-    list2 = cp.mean(sinosmooth[ndrop:nrow - ndrop], axis=0)
-    # listfact = cp.divide(list1,
-    #                      list2,
-    #                      out=cp.ones_like(list1),
-    #                      where=list2 != 0)
-    
-    listfact = list1/list2
-    
-    # Locate stripes
-    listmask = _detect_stripe(listfact, snr)
-    listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
-    matfact = cp.tile(listfact, (nrow, 1))
-    # Normalize
-    if norm is True:
-        sinogram = sinogram / matfact
-    sinogram1 = cp.transpose(sinogram)
-    matcombine = cp.asarray(cp.dstack((matindex, sinogram1)))
-    
-    # matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcombine])
-    ids = cp.argsort(matcombine[:,:,1],axis=1)
-    matsort = matcombine.copy()
-    matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
-    matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
-    
-    matsort[:, :, 1] = cp.transpose(sinosmooth)
-    # matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
-    ids = cp.argsort(matsort[:,:,0],axis=1)
-    matsortback = matsort.copy()
-    matsortback[:,:,0] = cp.take_along_axis(matsortback[:,:,0],ids,axis=1)
-    matsortback[:,:,1] = cp.take_along_axis(matsortback[:,:,1],ids,axis=1)
-    
-    sino_corrected = cp.transpose(matsortback[:, :, 1])
-    listxmiss = cp.where(listmask > 0.0)[0]
-    sinogram[:, listxmiss] = sino_corrected[:, listxmiss]
-    return sinogram
-
-def _rs_dead(sinogram, snr, size, matindex, norm=True):
-    """
-    Remove unresponsive and fluctuating stripes.
-    """
-    sinogram = cp.copy(sinogram)  # Make it mutable
-    (nrow, _) = sinogram.shape
-    # sinosmooth = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
-    sinosmooth = uniform_filter1d(sinogram, 10, axis=0)
-    
-    listdiff = cp.sum(cp.abs(sinogram - sinosmooth), axis=0)
-    listdiffbck = median_filter(listdiff, size)
-    
-    
-    listfact = listdiff/listdiffbck
-    
-    listmask = _detect_stripe(listfact, snr)
-    listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
-    listmask[0:2] = 0.0
-    listmask[-2:] = 0.0
-    listx = cp.where(listmask < 1.0)[0]
-    listy = cp.arange(nrow)
-    matz = sinogram[:, listx]
-    
-    listxmiss = cp.where(listmask > 0.0)[0]    
-    
-    # finter = interpolate.interp2d(listx.get(), listy.get(), matz.get(), kind='linear')    
-    if len(listxmiss) > 0:
-        # sinogram_c[:, listxmiss.get()] = finter(listxmiss.get(), listy.get())        
-        ids = cp.searchsorted(listx, listxmiss)
-        sinogram[:,listxmiss] = matz[:,ids-1]+(listxmiss-listx[ids-1])*(matz[:,ids]-matz[:,ids-1])/(listx[ids]-listx[ids-1])
-        
-    # Remove residual stripes
-    if norm is True:
-        sinogram = _rs_large(sinogram, snr, size, matindex)
-    return sinogram
-
-def _create_matindex(nrow, ncol):
-    """
-    Create a 2D array of indexes used for the sorting technique.
-    """
-    listindex = cp.arange(0.0, ncol, 1.0)
-    matindex = cp.tile(listindex, (nrow, 1))
-    return matindex
 
 def _inverse_perm3(ids):
     """O(n) inverse permutation along axis=2 via scatter (put_along_axis).
