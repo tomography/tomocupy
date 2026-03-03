@@ -54,6 +54,9 @@ from collections import OrderedDict
 from tomocupy import utils
 from tomocupy import __version__
 
+__author__ = "Viktor Nikitin"
+__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
 
 log = logging.getLogger(__name__)
 
@@ -376,7 +379,7 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Projection pairs to find rotation axis. Each second projection in a pair will be flipped and used to find shifts from the first element in a pair. The shifts are used to calculate the center.  Example [0,1499] for a 180 deg scan, or [0,1499,749,2249] for 360, etc.", },
     'rotation-axis-sift-threshold': {
-        'default': '0.5',
+        'default': 0.5,
         'type': float,
         'help': "SIFT threshold for rotation search.", },
     'rotation-axis-method': {

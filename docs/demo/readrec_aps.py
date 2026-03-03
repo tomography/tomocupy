@@ -34,9 +34,6 @@ def read_aps(fname):
     args.propagation_distance         = meta_dict['measurement_instrument_detector_motor_stack_setup_z'][0]
     args.energy                       = meta_dict['measurement_instrument_monochromator_energy'][0]
     args.retrieve_phase_alpha         = 0.0008
-    args.rotation_axis_sift_threshold = 0.5 # remove this once the default for rotation-axis-sift-threshold in config.py is set to 0.5 (now is '0.5')
-
-
 
 def main():
 

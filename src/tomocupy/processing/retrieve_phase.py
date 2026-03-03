@@ -44,6 +44,8 @@
 import cupy as cp
 from cupy.fft import fft2, ifft2
 
+__all__ = ['paganin_filter', ]
+
 BOLTZMANN_CONSTANT = 1.3806488e-16  # [erg/k]
 SPEED_OF_LIGHT = 299792458e+2  # [cm/s]
 PI = 3.14159265359

@@ -44,6 +44,8 @@ from cupyx.scipy.ndimage import median_filter
 from cupyx.scipy.ndimage import binary_dilation
 from cupyx.scipy.ndimage import uniform_filter1d
 
+__all__ = ['DWTForward', 'DWTInverse', 'afb1d', 'remove_all_stripe', 'remove_stripe_fw', 'remove_stripe_ti']
+
 ###### Ring removal with wavelet filtering (adapted for cupy from pytroch_wavelet package https://pytorch-wavelets.readthedocs.io/)##########
 
 def _reflect(x, minx, maxx):

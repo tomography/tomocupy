@@ -50,7 +50,9 @@ import sys
 from tomocupy import logging
 log = logging.getLogger(__name__)
 
-# Print iterations progress
+__author__ = "Viktor Nikitin"
+__copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
+__docformat__ = 'restructuredtext en'
 
 
 def printProgressBar(iteration, total, qsize, prefix='', suffix='', decimals=1, length=100, fill='█', printEnd="\r"):

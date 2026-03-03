@@ -3,7 +3,7 @@ Credits
 =======
 
 
-If you use tomocupy, we kindly request that you cite :cite:`Nikitin:22`.
+If you use tomocupy, we kindly request that you cite :cite:`Nikitin:22` and :cite:`Nikitin:24`.
 
 Citations
 =========

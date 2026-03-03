@@ -10,5 +10,4 @@
 
    .. autosummary::
    
-   find_min_max
-   register_shift_sift
+   FindCenter
