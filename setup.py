@@ -16,7 +16,6 @@ setup(
         'numexpr',
         'numpy',
         'pywavelets',
-        'setuptools',  # for pkg_resources at runtime
-        'tifffile',
+'tifffile',
     ]
 )
