@@ -344,33 +344,6 @@ def remove_stripe_ti(data, beta, mask_size):
     return data
 
 ######## Optimized version for Vo-all ring removal in tomopy#########
-def _rs_sort(sinogram, size, matindex, dim):
-    """
-    Remove stripes using the sorting technique.
-    """
-    sinogram = cp.transpose(sinogram)
-    matcomb = cp.asarray(cp.dstack((matindex, sinogram)))
-    
-    # matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcomb])
-    ids = cp.argsort(matcomb[:,:,1],axis=1)
-    matsort = matcomb.copy()
-    matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
-    matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
-    if dim == 1:
-        matsort[:, :, 1] = median_filter(matsort[:, :, 1], (size, 1))
-    else:
-        matsort[:, :, 1] = median_filter(matsort[:, :, 1], (size, size))
-    
-    # matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
-    
-    ids = cp.argsort(matsort[:,:,0],axis=1)
-    matsortback = matsort.copy()
-    matsortback[:,:,0] = cp.take_along_axis(matsortback[:,:,0],ids,axis=1)
-    matsortback[:,:,1] = cp.take_along_axis(matsortback[:,:,1],ids,axis=1)
-    
-    sino_corrected = matsortback[:, :, 1]
-    return cp.transpose(sino_corrected)
-
 def _mpolyfit(x,y):
     n= len(x)
     x_mean = cp.mean(x)
@@ -409,95 +382,99 @@ def _detect_stripe(listdata, snr):
         listmask[listdata <= lower_thresh] = 1.0
     return listmask
 
-def _rs_large(sinogram, snr, size, matindex, drop_ratio=0.1, norm=True):
-    """
-    Remove large stripes.
-    """
-    drop_ratio = max(min(drop_ratio,0.8),0)# = cp.clip(drop_ratio, 0.0, 0.8)
-    (nrow, ncol) = sinogram.shape
-    ndrop = int(0.5 * drop_ratio * nrow)
-    sinosort = cp.sort(sinogram, axis=0)
-    sinosmooth = median_filter(sinosort, (1, size))
-    list1 = cp.mean(sinosort[ndrop:nrow - ndrop], axis=0)
-    list2 = cp.mean(sinosmooth[ndrop:nrow - ndrop], axis=0)
-    # listfact = cp.divide(list1,
-    #                      list2,
-    #                      out=cp.ones_like(list1),
-    #                      where=list2 != 0)
-    
-    listfact = list1/list2
-    
-    # Locate stripes
-    listmask = _detect_stripe(listfact, snr)
-    listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
-    matfact = cp.tile(listfact, (nrow, 1))
-    # Normalize
-    if norm is True:
-        sinogram = sinogram / matfact
-    sinogram1 = cp.transpose(sinogram)
-    matcombine = cp.asarray(cp.dstack((matindex, sinogram1)))
-    
-    # matsort = cp.asarray([row[row[:, 1].argsort()] for row in matcombine])
-    ids = cp.argsort(matcombine[:,:,1],axis=1)
-    matsort = matcombine.copy()
-    matsort[:,:,0] = cp.take_along_axis(matsort[:,:,0],ids,axis=1)
-    matsort[:,:,1] = cp.take_along_axis(matsort[:,:,1],ids,axis=1)
-    
-    matsort[:, :, 1] = cp.transpose(sinosmooth)
-    # matsortback = cp.asarray([row[row[:, 0].argsort()] for row in matsort])
-    ids = cp.argsort(matsort[:,:,0],axis=1)
-    matsortback = matsort.copy()
-    matsortback[:,:,0] = cp.take_along_axis(matsortback[:,:,0],ids,axis=1)
-    matsortback[:,:,1] = cp.take_along_axis(matsortback[:,:,1],ids,axis=1)
-    
-    sino_corrected = cp.transpose(matsortback[:, :, 1])
-    listxmiss = cp.where(listmask > 0.0)[0]
-    sinogram[:, listxmiss] = sino_corrected[:, listxmiss]
-    return sinogram
+def _inverse_perm3(ids):
+    """O(n) inverse permutation along axis=2 via scatter (put_along_axis).
 
-def _rs_dead(sinogram, snr, size, matindex, norm=True):
+    Replaces argsort(ids, axis=2) which is O(n log n).
+    Valid because matindex[i,j]=j so the permutation tracked by matindex
+    is identical to ids itself.
     """
-    Remove unresponsive and fluctuating stripes.
-    """
-    sinogram = cp.copy(sinogram)  # Make it mutable
-    (nrow, _) = sinogram.shape
-    # sinosmooth = cp.apply_along_axis(uniform_filter1d, 0, sinogram, 10)
-    sinosmooth = uniform_filter1d(sinogram, 10, axis=0)
-    
-    listdiff = cp.sum(cp.abs(sinogram - sinosmooth), axis=0)
-    listdiffbck = median_filter(listdiff, size)
-    
-    
-    listfact = listdiff/listdiffbck
-    
-    listmask = _detect_stripe(listfact, snr)
-    listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
-    listmask[0:2] = 0.0
-    listmask[-2:] = 0.0
-    listx = cp.where(listmask < 1.0)[0]
-    listy = cp.arange(nrow)
-    matz = sinogram[:, listx]
-    
-    listxmiss = cp.where(listmask > 0.0)[0]    
-    
-    # finter = interpolate.interp2d(listx.get(), listy.get(), matz.get(), kind='linear')    
-    if len(listxmiss) > 0:
-        # sinogram_c[:, listxmiss.get()] = finter(listxmiss.get(), listy.get())        
-        ids = cp.searchsorted(listx, listxmiss)
-        sinogram[:,listxmiss] = matz[:,ids-1]+(listxmiss-listx[ids-1])*(matz[:,ids]-matz[:,ids-1])/(listx[ids]-listx[ids-1])
-        
-    # Remove residual stripes
-    if norm is True:
-        sinogram = _rs_large(sinogram, snr, size, matindex)
-    return sinogram
+    ids2 = cp.empty_like(ids)
+    src = cp.broadcast_to(cp.arange(ids.shape[2], dtype=ids.dtype)[None, None, :], ids.shape)
+    cp.put_along_axis(ids2, ids, src, axis=2)
+    return ids2
 
-def _create_matindex(nrow, ncol):
-    """
-    Create a 2D array of indexes used for the sorting technique.
-    """
-    listindex = cp.arange(0.0, ncol, 1.0)
-    matindex = cp.tile(listindex, (nrow, 1))
-    return matindex
+
+def _rs_sort3(tomo, size, dim):
+    """Batched _rs_sort for 3D input [nproj, nz, ni]."""
+    t = cp.transpose(tomo, (2, 1, 0))                              # [ni, nz, nproj]
+    ids = cp.argsort(t, axis=2)
+    matsort_vals = cp.take_along_axis(t, ids, axis=2)
+    del t
+    if dim == 1:
+        matsort_vals = median_filter(matsort_vals, (size, 1, 1))
+    else:
+        matsort_vals = median_filter(matsort_vals, (size, 1, size))
+    ids2 = _inverse_perm3(ids)
+    del ids
+    return cp.transpose(cp.take_along_axis(matsort_vals, ids2, axis=2), (2, 1, 0))
+
+
+def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
+    """Batched _rs_large for 3D input [nproj, nz, ni]."""
+    drop_ratio = max(min(drop_ratio, 0.8), 0)
+    nproj, nz, ni = tomo.shape
+    ndrop = int(0.5 * drop_ratio * nproj)
+    # Single argsort replaces cp.sort + later cp.argsort (same logical axis).
+    # Normalization divides each nproj-column by a scalar, preserving sort
+    # order, so ids computed on the original tomo is reused after normalization.
+    t = cp.transpose(tomo, (2, 1, 0))                              # [ni, nz, nproj]
+    ids = cp.argsort(t, axis=2)
+    sinosort = cp.transpose(cp.take_along_axis(t, ids, axis=2), (2, 1, 0))  # [nproj, nz, ni]
+    del t
+    sinosmooth = median_filter(sinosort, (1, 1, size))             # [nproj, nz, ni]
+    list1 = cp.mean(sinosort[ndrop:nproj - ndrop], axis=0)        # [nz, ni]
+    del sinosort
+    list2 = cp.mean(sinosmooth[ndrop:nproj - ndrop], axis=0)      # [nz, ni]
+    listfact = list1 / list2                                       # [nz, ni]
+    listmask = cp.zeros((nz, ni), dtype=listfact.dtype)
+    for m in range(nz):
+        lm = _detect_stripe(listfact[m], snr)
+        lm = binary_dilation(lm, iterations=1).astype(lm.dtype)
+        listmask[m] = lm
+    if norm:
+        tomo = tomo / listfact[None]
+    sinosmooth_t = cp.transpose(sinosmooth, (2, 1, 0))            # [ni, nz, nproj]
+    del sinosmooth
+    ids2 = _inverse_perm3(ids)                                     # O(n) scatter
+    del ids
+    sino_corrected = cp.transpose(
+        cp.take_along_axis(sinosmooth_t, ids2, axis=2), (2, 1, 0))  # [nproj, nz, ni]
+    del sinosmooth_t, ids2
+    for m in range(nz):
+        listxmiss = cp.where(listmask[m] > 0.0)[0]
+        if len(listxmiss) > 0:
+            tomo[:, m, listxmiss] = sino_corrected[:, m, listxmiss]
+    return tomo
+
+
+def _rs_dead3(tomo, snr, size, norm=True):
+    """Batched _rs_dead for 3D input [nproj, nz, ni]."""
+    tomo = cp.copy(tomo)
+    nproj, nz, ni = tomo.shape
+    sinosmooth = uniform_filter1d(tomo, 10, axis=0)
+    listdiff = cp.sum(cp.abs(tomo - sinosmooth), axis=0)          # [nz, ni]
+    for m in range(nz):
+        listdiffbck = median_filter(listdiff[m], size)
+        listfact = listdiff[m] / listdiffbck
+        listmask = _detect_stripe(listfact, snr)
+        listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
+        listmask[0:2] = 0.0
+        listmask[-2:] = 0.0
+        listx = cp.where(listmask < 1.0)[0]
+        listxmiss = cp.where(listmask > 0.0)[0]
+        if len(listxmiss) > 0:
+            matz = tomo[:, m, listx]
+            ids = cp.searchsorted(listx, listxmiss)
+            tomo[:, m, listxmiss] = (
+                matz[:, ids - 1] +
+                (listxmiss - listx[ids - 1]) *
+                (matz[:, ids] - matz[:, ids - 1]) /
+                (listx[ids] - listx[ids - 1]))
+    if norm:
+        tomo = _rs_large3(tomo, snr, size)
+    return tomo
+
 
 def remove_all_stripe(tomo,
                       snr=3,
@@ -527,10 +504,6 @@ def remove_all_stripe(tomo,
     ndarray
         Corrected 3D tomographic data.
     """
-    matindex = _create_matindex(tomo.shape[2], tomo.shape[0])
-    for m in range(tomo.shape[1]):
-        sino = tomo[:, m, :]
-        sino = _rs_dead(sino, snr, la_size, matindex)
-        sino = _rs_sort(sino, sm_size, matindex, dim)
-        tomo[:, m, :] = sino
+    tomo = _rs_dead3(tomo, snr, la_size)
+    tomo = _rs_sort3(tomo, sm_size, dim)
     return tomo
