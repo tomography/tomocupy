@@ -80,7 +80,7 @@ class FindCenter():
             center = self.find_center_sift()
         elif args.rotation_axis_method == 'vo':
             center = self.find_center_vo()
-        return center*2**args.binning
+        return (center*2**args.binning).astype('float32')
 
     def find_center_sift(self):
         pairs = literal_eval(args.rotation_axis_pairs)
