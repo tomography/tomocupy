@@ -9,11 +9,15 @@ import shutil
 
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 782.5 --nsino-per-chunk 4'
 prefix2 = 'tomocupy recon --file-name data/Downsampled_WB.h5 --reconstruction-type full --nsino-per-chunk 4 --rotation-axis 808 --sample-material Pb '
-prefix3 = '--filter-1-auto True --filter-2-auto True --filter-3-auto True --sample-density 11.34 --dezinger 3 '
+prefix3 = '--read-pixel-size --read-scintillator --filter-1-auto True --filter-2-auto True --filter-3-auto True --sample-density 11.34 --dezinger 3 '
 prefix4 = '--filter-1-density 1.85 --filter-2-density 8.9 --filter-3-density 8.9' 
 prefix5 = '--filter-1-density 0.0 --filter-2-density 0.0 --filter-3-density 0.0' 
 cmd_dict = {
     f'{prefix} ': 28.307,
+    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3251.278,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3250.038,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3250.038,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0': 1590.9,
     f'{prefix} --reconstruction-algorithm lprec ': 27.992,
     f'{prefix} --reconstruction-algorithm linerec ': 28.341,
     f'{prefix} --dtype float16': 24.186,
@@ -38,9 +42,9 @@ cmd_dict = {
     f'{prefix} --bright-ratio 10': 32.631,
     f'{prefix} --end-column 1535': 28.293,
     f'{prefix} --end-column 1535 --binning 3': 1.82,    
-    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3255.912,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3248.832,
-    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3254.634,
+    f'{prefix2} {prefix3} {prefix5} --beam-hardening-method standard --calculate-source standard': 3256.6,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard': 3250.0,
+    f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard': 3255.3,
     f'{prefix2} {prefix3} {prefix4} --beam-hardening-method standard --calculate-source standard --e-storage-ring 3.0 --b-storage-ring 0.3': 822.178,    
 }
 
@@ -85,7 +89,6 @@ class Tests(unittest.TestCase):
                 except:
                     pass
             self.assertAlmostEqual(ssum, cmd[1], places=0)
-
 
 
 if __name__ == '__main__':
