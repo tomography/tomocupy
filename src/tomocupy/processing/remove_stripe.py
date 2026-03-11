@@ -346,6 +346,33 @@ def _detect_stripe(listdata, snr):
         listmask[listdata <= lower_thresh] = 1.0
     return listmask
 
+def _detect_stripe_batch(listdata, snr):
+    """Batched version of _detect_stripe for 2D input [nz, ni]."""
+    nz, numdata = listdata.shape
+    listsorted = cp.sort(listdata, axis=1)[:, ::-1]
+    xlist = cp.arange(numdata, dtype='float32')
+    ndrop = int(0.25 * numdata)
+    x = xlist[ndrop:-ndrop - 1]
+    y = listsorted[:, ndrop:-ndrop - 1]
+    n = x.size
+    xm = float(x.mean())
+    ym = y.mean(axis=1)                               # [nz]
+    Sxy = (y * x).sum(axis=1) - n * ym * xm          # [nz]
+    Sxx = float((x**2).sum() - n * xm**2)
+    slope = Sxy / Sxx                                  # [nz]
+    intercept = ym - slope * xm                        # [nz]
+    numt1 = intercept + slope * xlist[-1]              # [nz]
+    noiselevel = cp.clip(cp.abs(numt1 - intercept), 1e-6, None)  # [nz]
+    val1 = cp.abs(listsorted[:, 0]  - intercept) / noiselevel    # [nz]
+    val2 = cp.abs(listsorted[:, -1] - numt1)     / noiselevel    # [nz]
+    listmask = cp.zeros((nz, numdata), dtype='float32')
+    upper = (intercept + noiselevel * snr * 0.5)[:, None]        # [nz, 1]
+    lower = (numt1    - noiselevel * snr * 0.5)[:, None]         # [nz, 1]
+    listmask = cp.where((val1 >= snr)[:, None] & (listdata > upper),  1.0, listmask)
+    listmask = cp.where((val2 >= snr)[:, None] & (listdata <= lower), 1.0, listmask)
+    return listmask
+
+
 def _inverse_perm3(ids):
     """O(n) inverse permutation along axis=2 via scatter (put_along_axis).
 
@@ -391,11 +418,10 @@ def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
     del sinosort
     list2 = cp.mean(sinosmooth[ndrop:nproj - ndrop], axis=0)      # [nz, ni]
     listfact = list1 / list2                                       # [nz, ni]
-    listmask = cp.zeros((nz, ni), dtype=listfact.dtype)
-    for m in range(nz):
-        lm = _detect_stripe(listfact[m], snr)
-        lm = binary_dilation(lm, iterations=1).astype(lm.dtype)
-        listmask[m] = lm
+    listmask = _detect_stripe_batch(listfact, snr)                # [nz, ni]
+    listmask = binary_dilation(
+        listmask, iterations=1,
+        structure=cp.ones((1, 3), dtype=bool)).astype(listmask.dtype)
     if norm:
         tomo = tomo / listfact[None]
     sinosmooth_t = cp.transpose(sinosmooth, (2, 1, 0))            # [ni, nz, nproj]
@@ -405,10 +431,7 @@ def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
     sino_corrected = cp.transpose(
         cp.take_along_axis(sinosmooth_t, ids2, axis=2), (2, 1, 0))  # [nproj, nz, ni]
     del sinosmooth_t, ids2
-    for m in range(nz):
-        listxmiss = cp.where(listmask[m] > 0.0)[0]
-        if len(listxmiss) > 0:
-            tomo[:, m, listxmiss] = sino_corrected[:, m, listxmiss]
+    cp.copyto(tomo, sino_corrected, where=(listmask[None] > 0.0))
     return tomo
 
 
@@ -418,15 +441,17 @@ def _rs_dead3(tomo, snr, size, norm=True):
     nproj, nz, ni = tomo.shape
     sinosmooth = uniform_filter1d(tomo, 10, axis=0)
     listdiff = cp.sum(cp.abs(tomo - sinosmooth), axis=0)          # [nz, ni]
+    listdiffbck = median_filter(listdiff, (1, size))               # [nz, ni]
+    listfact = listdiff / listdiffbck                              # [nz, ni]
+    listmask = _detect_stripe_batch(listfact, snr)                 # [nz, ni]
+    listmask = binary_dilation(
+        listmask, iterations=1,
+        structure=cp.ones((1, 3), dtype=bool)).astype(listmask.dtype)
+    listmask[:, 0:2] = 0.0
+    listmask[:, -2:] = 0.0
     for m in range(nz):
-        listdiffbck = median_filter(listdiff[m], size)
-        listfact = listdiff[m] / listdiffbck
-        listmask = _detect_stripe(listfact, snr)
-        listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
-        listmask[0:2] = 0.0
-        listmask[-2:] = 0.0
-        listx = cp.where(listmask < 1.0)[0]
-        listxmiss = cp.where(listmask > 0.0)[0]
+        listx = cp.where(listmask[m] < 1.0)[0]
+        listxmiss = cp.where(listmask[m] > 0.0)[0]
         if len(listxmiss) > 0:
             matz = tomo[:, m, listx]
             ids = cp.searchsorted(listx, listxmiss)
