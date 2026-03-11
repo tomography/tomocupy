@@ -122,6 +122,7 @@ class GPURec():
         nzchunk = params.nzchunk
         lzchunk = params.lzchunk
         ncz = params.ncz
+        nproj = params.nproj
 
         # pinned memory for data item
         item_pinned = {}
@@ -147,9 +148,14 @@ class GPURec():
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
 
+        # pre-allocate intermediate GPU buffers to avoid per-chunk allocation
+        sino_res = cp.zeros(self.shape_data_chunk, dtype=dtype)
+        proj_res = cp.zeros((nproj, ncz, params.n), dtype=dtype)
+        data_t = cp.empty((ncz, nproj, params.n), dtype=dtype)
+        sht = cp.zeros(ncz, dtype='float32')
+
         # chunk ids with parallel read
         ids = []
-        st = end = []
         log.info('Full reconstruction')
         # Conveyor for data cpu-gpu copy and reconstruction
         for k in range(nzchunk+2):
@@ -163,13 +169,12 @@ class GPURec():
                     rec = rec_gpu[(k-1) % 2]
                     st = ids[k-1]*ncz+args.start_row//2**args.binning
                     end = st+lzchunk[ids[k-1]]
-                    data = self.cl_proc_func.proc_sino(data, dark, flat)
-                    data = self.cl_proc_func.proc_proj(data, st, end)
-                    data = cp.ascontiguousarray(data.swapaxes(0, 1))
-                    sht = cp.tile(np.float32(0), data.shape[0])
-                    data = self.cl_backproj_func.fbp_filter_center(data, sht)
+                    data = self.cl_proc_func.proc_sino(data, dark, flat, res=sino_res)
+                    data = self.cl_proc_func.proc_proj(data, st, end, res=proj_res)
+                    data_t[:] = data.swapaxes(0, 1)
+                    data_t = self.cl_backproj_func.fbp_filter_center(data_t, sht)
                     self.cl_backproj_func.cl_rec.backprojection(
-                        rec, data, self.stream2)
+                        rec, data_t, self.stream2)
 
             if (k > 1):
                 with self.stream3:  # gpu->cpu copy
@@ -233,15 +238,20 @@ class GPURec():
             # gpu memory for reconstrution
             rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
 
+            # pre-allocate reusable buffers for center search
+            datat = cp.empty((ncz, data.shape[1], data.shape[2]), dtype=data.dtype)
+            sht = cp.zeros(ncz, dtype='float32')
+
             # Conveyor for data cpu-gpu copy and reconstruction
             for k in range(nschunk+2):
                 utils.printProgressBar(
                     k, nschunk+1, self.data_queue.qsize(), length=40)
                 if (k > 0 and k < nschunk+1):
                     with self.stream2:  # reconstruction
-                        sht = cp.pad(cp.array(params.shift_array[(
-                            k-1)*ncz:(k-1)*ncz+lschunk[k-1]]), [0, ncz-lschunk[k-1]])
-                        datat = cp.tile(data, [ncz, 1, 1])
+                        chunk_len = lschunk[k-1]
+                        sht[:chunk_len] = cp.array(params.shift_array[(k-1)*ncz:(k-1)*ncz+chunk_len])
+                        sht[chunk_len:] = 0
+                        datat[:] = data
                         datat = self.cl_backproj_func.fbp_filter_center(
                             datat, sht)
                         self.cl_backproj_func.cl_rec.backprojection(
