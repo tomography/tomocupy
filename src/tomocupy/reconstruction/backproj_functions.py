@@ -80,17 +80,18 @@ class BackprojFunctions():
 
         # calculate the FBP filter with quadrature rules
         self.wfilter = self.cl_filter.calc_filter(args.fbp_filter)
+        self.pad = params.ne//2 - params.n//2
+        self.t = cp.fft.rfftfreq(params.ne).astype('float32')
 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
 
         tmp = cp.pad(
-            data, ((0, 0), (0, 0), (params.ne//2-params.n//2, params.ne//2-params.n//2)), mode='edge')
-        t = cp.fft.rfftfreq(params.ne).astype('float32')
-        w = self.wfilter*cp.exp(-2*cp.pi*1j*t*(-params.center +
-                                               sht[:, cp.newaxis]+params.n/2))  # center fix
+            data, ((0, 0), (0, 0), (self.pad, self.pad)), mode='edge')
+        w = self.wfilter*cp.exp(-2*cp.complex64(cp.pi*1j)*(-params.center +
+                                               sht[:, cp.newaxis]+params.n/2)*self.t)  # center fix
 
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
-        data[:] = tmp[:, :, params.ne//2-params.n//2:params.ne//2+params.n//2]
+        data[:] = tmp[:, :, self.pad:self.pad+params.n]
 
         return data  # reuse input memory
