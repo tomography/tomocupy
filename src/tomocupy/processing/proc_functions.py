@@ -67,18 +67,19 @@ class ProcFunctions():
         else:
             flat0 = cp.mean(flat0, axis=0)
         dark0 = cp.mean(dark0, axis=0)
-        res = (data.astype(args.dtype, copy=False)-dark0) / \
-            (flat0-dark0+flat0*1e-5)
+        flat0 *= cp.float32(1 + 1e-5)
+        flat0 -= dark0
+        res = (data.astype(args.dtype, copy=False) - dark0) / flat0
 
         return res
 
     def minus_log(self, data):
         """Taking negative logarithm"""
 
-        data[data <= 0] = 1
-        data[:] = -cp.log(data)
-        data[cp.isnan(data)] = 6.0
-        data[cp.isinf(data)] = 0
+        data[:] = cp.where(data <= 0, cp.float32(1.0), data)
+        cp.log(data, out=data)
+        data *= -1
+        cp.nan_to_num(data, copy=False, nan=6.0, posinf=0.0, neginf=0.0)
         return data  # reuse input memory
 
     def beamhardening(self, data, start_row, end_row):
