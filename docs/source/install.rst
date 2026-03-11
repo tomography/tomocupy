@@ -65,13 +65,13 @@ Installation for development
 
 ::
 
-    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build swig numexpr opencv tifffile h5py cmake pywavelets python=3.10
+    (base)$ conda create -n tomocupy -c conda-forge cupy scikit-build numexpr opencv tifffile h5py cmake ninja pywavelets python=3.10
 
 
 .. warning:: Conda has a built-in mechanism to determine and install the latest version of cudatoolkit supported by your driver. However, if for any reason you need to force-install a particular CUDA version (say 11.0), you can do:
-  
+
   conda install -c conda-forge cupy cudatoolkit=11.0
-  
+
 
 4. Activate tomocupy environment
 
@@ -92,10 +92,13 @@ Installation for development
 6. Make sure that the path to nvcc compiler is set (or set it by e.g. ``export CUDACXX=/local/cuda-11.7/bin/nvcc``) and install tomocupy
 
 ::
-    
+
     (tomocupy)$ git clone https://github.com/tomography/tomocupy
     (tomocupy)$ cd tomocupy
     (tomocupy)$ pip install .
+
+.. note::
+    ``cupy`` must be installed separately via conda (see Step 3) as it is CUDA-version specific and is not declared as a pip dependency.
 
 ===================================
 Additional instructions for Windows
@@ -152,7 +155,7 @@ Installation on Polaris supercomputer
 
 ::
 
-    conda create -n tomocupy -c conda-forge cupy scikit-build swig numexpr opencv tifffile h5py cmake cudatoolkit=11.4
+    conda create -n tomocupy -c conda-forge cupy scikit-build numexpr opencv tifffile h5py cmake ninja cudatoolkit=11.4
 
 4. clone tomocupy:
 

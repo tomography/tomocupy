@@ -80,17 +80,30 @@ class BackprojFunctions():
 
         # calculate the FBP filter with quadrature rules
         self.wfilter = self.cl_filter.calc_filter(args.fbp_filter)
+        self.pad = params.ne//2 - params.n//2
+        self.t = cp.fft.rfftfreq(params.ne).astype('float32')
+
+        # pre-allocate padded buffer to avoid per-call allocation in fbp_filter_center
+        if args.lamino_angle != 0:
+            nz_filter, ntheta_filter = params.nz, params.ncproj
+        else:
+            nz_filter, ntheta_filter = params.ncz, params.nproj
+        self._tmp = cp.empty((nz_filter, ntheta_filter, params.ne), dtype=args.dtype)
 
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
 
-        tmp = cp.pad(
-            data, ((0, 0), (0, 0), (params.ne//2-params.n//2, params.ne//2-params.n//2)), mode='edge')
-        t = cp.fft.rfftfreq(params.ne).astype('float32')
-        w = self.wfilter*cp.exp(-2*cp.pi*1j*t*(-params.center +
-                                               sht[:, cp.newaxis]+params.n/2))  # center fix
+        nz = data.shape[0]
+        tmp = self._tmp[:nz]
+        tmp[:, :, self.pad:self.pad+params.n] = data
+        tmp[:, :, :self.pad] = data[:, :, :1]
+        tmp[:, :, self.pad+params.n:] = data[:, :, -1:]
+        if not isinstance(sht, cp.ndarray):
+            sht = cp.full(nz, sht, dtype='float32')
+        w = self.wfilter*cp.exp(-2*cp.complex64(cp.pi*1j)*(-params.center +
+                                               sht[:, cp.newaxis]+params.n/2)*self.t)  # center fix
 
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
-        data[:] = tmp[:, :, params.ne//2-params.n//2:params.ne//2+params.n//2]
+        data[:] = tmp[:, :, self.pad:self.pad+params.n]
 
         return data  # reuse input memory
