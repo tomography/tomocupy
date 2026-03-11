@@ -84,7 +84,6 @@ def create_gl(N, Nproj, Ntheta, Nrho):
     beta = cp.pi/Nspan
     # size after zero padding in the angle direction (for nondense sampling rate)
     proj = cp.arange(0, Nproj)*cp.pi/Nproj-beta/2
-    s = cp.linspace(-1, 1, N)
     # log-polar parameters
     (dtheta, drho, aR, am, g) = getparameters(
         beta, proj[1]-proj[0], 2.0/(N-1), N, Nproj, Ntheta, Nrho)
@@ -102,7 +101,7 @@ def create_gl(N, Nproj, Ntheta, Nrho):
 
     # struct with global parameters
     P = Pgl(Nspan, N, Nproj, Ntheta, Nrho, proj,
-            s, thsp, rhosp, aR, beta, am, g, B3com)
+            None, thsp, rhosp, aR, beta, am, g, B3com)
     return P
 
 
@@ -120,7 +119,7 @@ def getparameters(beta, dtheta, ds, N, Nproj, Ntheta, Nrho):
 def osg(aR, theta):
     t = cp.linspace(-cp.pi/2, cp.pi/2, 1000)
     w = aR*cp.cos(t)+(1-aR)+1j*aR*cp.sin(t)
-    g = max(cp.log(abs(w))+cp.log(cp.cos(theta-cp.arctan2(w.imag, w.real))))
+    g = float(cp.max(cp.log(abs(w))+cp.log(cp.cos(theta-cp.arctan2(w.imag, w.real)))))
     return g
 
 
@@ -149,12 +148,16 @@ def splineB3(x2, r):
 def create_adj(P):
     # convolution function
     fZ = cp.fft.fftshift(fzeta_loop_weights_adj(
-        P.Ntheta, P.Nrho, 2*P.beta, P.g-np.log(P.am), 0, 4))
+        P.Ntheta, P.Nrho, 2*P.beta, float(P.g)-float(cp.log(P.am)), 0, 4))
     fZ = cp.ascontiguousarray(
         fZ[:, :P.Ntheta//2+1]/(P.B3com[:, :P.Ntheta//2+1]))
-    const = (P.N+1)*(P.N-1)/P.N**2/2/np.sqrt(2)*np.pi/6 * \
-        0.86*4  # to understand where this is coming from
-    fZ = fZ*const
+    const = np.float32((P.N+1)*(P.N-1)/P.N**2/2/np.sqrt(2)*np.pi/6 * \
+        0.86*4)  # to understand where this is coming from
+    fZ = (fZ*const).astype('complex64')
+    if bool(cp.any(cp.isnan(fZ))):
+        b = P.B3com[:, :P.Ntheta//2+1]
+        raise RuntimeError(
+            f"fZ has NaN after division. B3com range: [{float(b.min()):.3e}, {float(b.max()):.3e}]")
 
     # (C2lp1,C2lp2), transformed Cartesian to log-polar coordinates
     [x1, x2] = cp.meshgrid(cp.linspace(-1, 1, P.N, dtype='float32'),
@@ -188,18 +191,20 @@ def create_adj(P):
         lp2p1[k] = (z1[lpids]+k*P.beta)
         lp2p2[k] = z2n[lpids]
     # (lp2p1w,lp2p2w), transformed log-polar to polar coordinates (wrapping)
+    log_z2 = cp.log(z2)
+    am_eg  = float(P.am) * np.exp(-P.g)   # am * exp(-g)  — right-side scale
+    eg_am  = np.exp(P.g) / float(P.am)    # exp(g) / am   — left-side scale
     # right side
-    wids = cp.where(cp.log(z2) > +P.g)[0].astype('int32')
-    z2n = cp.exp(cp.log(z2[wids])+cp.log(P.am)-P.g)-(1-P.aR)*cp.cos(z1[wids])
+    wids = cp.where(log_z2 > +P.g)[0].astype('int32')
+    z2n = z2[wids]*am_eg-(1-P.aR)*cp.cos(z1[wids])
     z2n = z2n/P.aR
     lpidsw = cp.where((z1[wids] >= -P.beta/2) &
                       (z1[wids] < P.beta/2) & (abs(z2n) <= 1))[0]
     # left side
-    wids2 = cp.where(cp.log(z2) < cp.log(P.am)-P.g +
-                     (P.rhosp[1]-P.rhosp[0]))[0].astype('int32')
+    wids2 = cp.where(log_z2 < float(cp.log(P.am))-P.g +
+                     float(P.rhosp[1]-P.rhosp[0]))[0].astype('int32')
 
-    z2n2 = cp.exp(cp.log(z2[wids2])-cp.log(P.am)+P.g) - \
-        (1-P.aR)*cp.cos(z1[wids2])
+    z2n2 = z2[wids2]*eg_am-(1-P.aR)*cp.cos(z1[wids2])
     z2n2 = z2n2/P.aR
     lpidsw2 = cp.where((z1[wids2] >= -P.beta/2) &
                        (z1[wids2] < P.beta/2) & (abs(z2n2) <= 1))[0]
@@ -251,26 +256,33 @@ def fzeta_loop_weights_adj(Ntheta, Nrho, betas, rhos, a, osthlarge):
     thsplarge = cp.linspace(-1/2, 1/2, Nthetalarge,
                             endpoint=False, dtype='float32')*betas
 
-    fZ = cp.zeros([Nrho, Nthetalarge], dtype='complex64')
-    h = cp.ones(Nthetalarge, dtype='float32')
-    # discretization weights
-    # correcting = 1+[-3 4 -1]/24correcting(1) = 2*(correcting(1)-0.5)
-    # correcting = 1+array([-23681,55688,-66109,57024,-31523,9976,-1375])/120960.0correcting[0] = 2*(correcting[0]-0.5)
-    correcting = 1+cp.array([-216254335, 679543284, -1412947389, 2415881496, -3103579086,
-                             2939942400, -2023224114, 984515304, -321455811, 63253516, -5675265])/958003200.0
+    # discretization weights — fixed constants, build on CPU then upload once
+    correcting = 1+np.array([-216254335, 679543284, -1412947389, 2415881496, -3103579086,
+                              2939942400, -2023224114, 984515304, -321455811, 63253516, -5675265],
+                            dtype='float64')/958003200.0
     correcting[0] = 2*(correcting[0]-0.5)
-    h[0] = h[0]*correcting[0]
-    for j in range(1, len(correcting)):
-        h[j] = h[j]*correcting[j]
-        h[-1-j+1] = h[-1-j+1]*(correcting[j])
+    h_np = np.ones(Nthetalarge, dtype='float32')
+    h_np[0] *= correcting[0]
+    idx = np.arange(1, len(correcting))
+    h_np[idx] *= correcting[idx]
+    h_np[-idx] *= correcting[idx]
     # fast fftshift multiplier
-    s = 1-2*(cp.arange(1, Nthetalarge+1) % 2)
-    h *= s
-    for j in range(len(krho)):
-        fcosa = pow(cp.cos(thsplarge), (2*cp.pi*1j*krho[j]/rhos-a))
-        fZ[j, :] = s*cp.fft.fft(h*fcosa)
-    fZ = fZ[:, Nthetalarge//2-Ntheta//2:Nthetalarge //
-            2+Ntheta//2]*(thsplarge[1]-thsplarge[0])
+    s_np = (1 - 2*(np.arange(1, Nthetalarge+1) % 2)).astype('float32')
+    h_np *= s_np
+    h = cp.array(h_np)
+    s = cp.array(s_np)
+
+    # Vectorized over all krho: fcosa[j,k] = cos(thsplarge[k])^(2πi·krho[j]/rhos - a)
+    #   = exp((2πi·krho[j]/rhos - a) · log(cos(thsplarge[k])))
+    log_cos = cp.log(cp.cos(thsplarge)).astype('float32')            # (Nthetalarge,)
+    phases = cp.outer(krho, log_cos) * np.float32(2*np.pi/rhos)     # (Nrho, Nthetalarge)
+    if a != 0:
+        phases -= np.float32(a) * log_cos[None, :]
+    fcosa = (cp.cos(phases) + 1j*cp.sin(phases)).astype('complex64') # (Nrho, Nthetalarge)
+
+    # Single batched FFT replaces the per-krho loop
+    fZ = (s[None, :] * cp.fft.fft(h[None, :] * fcosa, axis=1)).astype('complex64')
+    fZ = fZ[:, Nthetalarge//2-Ntheta//2:Nthetalarge//2+Ntheta//2] * float(thsplarge[1]-thsplarge[0])
     # put imag to 0 for the border
     fZ[0] = 0
     fZ[:, 0] = 0
@@ -279,7 +291,6 @@ def fzeta_loop_weights_adj(Ntheta, Nrho, betas, rhos, a, osthlarge):
 
 class LpRec():
     def __init__(self, n, nproj, nz, theta, dtype):
-        # ts = time.time()
         # check angles
         nproj_test = int(np.round(np.pi/(theta[1]-theta[0])))
         if nproj != nproj_test:
@@ -320,5 +331,5 @@ class LpRec():
                            nlpids, nwids, ncids)
 
     def backprojection(self, obj, data, stream):
-        data = cp.ascontiguousarray(data)  # ????
+        data = cp.ascontiguousarray(data) 
         self.fslv.backprojection(obj.data.ptr, data.data.ptr, stream.ptr)
