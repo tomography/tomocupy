@@ -6,7 +6,7 @@ package:
 
 source:
   url: https://github.com/tomography/tomocupy/archive/refs/tags/v{{ version }}.tar.gz
-  sha256: d736cdc671c8b22685c668281ec7732e5183495d73bbfccdcf02559420f80b6d
+  sha256: ecead5f526a768fd554b4a307ac0f382ff36a4bb849d366f0be64aa60145724c
 
 build:
   skip: True  # [cuda_compiler_version in (undefined, "None")]
