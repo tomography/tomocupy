@@ -84,7 +84,7 @@ class FBPFilter():
 
         wfa = 2*wfa*(wfa >= 0)
         wfa[0] *= 2
-        wfa = wfa.astype('float32')
+        wfa = wfa.astype('float32') / self.n  # fold IFFT normalization (1/n) here; removes need for mulrec kernel
         return wfa
 
     def _wint(self, n, t):

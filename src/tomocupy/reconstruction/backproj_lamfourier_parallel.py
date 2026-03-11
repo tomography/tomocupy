@@ -137,6 +137,11 @@ class BackprojLamFourierParallel():
 
         self.wfilter = self.cl_filter.calc_filter(args.fbp_filter)
 
+        # pre-allocate padded buffer and rfft frequencies for fbp_filter_center
+        self.pad = self.ne//2 - self.detw//2
+        self._tmp_filter = cp.empty((self.nthetac, self.deth, self.ne), dtype=args.dtype)
+        self.t = cp.fft.rfftfreq(self.ne).astype('float32')
+
         self.cl_writer = cl_writer
 
         self.rec_fun = self.rec_lam
@@ -260,13 +265,15 @@ class BackprojLamFourierParallel():
     def fbp_filter_center(self, data, sht=0):
         """FBP filtering of projections with applying the rotation center shift wrt to the origin"""
 
-        tmp = cp.pad(
-            data, ((0, 0), (0, 0), (self.ne//2-self.n2//2, self.ne//2-self.n2//2)), mode='edge')
-        t = cp.fft.rfftfreq(self.ne).astype('float32')
-        w = self.wfilter*cp.exp(-2*cp.pi*1j*t*(-self.center +
+        ntheta = data.shape[0]
+        tmp = self._tmp_filter[:ntheta]
+        tmp[:, :, self.pad:self.pad+self.n2] = data
+        tmp[:, :, :self.pad] = data[:, :, :1]
+        tmp[:, :, self.pad+self.n2:] = data[:, :, -1:]
+        w = self.wfilter*cp.exp(-2*cp.complex64(cp.pi*1j)*self.t*(-self.center +
                                                sht[:, cp.newaxis]+self.n2/2))  # center fix
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
-        data[:] = tmp[:, :, self.ne//2-self.n2//2:self.ne//2+self.n2//2]
+        data[:] = tmp[:, :, self.pad:self.pad+self.n2]
 
         return data  # reuse input memory
 
@@ -283,15 +290,15 @@ class BackprojLamFourierParallel():
         u = utils.copyTransposed(self.pa00)
         self.write_parallel(u)
 
-    def write_parallel(self, u, nthreads=16):
+    def write_parallel(self, u):
+        nthreads = args.max_write_threads
         nchunk = int(np.ceil(u.shape[0]/nthreads))
-        mthreads = []
         for k in range(nthreads):
             st = k*nchunk+params.lamino_start_row
             end = min((k+1)*nchunk, u.shape[0])+params.lamino_start_row
-            th = Thread(target=self.cl_writer.write_data_chunk, args=(
-                u[k*nchunk:min((k+1)*nchunk, u.shape[0])], st, end, k))
-            mthreads.append(th)
-            th.start()
-        for th in mthreads:
-            th.join()
+            ithread = utils.find_free_thread(self.write_threads)
+            self.write_threads[ithread].run(
+                self.cl_writer.write_data_chunk,
+                (u[k*nchunk:min((k+1)*nchunk, u.shape[0])], st, end, k))
+        for t in self.write_threads:
+            t.join()
