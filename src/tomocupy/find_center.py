@@ -203,10 +203,6 @@ class FindCenter():
         dark = cp.array(item['dark'])
         flat = cp.array(item['flat'])
 
-        data = cp.array(data)
-        flat = cp.array(flat)
-        dark = cp.array(dark)
-
         data = self.cl_proc_func.darkflat_correction(data, dark, flat)
         data = self.cl_proc_func.minus_log(data)
 
@@ -289,32 +285,36 @@ def _register_shift_sift(datap1, datap2, th=0.5):
     return shifts, len(good)
 
 
-def _calculate_metric(shift_col, sino1, sino2, sino3, mask):
+def _compute_metrics(sino, flip_sino, comp_sino, mask_shifted, list_shift):
+    """Compute FFT-based metrics for all shifts using pre-allocated buffers.
+
+    mask_shifted must be pre-ifftshifted so that no fftshift is needed per call.
+    mat is pre-allocated: top half holds sino (constant), bottom half is filled
+    per iteration without cp.roll or cp.vstack.
     """
-    Metric calculation.
-    """
-    shift_col = 1.0 * np.squeeze(shift_col)
-    if np.abs(shift_col - np.floor(shift_col)) == 0.0:
-        shift_col = int(shift_col)
-        sino_shift = cp.roll(sino2, shift_col, axis=1)
-        if shift_col >= 0:
-            sino_shift[:, :shift_col] = sino3[:, :shift_col]
+    nrow, ncol = sino.shape
+    mat = cp.empty((2 * nrow, ncol), dtype=sino.dtype)
+    mat[:nrow] = sino
+    sino_shift = mat[nrow:]   # writable view — writes go directly into mat
+    metrics = []
+    for s in list_shift:
+        s = float(s)
+        if s == int(s):
+            si = int(s)
+            if si >= 0:
+                sino_shift[:, :si] = comp_sino[:, :si]
+                sino_shift[:, si:] = flip_sino[:, :ncol - si]
+            else:
+                sino_shift[:, :ncol + si] = flip_sino[:, -si:]
+                sino_shift[:, ncol + si:] = comp_sino[:, ncol + si:]
         else:
-            sino_shift[:, shift_col:] = sino3[:, shift_col:]
-        mat = cp.vstack((sino1, sino_shift))
-    else:
-        sino_shift = ndimage.shift(
-            sino2, (0, shift_col), order=3, prefilter=True)
-        if shift_col >= 0:
-            shift_int = int(np.ceil(shift_col))
-            sino_shift[:, :shift_int] = sino3[:, :shift_int]
-        else:
-            shift_int = int(np.floor(shift_col))
-            sino_shift[:, shift_int:] = sino3[:, shift_int:]
-        mat = cp.vstack((sino1, sino_shift))
-    metric = cp.mean(
-        cp.abs(cp.fft.fftshift(cp.fft.fft2(mat))) * mask)
-    return metric
+            ndimage.shift(flip_sino, (0, s), output=sino_shift, order=3, prefilter=True)
+            if s >= 0:
+                sino_shift[:, :int(np.ceil(s))] = comp_sino[:, :int(np.ceil(s))]
+            else:
+                sino_shift[:, int(np.floor(s)):] = comp_sino[:, int(np.floor(s)):]
+        metrics.append(cp.mean(cp.abs(cp.fft.fft2(mat)) * mask_shifted))
+    return cp.stack(metrics)
 
 
 def _search_coarse(sino, smin, smax, ratio, drop):
@@ -330,21 +330,18 @@ def _search_coarse(sino, smin, smax, ratio, drop):
     flip_sino = cp.fliplr(sino)
     comp_sino = cp.flipud(sino)  # Used to avoid local minima
     list_cor = np.arange(start_cor, stop_cor + 0.5, 0.5)
-    list_metric = np.zeros(len(list_cor), dtype=np.float32)
-    mask = _create_mask(2 * nrow, ncol, 0.5 * ratio * ncol, drop)
+    mask = cp.fft.ifftshift(_create_mask(2 * nrow, ncol, 0.5 * ratio * ncol, drop))
     list_shift = 2.0 * (list_cor - cen_fliplr)
 
-    for k, s in enumerate(list_shift):
-        list_metric[k] = _calculate_metric(s, sino, flip_sino, comp_sino, mask)
-    minpos = np.argmin(list_metric)
+    list_metric = _compute_metrics(sino, flip_sino, comp_sino, mask, list_shift)
+    minpos = int(cp.argmin(list_metric))
     if minpos == 0:
         log.debug('WARNING!!!Global minimum is out of searching range')
         log.debug('Please extend smin: %i', smin)
-    if minpos == len(list_metric) - 1:
+    if minpos == len(list_cor) - 1:
         log.debug('WARNING!!!Global minimum is out of searching range')
         log.debug('Please extend smax: %i', smax)
-    cor = list_cor[minpos]
-    return cor
+    return list_cor[minpos]
 
 
 def _search_fine(sino, srad, step, init_cen, ratio, drop):
@@ -361,13 +358,10 @@ def _search_fine(sino, srad, step, init_cen, ratio, drop):
 
     flip_sino = cp.fliplr(sino)
     comp_sino = cp.flipud(sino)
-    mask = _create_mask(2 * nrow, ncol, 0.5 * ratio * ncol, drop)
+    mask = cp.fft.ifftshift(_create_mask(2 * nrow, ncol, 0.5 * ratio * ncol, drop))
     list_shift = 2.0 * (list_cor - cen_fliplr)
-    list_metric = np.zeros(len(list_cor), dtype=np.float32)
-    for k, s in enumerate(list_shift):
-        list_metric[k] = _calculate_metric(s, sino, flip_sino, comp_sino, mask)
-    cor = list_cor[np.argmin(list_metric)]
-    return cor
+    list_metric = _compute_metrics(sino, flip_sino, comp_sino, mask, list_shift)
+    return list_cor[int(cp.argmin(list_metric))]
 
 
 def _create_mask(nrow, ncol, radius, drop):
@@ -390,15 +384,15 @@ def _create_mask(nrow, ncol, radius, drop):
     """
     du = 1.0 / ncol
     dv = (nrow - 1.0) / (nrow * 2.0 * np.pi)
-    cen_row = np.int16(np.ceil(nrow / 2.0) - 1)
-    cen_col = np.int16(np.ceil(ncol / 2.0) - 1)
-    drop = min(drop, np.int16(np.ceil(0.05 * nrow)))
-    mask = cp.zeros((nrow, ncol), dtype='float32')
-    for i in range(nrow):
-        pos = np.int16(np.ceil(((i - cen_row) * dv / radius) / du))
-        (pos1, pos2) = np.clip(np.sort(
-            (-pos + cen_col, pos + cen_col)), 0, ncol - 1)
-        mask[i, pos1:pos2 + 1] = 1.0
+    cen_row = int(np.ceil(nrow / 2.0) - 1)
+    cen_col = int(np.ceil(ncol / 2.0) - 1)
+    drop = min(drop, int(np.ceil(0.05 * nrow)))
+    i = cp.arange(nrow)
+    pos = cp.ceil(((i - cen_row) * (dv / radius / du))).astype('int32')
+    pos1 = cp.clip(cp.minimum(-pos + cen_col,  pos + cen_col), 0, ncol - 1)
+    pos2 = cp.clip(cp.maximum(-pos + cen_col,  pos + cen_col), 0, ncol - 1)
+    col = cp.arange(ncol, dtype='int32')
+    mask = ((col[None, :] >= pos1[:, None]) & (col[None, :] <= pos2[:, None])).astype('float32')
     mask[cen_row - drop:cen_row + drop + 1, :] = 0.0
     mask[:, cen_col - 1:cen_col + 2] = 0.0
     return mask
