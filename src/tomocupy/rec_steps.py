@@ -70,7 +70,7 @@ class GPURecSteps():
     2) Direct discretization of the backprojection intergral
     """
 
-    def __init__(self, cl_reader, cl_writer):
+    def __init__(self, cl_reader, cl_writer, cache_to_infer=False):
         # Set ^C interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
@@ -109,7 +109,9 @@ class GPURecSteps():
             self.cl_backproj = backproj_lamfourier_parallel.BackprojLamFourierParallel(
                 cl_writer)
         else:
-            self.cl_backproj = backproj_parallel.BackprojParallel(cl_writer)
+            self.cl_backproj = backproj_parallel.BackprojParallel(cl_writer,cache_to_infer=cache_to_infer)
+        
+        self.cache_to_infer = cache_to_infer
 
     def recon_steps_all(self):
         """GPU reconstruction by loading a full dataset in memory and processing by steps, with reading the whole data to memory """
@@ -122,7 +124,10 @@ class GPURecSteps():
             log.info('Processing by chunks in angles.')
             data = self.proc_proj_parallel(data)
         log.info('Filtered backprojection and writing by chunks.')
-        self.cl_backproj.rec_fun(data)
+        if self.cache_to_infer:
+            return self.cl_backproj.rec_fun(data)
+        else:
+            self.cl_backproj.rec_fun(data)
 
     def proc_sino_parallel(self, data, dark, flat):
         """Data processing by splitting into sinogram chunks"""

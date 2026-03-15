@@ -66,7 +66,7 @@ class GPURec():
     The implemented reconstruction method is Fourier-based with exponential functions for interpoaltion in the frequency domain (implemented with CUDA C).
     '''
 
-    def __init__(self, cl_reader, cl_writer):
+    def __init__(self, cl_reader, cl_writer, cache_to_infer=False):
 
         # Set ^C, ^Z interrupt to abort and deallocate memory on GPU
         signal.signal(signal.SIGINT, utils.signal_handler)
@@ -109,6 +109,7 @@ class GPURec():
         # additional refs
         self.cl_reader = cl_reader
         self.cl_writer = cl_writer
+        self.cache_to_infer = cache_to_infer
 
     def recon_all(self):
         """Reconstruction of data from an h5file by splitting into sinogram chunks"""
@@ -243,6 +244,10 @@ class GPURec():
             sht = cp.zeros(ncz, dtype='float32')
 
             # Conveyor for data cpu-gpu copy and reconstruction
+            if self.cache_to_infer:
+                img_cache = []
+                center_of_rotation_cache = []
+                id_slice_cache = []
             for k in range(nschunk+2):
                 utils.printProgressBar(
                     k, nschunk+1, self.data_queue.qsize(), length=40)
@@ -267,9 +272,19 @@ class GPURec():
                     for kk in range(lschunk[k-2]):
                         self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                             rec_pinned[ithread, kk], params.save_centers[(k-2)*ncz+kk], id_slice))
+                        if self.cache_to_infer:
+                            img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
+                            center_of_rotation_cache.append(params.save_centers[(k-2)*ncz+kk])
+                            id_slice_cache.append(id_slice)
 
                 self.stream1.synchronize()
                 self.stream2.synchronize()
 
             for t in self.write_threads:
                 t.join()
+            
+            if self.cache_to_infer:
+                img_cache = np.concatenate(img_cache,axis=0)
+                center_of_rotation_cache = np.array(center_of_rotation_cache)
+                id_slice_cache = np.array(id_slice_cache)
+                return img_cache, center_of_rotation_cache,id_slice_cache
