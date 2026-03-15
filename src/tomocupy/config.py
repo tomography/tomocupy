@@ -600,7 +600,7 @@ SECTIONS['inference'] = {
         'help': "Size of each square window to aggregate try recon image features"
     },
     'infer-model-path': {
-        'default': '/home/beams/TANGS/conda/tomocor_models/datav2_518_full_finetune/epoch_10.pt',
+        'default': 'none',
         'type': str,
         'help': "Path to the trained model weights"
     },
