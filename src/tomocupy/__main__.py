@@ -86,20 +86,34 @@ def run_rec(args, cl_reader, cl_writer):
     args.rotate_proj_angle = 0
     args.lamino_angle = 0
     # rotation axis search
-    if args.rotation_axis_auto == 'auto':
+    if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method != 'ai'):
         clrotthandle = FindCenter(cl_reader)
         args.rotation_axis = clrotthandle.find_center()
         params.center = args.rotation_axis
         log.warning(f'set rotaion  axis {args.rotation_axis}')
 
     # create reconstruction object and run reconstruction
-    clpthandle = GPURec(cl_reader, cl_writer)
+    if (args.reconstruction_type == 'try') and (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
+        cache_to_infer = True
+    else:
+        cache_to_infer = False
+    clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
 
     if args.reconstruction_type == 'full':
 
         clpthandle.recon_all()
     if args.reconstruction_type == 'try':
-        clpthandle.recon_try()
+        if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
+            img_cache, center_of_rotation_cache, id_slice_cache = clpthandle.recon_try()
+            clrotthandle = FindCenter(cl_reader)
+            
+            args.rotation_axis = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+            params.center = args.rotation_axis
+            log.warning(f'set rotaion  axis {args.rotation_axis}')
+        else:
+            clpthandle.recon_try()
+            
+
     rec_time = (time.time()-t)
 
     log.warning(f'Reconstruction time {rec_time:.1e}s')
@@ -112,15 +126,26 @@ def run_recsteps(args, cl_reader, cl_writer):
         exit()
     t = time.time()
 
-    if args.rotation_axis_auto == 'auto':
+    if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method != 'ai'):
         clrotthandle = FindCenter(cl_reader)
         args.rotation_axis = clrotthandle.find_center()
         params.center = args.rotation_axis
         log.warning(f'set rotaion  axis {args.rotation_axis}')
 
-    clpthandle = GPURecSteps(cl_reader, cl_writer)
+    if (args.reconstruction_type == 'try') and (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
+        cache_to_infer = True
+    else:
+        cache_to_infer = False
+    clpthandle = GPURecSteps(cl_reader, cl_writer,cache_to_infer=cache_to_infer)
     # does all preprocessing for both full and try reconstructions
-    clpthandle.recon_steps_all()
+    if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
+        img_cache, center_of_rotation_cache, id_slice_cache = clpthandle.recon_steps_all()
+        clrotthandle = FindCenter(cl_reader)
+        args.rotation_axis = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+        params.center = args.rotation_axis
+        log.warning(f'set rotaion  axis {args.rotation_axis}')
+    else:
+        clpthandle.recon_steps_all()
 
     log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
 

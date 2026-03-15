@@ -55,7 +55,7 @@ log = logging.getLogger(__name__)
 
 class BackprojParallel():
 
-    def __init__(self, cl_writer):
+    def __init__(self, cl_writer, cache_to_infer = False):
 
         # init tomo functions
         self.cl_backproj_func = backproj_functions.BackprojFunctions()
@@ -90,6 +90,8 @@ class BackprojParallel():
 
         self.rec_fun = rec_fun
         self.cl_writer = cl_writer
+
+        self.cache_to_infer = cache_to_infer
 
     def recon_sino_proj_parallel(self, data):
         """Reconstruction by splitting into sinogram and projectionchunks"""
@@ -194,6 +196,10 @@ class BackprojParallel():
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=params.dtype)
 
         # Conveyor for data cpu-gpu copy and reconstruction
+        if self.cache_to_infer:
+            img_cache = []
+            center_of_rotation_cache = []
+            id_slice_cache = []
         for id_slice in params.id_slices:
             log.info(f'Processing slice {id_slice}')
             for ks in range(nschunk+2):
@@ -234,11 +240,20 @@ class BackprojParallel():
                         for kk in range(lschunk[ks-2]):
                             self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                                 rec_pinned[ithread, kk], params.save_centers[(ks-2)*ncz+kk], id_slice))
-
+                        if self.cache_to_infer:
+                            img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
+                            center_of_rotation_cache.append(params.save_centers[(ks-2)*ncz+kk])
+                            id_slice_cache.append(id_slice)
                     self.stream1.synchronize()
                     self.stream2.synchronize()
             for t in self.write_threads:
                 t.join()
+            
+            if self.cache_to_infer:
+                img_cache = np.concatenate(img_cache,axis=0)
+                center_of_rotation_cache = np.array(center_of_rotation_cache)
+                id_slice_cache = np.array(id_slice_cache)
+                return img_cache, center_of_rotation_cache,id_slice_cache
 
     def recon_try_lamino_sino_proj_parallel(self, data):
         """Reconstruction of 1 slice with different lamino angles by splitting data into sinogram and projection chunks"""
@@ -265,6 +280,10 @@ class BackprojParallel():
         # gpu memory for reconstrution
         rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=params.dtype)
 
+        if self.cache_to_infer:
+            img_cache = []
+            center_of_rotation_cache = []
+            id_slice_cache = []
         for id_slice in params.id_slices:
             log.info(f'Processing slice {id_slice}')
             # Conveyor for data cpu-gpu copy and reconstruction
@@ -307,10 +326,20 @@ class BackprojParallel():
                         for kk in range(lschunk[ks-2]):
                             self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                                 rec_pinned[ithread, kk], params.save_centers[(ks-2)*ncz+kk], id_slice))
+                        if self.cache_to_infer:
+                            img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
+                            center_of_rotation_cache.append(params.save_centers[(ks-2)*ncz+kk])
+                            id_slice_cache.append(id_slice)
                     self.stream1.synchronize()
                     self.stream2.synchronize()
             for t in self.write_threads:
                 t.join()
+            
+            if self.cache_to_infer:
+                img_cache = np.concatenate(img_cache,axis=0)
+                center_of_rotation_cache = np.array(center_of_rotation_cache)
+                id_slice_cache = np.array(id_slice_cache)
+                return img_cache, center_of_rotation_cache,id_slice_cache
 
     def recon_sino_parallel(self, data):
         """Reconstruction by splitting into sinogram chunks"""
@@ -391,6 +420,10 @@ class BackprojParallel():
             rec_gpu = cp.zeros([2, *self.shape_recon_chunk], dtype=dtype)
 
             # Conveyor for data cpu-gpu copy and reconstruction
+            if self.cache_to_infer:
+                img_cache = []
+                center_of_rotation_cache = []
+                id_slice_cache = []
             for k in range(nschunk+2):
                 utils.printProgressBar(
                     k, nschunk+1, nschunk-k+1, length=40)
@@ -414,9 +447,19 @@ class BackprojParallel():
                     for kk in range(lschunk[k-2]):
                         self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                             rec_pinned[ithread, kk], params.save_centers[(k-2)*ncz+kk], id_slice))
+                    if self.cache_to_infer:
+                        img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
+                        center_of_rotation_cache.append(params.save_centers[(k-2)*ncz+kk])
+                        id_slice_cache.append(id_slice)
 
                 self.stream1.synchronize()
                 self.stream2.synchronize()
 
             for t in self.write_threads:
                 t.join()
+            
+            if self.cache_to_infer:
+                img_cache = np.concatenate(img_cache,axis=0)
+                center_of_rotation_cache = np.array(center_of_rotation_cache)
+                id_slice_cache = np.array(id_slice_cache)
+                return img_cache, center_of_rotation_cache,id_slice_cache
