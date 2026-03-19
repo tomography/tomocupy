@@ -82,35 +82,6 @@ class FindCenter():
             center = self.find_center_vo()
         return (center*2**args.binning).astype('float32')
 
-    def find_center_sift(self):
-        pairs = literal_eval(args.rotation_axis_pairs)
-
-        flat, dark = self.cl_reader.read_flat_dark(
-            params.st_n, params.end_n)
-        if pairs[0] == pairs[1]:
-            pairs[0] = 0
-            pairs[1] = params.nproj-1
-
-        data = self.cl_reader.read_pairs(
-            pairs, args.start_row, args.end_row, params.st_n, params.end_n)
-
-        data = cp.array(data)
-        flat = cp.array(flat)
-        dark = cp.array(dark)
-
-        data = self.cl_proc_func.darkflat_correction(data, dark, flat)
-        data = self.cl_proc_func.minus_log(data)
-        data = data.get()
-        shifts, nmatches = _register_shift_sift(
-            data[::2], data[1::2, :, ::-1], args.rotation_axis_sift_threshold)
-        centers = params.n//2-shifts[:, 1]/2+params.st_n
-        log.info(f'Number of matched features {nmatches}')
-        log.info(
-            f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
-        log.info(
-            f'Vertical misalignment {shifts[:, 0]}, mean: {np.mean(shifts[:, 0])}')
-        return np.mean(centers)
-
     def read_data_try(self, data_queue, id_slice):
 
         st_z = id_slice
@@ -121,7 +92,6 @@ class FindCenter():
             params.st_n, params.end_n, 0, params.in_dtype)
 
     def find_center_sift(self):
-        from ast import literal_eval
         pairs = literal_eval(args.rotation_axis_pairs)
 
         flat, dark = self.cl_reader.read_flat_dark(
@@ -156,7 +126,7 @@ class FindCenter():
             f'Found centers for projection pairs {centers}, mean: {np.mean(centers)}')
         log.info(
             f'Vertical misalignment {shifts[:, 0]}, mean: {np.mean(shifts[:, 0])}')
-        return np.mean(centers)*2**args.binning
+        return np.mean(centers)
 
     def find_center_vo(self, ind=None, smin=-50, smax=50, srad=6, step=0.25, ratio=0.5, drop=20):
         """

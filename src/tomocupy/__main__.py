@@ -90,6 +90,7 @@ def run_rec(args, cl_reader, cl_writer):
         clrotthandle = FindCenter(cl_reader)
         args.rotation_axis = clrotthandle.find_center()
         params.center = args.rotation_axis
+        params.centeri = args.rotation_axis
         log.warning(f'set rotaion  axis {args.rotation_axis}')
 
     # create reconstruction object and run reconstruction
@@ -116,6 +117,7 @@ def run_recsteps(args, cl_reader, cl_writer):
         clrotthandle = FindCenter(cl_reader)
         args.rotation_axis = clrotthandle.find_center()
         params.center = args.rotation_axis
+        params.centeri = args.rotation_axis
         log.warning(f'set rotaion  axis {args.rotation_axis}')
 
     clpthandle = GPURecSteps(cl_reader, cl_writer)

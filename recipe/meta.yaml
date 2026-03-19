@@ -9,8 +9,7 @@ source:
   sha256: ecead5f526a768fd554b4a307ac0f382ff36a4bb849d366f0be64aa60145724c
 
 build:
-  skip: True  # [cuda_compiler_version in (undefined, "None")]
-  skip: True  # [win]
+  skip: True  # [win or cuda_compiler_version in (undefined, "None")]
   number: 0
   script: {{ PYTHON }} -m pip install . -vv
 
@@ -20,6 +19,7 @@ requirements:
     - {{ compiler('cuda') }}
     - cmake
     - ninja
+    - swig
   host:
     - cuda-version {{ cuda_compiler_version }}  # [cuda_compiler_version != "None"]
     - cudatoolkit                               # [cuda_compiler_version != "None"]
