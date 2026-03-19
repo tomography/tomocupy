@@ -224,7 +224,7 @@ SECTIONS['retrieve-phase'] = {
         'default': 'none',
         'type': str,
         'help': "Phase retrieval correction method",
-        'choices': ['none', 'paganin', 'Gpaganin']},
+        'choices': ['none', 'paganin', 'Gpaganin', 'FourierFilter', 'farago']},
     'energy': {
         'default': 20,
         'type': float,
@@ -240,7 +240,7 @@ SECTIONS['retrieve-phase'] = {
     'retrieve-phase-delta-beta': {
         'default': 1500.0,
         'type': float,
-        'help': "delta/beta material for Generalized Paganin"},
+        'help': "delta/beta material for Generalized Paganin & Farago"},
     'retrieve-phase-W': {
         'default': 2e-4,
         'type': float,
@@ -249,6 +249,22 @@ SECTIONS['retrieve-phase'] = {
         'type': utils.positive_int,
         'default': 1,
         'help': "Padding with extra slices in z for phase-retrieval filtering"},
+    'FFratio': {
+        'default': 100,
+        'type': float,
+        'help': "Shape of the Fourier Filter window"},  
+    'FFdim': {
+        'default': 2,
+        'type': float,
+        'help': "1 for sinograms, 2 for projections"},  
+    'FFlog': {
+        'default': 0,
+        'type': int,
+        'help': "0/1"},
+    'FFpad': {
+        'default': 150,
+        'type': float,
+        'help': "Padding size for the Fourier Filter"},              
 }
 
 SECTIONS['rotate-proj'] = {
@@ -395,21 +411,6 @@ SECTIONS['reconstruction'] = {
         'type': int,
         'default': -1,
         'help': "End row to find the rotation center"},
-    'dtype': {
-        'default': 'float32',
-        'type': str,
-        'choices': ['float32', 'float16'],
-        'help': "Data type used for reconstruction. Note float16 works with power of 2 sizes.", },
-    'save-format': {
-        'default': 'tiff',
-        'type': str,
-        'help': "Output format",
-        'choices': ['tiff', 'h5', 'h5sino', 'h5nolinks']},
-    'clear-folder': {
-        'default': 'False',
-        'type': str,
-        'help': "Clear output folder before reconstruction",
-        'choices': ['True', 'False']},
     'fbp-filter': {
         'default': 'parzen',
         'type': str,
@@ -446,6 +447,41 @@ SECTIONS['reconstruction'] = {
         'type': float,
         'help': "Pixel size [microns]"},
 }
+SECTIONS['output'] ={
+    'dtype': {
+        'default': 'float32',
+        'type': str,
+        'choices': ['float32', 'float16'],
+        'help': "Data type used for reconstruction. Note float16 works with power of 2 sizes.", },
+    'save-format': {
+        'default': 'tiff',
+        'type': str,
+        'help': "Output format",
+        'choices': ['tiff', 'h5', 'h5sino', 'h5nolinks', 'zarr']},
+    'zarr-compression': {
+        'default': 'blosclz',
+        'type': str,
+        'help': "ZARR compression format",
+        'choices': ['blosclz', 'lz4', 'zstd']},    
+    'zarr-chunk': {
+        'default': '8,64,64',
+        'type': str,
+        'help': "ZARR chunk size"},
+    'large-data': {
+        'default': False,
+        'type': bool,
+        'help': "If Active it computes ldchunk chunks of angular projections"},
+    'ldchunk': {
+        'default': 10,
+        'type': int,
+        'help': "Number of angular chunks for large-data"},                  
+    'clear-folder': {
+        'default': 'False',
+        'type': str,
+        'help': "Clear output folder before reconstruction",
+        'choices': ['True', 'False']}
+}
+
 
 SECTIONS['beam-hardening'] = {
     'beam-hardening-method': {
@@ -564,9 +600,9 @@ SECTIONS['beam-hardening'] = {
 
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
-                'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types', 'beam-hardening')
+                'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types', 'beam-hardening', 'output')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
-                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj', 'beam-hardening')
+                      'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj', 'beam-hardening', 'output')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
               'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo', 'Retrieve phase', 'Reconstruction')

@@ -16,5 +16,6 @@ setup(
         'numpy',
         'pywavelets',
         'tifffile',
+        'zarr',
     ]
 )
