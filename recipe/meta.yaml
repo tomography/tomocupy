@@ -38,6 +38,7 @@ requirements:
     - opencv
     - pywavelets
     - tifffile
+    - zarr    
 
 test:
   imports:
