@@ -41,7 +41,6 @@
 import sys
 import time
 import argparse
-import time
 import os
 from pathlib import Path
 from datetime import datetime
@@ -74,80 +73,83 @@ def run_status(args):
     config.log_values(args)
 
 
+def _find_center(cl_reader):
+    clrotthandle = FindCenter(cl_reader)
+    args.rotation_axis = clrotthandle.find_center()
+    params.center = args.rotation_axis
+    params.centeri = args.rotation_axis
+    log.warning(f'set rotation axis {args.rotation_axis}')
+
+
+def _find_center_ai(cl_reader, img_cache, center_of_rotation_cache):
+    clrotthandle = FindCenter(cl_reader)
+    args.rotation_axis = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+    params.center = args.rotation_axis
+    log.warning(f'set rotation axis {args.rotation_axis}')
+
+
+def _check_use_ai():
+    if args.rotation_axis_auto != 'auto' or args.rotation_axis_method != 'ai':
+        return False
+    try:
+        import torch  
+        return True
+    except ImportError:
+        log.warning('torch is not installed — skipping AI center search, falling back to vo method')
+        args.rotation_axis_method = 'vo'
+        return False
+
+
 def run_rec(args, cl_reader, cl_writer):
-    file_name = Path(args.file_name)
-    if not file_name.is_file():
+    if not Path(args.file_name).is_file():
         log.error("File Name does not exist: %s" % args.file_name)
         exit()
 
     t = time.time()
-    # set the default parameters
     args.retrieve_phase_method = 'none'
     args.rotate_proj_angle = 0
     args.lamino_angle = 0
-    # rotation axis search
-    if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method != 'ai'):
-        clrotthandle = FindCenter(cl_reader)
-        args.rotation_axis = clrotthandle.find_center()
-        params.center = args.rotation_axis
-        log.warning(f'set rotaion  axis {args.rotation_axis}')
 
-    # create reconstruction object and run reconstruction
-    if (args.reconstruction_type == 'try') and (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
-        cache_to_infer = True
-    else:
-        cache_to_infer = False
+    use_ai = _check_use_ai()
+    if args.rotation_axis_auto == 'auto' and not use_ai:
+        _find_center(cl_reader)
+
+    cache_to_infer = args.reconstruction_type == 'try' and use_ai
     clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
 
     if args.reconstruction_type == 'full':
-
         clpthandle.recon_all()
-    if args.reconstruction_type == 'try':
-        if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
-            img_cache, center_of_rotation_cache, id_slice_cache = clpthandle.recon_try()
-            clrotthandle = FindCenter(cl_reader)
-            
-            args.rotation_axis = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
-            params.center = args.rotation_axis
-            log.warning(f'set rotaion  axis {args.rotation_axis}')
+    elif args.reconstruction_type == 'try':
+        if use_ai:
+            img_cache, center_of_rotation_cache, _ = clpthandle.recon_try()
+            _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
         else:
             clpthandle.recon_try()
-            
 
-    rec_time = (time.time()-t)
-
-    log.warning(f'Reconstruction time {rec_time:.1e}s')
+    log.warning(f'Reconstruction time {time.time()-t:.1e}s')
 
 
 def run_recsteps(args, cl_reader, cl_writer):
-    file_name = Path(args.file_name)
-    if not file_name.is_file():
+    if not Path(args.file_name).is_file():
         log.error("File Name does not exist: %s" % args.file_name)
         exit()
+
     t = time.time()
 
-    if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method != 'ai'):
-        clrotthandle = FindCenter(cl_reader)
-        args.rotation_axis = clrotthandle.find_center()
-        params.center = args.rotation_axis
-        log.warning(f'set rotaion  axis {args.rotation_axis}')
+    use_ai = _check_use_ai()
+    if args.rotation_axis_auto == 'auto' and not use_ai:
+        _find_center(cl_reader)
 
-    if (args.reconstruction_type == 'try') and (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
-        cache_to_infer = True
-    else:
-        cache_to_infer = False
-    clpthandle = GPURecSteps(cl_reader, cl_writer,cache_to_infer=cache_to_infer)
-    # does all preprocessing for both full and try reconstructions
-    if (args.rotation_axis_auto == 'auto') and (args.rotation_axis_method == 'ai'):
-        img_cache, center_of_rotation_cache, id_slice_cache = clpthandle.recon_steps_all()
-        clrotthandle = FindCenter(cl_reader)
-        args.rotation_axis = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
-        params.center = args.rotation_axis
-        log.warning(f'set rotaion  axis {args.rotation_axis}')
+    cache_to_infer = use_ai
+    clpthandle = GPURecSteps(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
+
+    if use_ai:
+        img_cache, center_of_rotation_cache, _ = clpthandle.recon_steps_all()
+        _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
     else:
         clpthandle.recon_steps_all()
 
-    log.warning(f'Reconstruction time {(time.time()-t):.01f}s')
+    log.warning(f'Reconstruction time {time.time()-t:.1f}s')
 
 
 def main():
