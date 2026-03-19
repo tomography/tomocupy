@@ -52,11 +52,10 @@ void cfunc_filter::filter(size_t g_, size_t w_, size_t stream_) {
     cudaStream_t stream = (cudaStream_t)stream_;    
     cufftSetStream(plan_filter_fwd, stream);
     cufftSetStream(plan_filter_inv, stream);    
-    dim3 dimBlock(32,32,1);        
-    dim3 GS3d1 = dim3(ceil(n/32.0), ceil(nproj / 32.0), nz);
+    dim3 dimBlock(32,32,1);
     dim3 GS3d2 = dim3(ceil((n/2+1)/32.0), ceil(nproj / 32.0), nz);
     cufftXtExec(plan_filter_fwd, g, ge, CUFFT_FORWARD);
     mulw <<<GS3d2, dimBlock, 0, stream>>> (ge, w, n/2+1, nproj, nz);
     cufftXtExec(plan_filter_inv, ge, g, CUFFT_INVERSE);
-    mulrec <<<GS3d1, dimBlock, 0, stream>>> (g, 1/(float)n, n, nproj, nz);    
+    // 1/n normalization is folded into wfilter in fbp_filter.py::calc_filter()
 }

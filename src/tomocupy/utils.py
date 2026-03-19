@@ -43,10 +43,18 @@ import numpy as np
 import h5py
 import cupy as cp
 import argparse
-from threading import Thread
-import time
+from threading import Thread, Event
 import numexpr as ne
 import sys
+import os
+import tifffile as tiff
+from scipy.ndimage import zoom
+import time
+from functools import wraps
+import subprocess
+
+
+
 from tomocupy import logging
 log = logging.getLogger(__name__)
 
@@ -115,33 +123,35 @@ def signal_handler(sig, frame):
 class WRThread():
     def __init__(self):
         self.thread = None
+        self._done = Event()
+        self._done.set()  # initially idle
 
     def run(self, fun, args):
-        self.thread = Thread(target=fun, args=args)
+        self._done.clear()
+        def _wrapper():
+            try:
+                fun(*args)
+            finally:
+                self._done.set()
+        self.thread = Thread(target=_wrapper)
         self.thread.start()
 
     def is_alive(self):
-        if self.thread == None:
-            return False
-        return self.thread.is_alive()
+        return not self._done.is_set()
 
     def join(self):
-        if self.thread == None:
+        if self.thread is None:
             return
         self.thread.join()
 
 
 def find_free_thread(threads):
-    ithread = 0
     while True:
-        if not threads[ithread].is_alive():
-            break
-        ithread = ithread+1
-        # ithread=(ithread+1)%len(threads)
-        if ithread == len(threads):
-            ithread = 0
-            time.sleep(0.01)
-    return ithread
+        for ithread, t in enumerate(threads):
+            if not t.is_alive():
+                return ithread
+        # block until any thread signals done instead of spinning
+        threads[0]._done.wait(timeout=0.01)
 
 
 def downsample(data, binning):
@@ -265,3 +275,41 @@ def param_from_dxchange(hdf_file, data_path, attr=None, scalar=True, char_array=
                 return None
         except KeyError:
             return None
+
+
+def downsampleZarr(volume, scale_factor):
+    """
+    Downsample a 3D volume by a given scale factor using scipy.ndimage.zoom.
+
+    Parameters:
+    - volume (numpy array): Input 3D volume (e.g., [z, y, x]).
+    - scale_factor (int): Factor by which to downsample (e.g., 2 for halving).
+
+    Returns:
+    - numpy array: Downsampled volume.
+    """
+    if scale_factor == 1:
+        return volume  # No downsampling needed for the highest resolution
+
+    # Calculate the zoom factors for each axis
+    zoom_factors = (1 / scale_factor, 1 / scale_factor, 1 / scale_factor)
+
+    # Perform downsampling using interpolation
+    downsampled = zoom(volume, zoom_factors, order=1)  # Use order=1 for bilinear interpolation
+
+    return downsampled
+    
+    
+    
+def clean_zarr(output_path):
+    if os.path.exists(output_path):
+        try:
+            subprocess.run(["mv", output_path, output_path + "_tmp"], check=True)
+            subprocess.run(["ls -lrt", output_path + "_tmp"], check=True)
+            subprocess.run(["rm", "-rf", output_path + "_tmp"], check=True)
+            log.info(f"Successfully removed directory: {output_path}")
+        except subprocess.CalledProcessError as e:
+            log.error(f"Error removing directory {output_path}: {e}")
+            raise
+    else:
+        log.warning(f"Path does not exist: {output_path}")      

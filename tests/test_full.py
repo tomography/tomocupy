@@ -5,6 +5,7 @@ import numpy as np
 import tifffile
 import inspect
 import h5py
+import zarr
 import shutil
 
 prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 782.5 --nsino-per-chunk 4'
@@ -77,7 +78,6 @@ class Tests(unittest.TestCase):
                 data_file = Path('data_rec').joinpath(file_name)
                 with h5py.File('data_rec/test_data_rec.h5', 'r') as fid:
                     data = fid['exchange/data']
-                    print(data.shape)
                     ssum = np.sum(np.linalg.norm(data[:], axis=(1, 2)))
             except:
                 pass
@@ -88,8 +88,33 @@ class Tests(unittest.TestCase):
                         f'data_rec/{file_name}_rec/recon_{k:05}.tiff'))
                 except:
                     pass
-            self.assertAlmostEqual(ssum, cmd[1], places=0)
+            #try:
+            import time
+            time.sleep(1)
+            file_name = cmd[0].split("--file-name ")[1].split('.')[0].split('/')[-1]
+            data_file = Path('data_rec').joinpath(file_name)
 
+            # Open the Zarr dataset
+            fid = zarr.open('data_rec/test_data_rec.zarr', mode='r')
+
+            # Log dataset shapes
+            print(fid[0][:].shape, fid[1][:].shape)
+
+            # Access and copy data
+            data = fid[0][:].astype(np.float64).copy()
+            print(f"Data shape: {data.shape}")
+            print(f"Data sample: {data[:5]}")
+
+            # Normalize data
+            data = np.abs(data)
+
+            # Calculate the sum of norms
+            ssum = np.sum(np.linalg.norm(data, axis=1))  # Adjust axis if needed
+            print(f"Computed ssum: {ssum}")
+            print(f"Expected value: {cmd[1]}")
+
+            # Perform the test comparison
+            self.assertAlmostEqual(ssum, cmd[1], places=0)
 
 if __name__ == '__main__':
     unittest.main(testLoader=SequentialTestLoader(), failfast=True)

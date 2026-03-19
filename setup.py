@@ -10,13 +10,12 @@ setup(
     packages=find_packages('src'),
     zip_safe=False,
     install_requires=[
-        'cupy',
         'opencv-python',
         'h5py',
         'numexpr',
         'numpy',
         'pywavelets',
-        'setuptools',  # for pkg_resources at runtime
         'tifffile',
+        'zarr',
     ]
 )

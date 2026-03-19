@@ -41,11 +41,26 @@
 from tomocupy import config
 from tomocupy import logging
 from tomocupy.global_vars import args, params
+from tomocupy.utils import downsampleZarr
 import numpy as np
 import h5py
 import os
 import sys
 import tifffile
+
+#Zarr writer
+import shutil
+import zarr
+import json
+from numcodecs import Blosc
+import threading
+import subprocess
+import time
+
+import cupy as cp
+from pathlib import PosixPath
+from types import SimpleNamespace
+
 
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
@@ -202,9 +217,17 @@ class Writer():
             self.write_meta(rec_virtual)
 
             rec_virtual.close()
-
+        if args.save_format == 'zarr':  # Zarr format support
+            fnameout += '.zarr'
+            self.zarr_output_path = fnameout
+            if not args.large_data:
+                 clean_zarr(self.zarr_output_path)
+            log.info(f'Zarr dataset will be created at {fnameout}')
+            log.info(f"ZARR chunk structure: {args.zarr_chunk}")
+              
         params.fnameout = fnameout
         log.info(f'Output: {fnameout}')
+        
 
     def write_meta(self, rec_virtual):
 
@@ -231,6 +254,7 @@ class Writer():
             log.error('write_meta() error: Skip copying meta')
             pass
 
+
     def write_data_chunk(self, rec, st, end, k):
         """Writing the kth data chunk to hard disk"""
 
@@ -250,9 +274,284 @@ class Writer():
             with h5py.File(filename, "w") as fid:
                 fid.create_dataset("/exchange/data", data=rec,
                                    chunks=(params.nproj, 1, params.n))
+        elif args.save_format == 'zarr':  # Zarr format support
+
+            chunks = [int(c.strip()) for c in args.zarr_chunk.split(',')]
+            if not hasattr(self, 'zarr_array'):
+                shape = (int(params.nz / 2**args.binning), params.n, params.n)  # Full dataset shape
+                print('initialize')
+                max_levels = lambda X, Y: (lambda r: (int(r).bit_length() - 1) if r != 0 else (X.bit_length() - 1))(int(X) % int(Y))
+
+                #levels = min(max_levels(params.nz, end-st),6)
+                levels = min(max_levels(int(rec.shape[0]), end-st),6)
+
+                log.info(f"Resolution levels: {levels}")
+                
+                scale_factors = [float(args.pixel_size) * (i + 1) for i in range(levels)]
+                self.zarr_array, datasets = initialize_zarr(
+                    output_path=self.zarr_output_path,
+                    base_shape=shape,
+                    chunks=chunks,
+                    dtype=params.dtype,
+                    num_levels=levels,
+                    scale_factors=scale_factors,
+                    compression=args.zarr_compression
+                )
+                fill_zarr_meta(self.zarr_array, datasets, self.zarr_output_path, args)
+            # Write the current chunk to the Zarr container
+            write_zarr_chunk(
+                zarr_group=self.zarr_array,  # Pre-initialized Zarr container
+                data_chunk=rec[:end - st],  # Data chunk to save
+                start=st-args.start_row,  # Starting index for this chunk along the z-axis
+                end=end-args.start_row    # Ending index for this chunk along the z-axis
+            )
 
     def write_data_try(self, rec, cid, id_slice):
         """Write tiff reconstruction with a given name"""
 
         tifffile.imwrite(
             f'{params.fnameout}_slice{id_slice:04d}_center{cid:05.2f}.tiff', rec)
+                        
+            
+def clean_zarr(output_path):
+    if os.path.exists(output_path):
+        try:
+            subprocess.run(["rm", "-rf", output_path], check=True)            
+            log.info(f"Successfully removed directory: {output_path}")
+        except subprocess.CalledProcessError as e:
+            log.error(f"Error removing directory {output_path}: {e}")
+            raise
+    else:
+        log.warning(f"Path does not exist: {output_path}")            
+
+
+def args2json(data):
+    """
+    Recursively convert all unsupported types (e.g., PosixPath, Namespace) to JSON-serializable types.
+
+    Parameters:
+    - data: The input data (can be dict, list, PosixPath, Namespace, etc.).
+
+    Returns:
+    - A JSON data.
+    """
+    if isinstance(data, PosixPath):
+        return str(data)  # Convert PosixPath to string
+    elif isinstance(data, SimpleNamespace):
+        return {k: args2json(v) for k, v in vars(data).items()}  # Convert Namespace to dict
+    elif isinstance(data, dict):
+        return {k: args2json(v) for k, v in data.items()}  # Recurse into dict
+    elif isinstance(data, list):
+        return [args2json(item) for item in data]  # Recurse into list
+    elif isinstance(data, tuple):
+        return tuple(args2json(item) for item in data)  # Recurse into tuple
+    else:
+        return data
+
+
+def fill_zarr_meta(root_group, datasets, output_path, metadata_args, mode='w'):
+    """
+    Fill metadata for the Zarr multiscale datasets and include additional parameters.
+
+    Parameters:
+    - root_group (zarr.Group): The root Zarr group.
+    - datasets (list): List of datasets with their metadata.
+    - output_path (str): Path to save the metadata file.
+    - metadata_args (dict): Metadata arguments for custom configurations.
+    - mode (str): Mode for metadata handling. Default is 'w'.
+    """
+    multiscales = [{
+        "version": "0.4",
+        "name": "example",
+        "axes": [
+            {"name": "z", "type": "space", "unit": "micrometer"},
+            {"name": "y", "type": "space", "unit": "micrometer"},
+            {"name": "x", "type": "space", "unit": "micrometer"}
+        ],
+        "datasets": datasets,
+        "type": "gaussian",
+        "metadata": {
+            "method": "scipy.ndimage.zoom",
+            "args": [True],
+            "kwargs": {
+                "anti_aliasing": True,
+                "preserve_range": True
+            }
+        }
+    }]
+
+    # Update Zarr group attributes
+    if mode == 'w':
+        root_group.attrs.update({"multiscales": multiscales})
+
+        # Save metadata as JSON
+        metadata_file = os.path.join(output_path, 'multiscales.json')
+        with open(metadata_file, 'w') as f:
+            json.dump({"multiscales": multiscales}, f, indent=4)
+    
+def write_zarr_chunk(zarr_group, data_chunk, start, end):
+    """
+    Write a chunk of data into the Zarr container at all resolutions, summing with existing data if 'large_data' is active.
+
+    Parameters:
+    - zarr_group (zarr.Group): The initialized Zarr group containing multiscale datasets.
+    - data_chunk (np.ndarray): The data chunk to write (highest resolution).
+    - start (int): Start index in the first dimension (z-axis) for the highest resolution.
+    - end (int): End index in the first dimension (z-axis) for the highest resolution.
+    - large_data (bool): If True, sum the incoming data chunk with pre-existing data in the Zarr array.
+    """
+    for level in sorted(zarr_group.keys(), key=int):  # Process levels in order (0, 1, ...)
+        zarr_array = zarr_group[level]  # Access the dataset for the current level
+
+        # Calculate the downscaling factor for this resolution level
+        scale_factor = 2 ** int(level)
+
+        # Downsample data chunk for this resolution level
+        if scale_factor > 1:
+            downsampled_chunk = downsampleZarr(data_chunk, scale_factor)
+        else:
+            downsampled_chunk = data_chunk
+
+        # Calculate the start and end indices for the current resolution
+        level_start = start // scale_factor
+        level_end = end // scale_factor
+
+        expected_z_size = level_end - level_start
+        actual_z_size = downsampled_chunk.shape[0]
+
+        if expected_z_size != actual_z_size:
+            raise ValueError(
+                f"Mismatch between expected z-size ({expected_z_size}) "
+                f"and actual z-size ({actual_z_size}) at level {level}."
+            )
+
+        # Fetch existing data if 'large_data' is active
+        if args.large_data:
+            existing_data = zarr_array[level_start:level_end, :, :]
+            downsampled_chunk = existing_data + downsampled_chunk
+
+        # Write the (summed or replaced) downsampled chunk into the Zarr dataset
+        zarr_array[level_start:level_end, :, :] = downsampled_chunk
+
+        # Optionally log the operation
+        # log.info(f"Saved chunk to level {level} [{level_start}:{level_end}] with shape {downsampled_chunk.shape}")
+        
+    
+def initialize_zarr(output_path, base_shape, chunks, dtype, num_levels, scale_factors, compression='None'):
+    """
+    Initialize or open a multiscale Zarr container based on the existence of the store.
+
+    Parameters:
+    - output_path (str): Path to the Zarr file.
+    - base_shape (tuple): Shape of the full dataset at the highest resolution.
+    - chunks (tuple): Chunk size for the dataset.
+    - dtype: Data type of the dataset.
+    - num_levels (int): Number of multiresolution levels.
+    - scale_factors (list): List of scale factors for each level.
+    - compression (str): Compression algorithm.
+
+    Returns:
+    - zarr.Group: The initialized or opened Zarr group containing multiscale datasets.
+    - list: Dataset metadata for multiscales.
+    """
+    # Check if the output path (store) already exists
+    store_exists = os.path.exists(output_path) and os.path.isdir(output_path)
+
+    # Prepare the store reference
+    store = zarr.DirectoryStore(output_path)
+    compressor = Blosc(cname=compression, clevel=5, shuffle=2)
+
+    if store_exists:
+        return load_zarr(store, output_path, num_levels)
+    else:
+        return create_zarr(store, output_path, base_shape, chunks, dtype, num_levels, scale_factors, compressor)
+
+
+def create_zarr(store, output_path, base_shape, chunks, dtype, num_levels, scale_factors, compressor):
+    """
+    Create the entire structure of a new Zarr container.
+
+    Parameters:
+    - store (zarr.DirectoryStore): Zarr store to initialize.
+    - output_path (str): Path to the Zarr container for logging purposes.
+    - base_shape (tuple): Shape of the full dataset at the highest resolution.
+    - chunks (tuple): Chunk size for the dataset.
+    - dtype: Data type of the dataset.
+    - num_levels (int): Number of multiresolution levels.
+    - scale_factors (list): List of scale factors for each level.
+    - compressor: Compressor instance for the datasets.
+
+    Returns:
+    - zarr.Group: The created Zarr group.
+    - list: Metadata for the datasets.
+    """
+    log.info(f"Creating a new Zarr container at {output_path}")
+    root_group = zarr.group(store=store)
+
+    current_shape = base_shape
+    datasets = []
+
+    for level, scale_factor in enumerate(scale_factors):
+        level_name = f"{level}"
+        scale = float(scale_factor)
+        scalef = 2 ** level
+        
+        # Create the dataset for this resolution level
+        root_group.create_dataset(
+            name=level_name,
+            shape=current_shape,
+            chunks=chunks,
+            dtype=dtype,
+            compressor=compressor
+        )
+
+        # Add metadata
+        datasets.append({
+            "path": level_name,
+            "coordinateTransformations": [
+                {"type": "scale", "scale": [scalef] * 3},
+                {"type": "translation", "translation": [2**(level-1) - 0.5, 2**(level-1) - 0.5, 2**(level-1) - 0.5]}
+            ]
+        })
+
+        # Downscale the shape for the next level
+        current_shape = tuple(max(1, s // 2) for s in current_shape)
+
+    return root_group, datasets
+
+
+
+
+def load_zarr(store, output_path, num_levels):
+    """
+    Load an existing Zarr container and return its group and dataset metadata.
+
+    Parameters:
+    - store (zarr.DirectoryStore): The Zarr store to load.
+    - output_path (str): Path to the Zarr file (for logging purposes).
+    - num_levels (int): Number of multiresolution levels to validate.
+
+    Returns:
+    - zarr.Group: The loaded Zarr group.
+    - list: Metadata for the datasets.
+    """
+    # Open the existing Zarr group in read-write mode
+    root_group = zarr.open(store=store, mode='r+')
+    log.info(f"Opened existing Zarr container at {output_path}")
+
+    # Gather metadata from the existing structure
+    datasets = []
+    for level in range(num_levels):
+        level_name = f"{level}"
+        if level_name not in root_group:
+            raise ValueError(f"Level {level} not found in the existing Zarr group at {output_path}")
+
+        datasets.append({
+            "path": level_name,
+            "coordinateTransformations": [
+                {"type": "scale", "scale": None},
+                {"type": "translation", "translation": [2**(level-1) - 0.5, 2**(level-1) - 0.5, 2**(level-1) - 0.5]}
+            ]
+        })
+
+    return root_group, datasets
