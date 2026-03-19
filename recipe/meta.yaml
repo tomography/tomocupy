@@ -1,35 +1,32 @@
-{% set version = "1.0" %}
+{% set version = "1.1.0" %}
 
 package:
   name: tomocupy
   version: {{ version }}
 
 source:
-  path: ../
+  url: https://github.com/tomography/tomocupy/archive/refs/tags/v{{ version }}.tar.gz
+  sha256: ecead5f526a768fd554b4a307ac0f382ff36a4bb849d366f0be64aa60145724c
 
 build:
-  # skip: True  # [cuda_compiler_version != "11.0"]
-  # skip: True  # [py != 310]
-  # skips above this line are for debugging purposes only
   skip: True  # [cuda_compiler_version in (undefined, "None")]
-  number: 1
+  skip: True  # [win]
+  number: 0
   script: {{ PYTHON }} -m pip install . -vv
 
 requirements:
-  channels:
-    - conda-forge
   build:
     - {{ compiler('cxx') }}
-    - {{ compiler('cuda') }} # [cuda_compiler_version != None]
+    - {{ compiler('cuda') }}
     - cmake
     - ninja
-    - swig
   host:
-    - cudatoolkit
+    - cuda-version {{ cuda_compiler_version }}  # [cuda_compiler_version != "None"]
+    - cudatoolkit                               # [cuda_compiler_version != "None"]
     - numpy
     - pip
     - python
-    - scikit-build
+    - scikit-build >=0.17
     - setuptools
   run:
     - {{ pin_compatible('python') }}
@@ -39,13 +36,29 @@ requirements:
     - numexpr
     - numpy
     - opencv
-    - opencv-contrib-python
     - pywavelets
     - tifffile
     - zarr    
 
+test:
+  imports:
+    - tomocupy
+  commands:
+    - tomocupy recon -h
+
 about:
-    home: https://github.com/tomography/tomocupy
-    license: BSD 3-Clause
-    license_family: BSD
-    summary: 'GPU-based reconstruction of tomography data'
+  home: https://github.com/tomography/tomocupy
+  license: BSD-3-Clause
+  license_family: BSD
+  license_file: LICENSE
+  summary: GPU-based reconstruction of tomographic and laminographic data
+  description: |
+    Tomocupy is a Python package and command-line interface for GPU
+    reconstruction of tomographic/laminographic data in 16-bit and 32-bit
+    precision using CuPy and CUDA C.
+  doc_url: https://tomocupy.readthedocs.io/en/latest/
+  dev_url: https://github.com/tomography/tomocupy
+
+extra:
+  recipe-maintainers:
+    - nikitinvv

@@ -75,9 +75,6 @@ class GPURecSteps():
         signal.signal(signal.SIGINT, utils.signal_handler)
         signal.signal(signal.SIGTERM, utils.signal_handler)
 
-        # use pinned memory
-        cp.cuda.set_pinned_memory_allocator(cp.cuda.PinnedMemoryPool().malloc)
-
         # chunks for processing
         self.shape_data_chunk_z = (params.nproj, params.ncz, params.ni)
         self.shape_dark_chunk_z = (params.ndark, params.ncz, params.ni)

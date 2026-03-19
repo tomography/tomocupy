@@ -226,7 +226,7 @@ SECTIONS['retrieve-phase'] = {
         'help': "Phase retrieval correction method",
         'choices': ['none', 'paganin', 'Gpaganin', 'FourierFilter', 'farago']},
     'energy': {
-        'default': 0,
+        'default': 20,
         'type': float,
         'help': "X-ray energy [keV]"},
     'propagation-distance': {
@@ -605,7 +605,7 @@ RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
                       'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj', 'beam-hardening', 'output')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
-              'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo' 'Retrieve phase', 'Reconstruction')
+              'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo', 'Retrieve phase', 'Reconstruction')
 
 
 def get_config_name():

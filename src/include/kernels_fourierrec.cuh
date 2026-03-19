@@ -67,35 +67,52 @@ void __global__ gather(real2 *g, real2 *f, float *x, float *y, int m,
   if (tx >= n || ty >= nproj || tz >= nz)
     return;
 
-  real2 g0, g0t;
-  real w, coeff0;
-  float w0, w1, x0, y0, coeff1;
-  int ell0, ell1, g_ind, f_ind;
+  real2 g0;
+  real coeff0;
+  float x0, y0, coeff1;
+  int g_ind;
 
   g_ind = tx + ty * n + tz * n * nproj;
   coeff0 = static_cast<real>(PI / (mu * (4 * n * n)));
   coeff1 = -PI * PI / mu;
   x0 = x[tx + ty * n];
   y0 = y[tx + ty * n];
-  g0.x = g[g_ind].x;
-  g0.y = g[g_ind].y;
+  float scale = 4.0f / n;
+  g0.x = static_cast<real>((float)g[g_ind].x * scale);
+  g0.y = static_cast<real>((float)g[g_ind].y * scale);
+
+  // Precompute separable 1D Gaussian weights (reduces (2m+1)^2 to 2*(2m+1) exp calls)
+  // m is always 4 for eps=1e-3 (m = ceil(|log(eps)|*sqrt(3)/pi) = ceil(3.81) = 4)
+  int base0 = (int)floorf(2 * n * x0) - m;
+  int base1 = (int)floorf(2 * n * y0) - m;
+  float kern0[9], kern1[9]; // 2*m+1 = 9 for m=4
+  for (int i0 = 0; i0 < 2 * m + 1; i0++)
+  {
+    float w0 = (base0 + i0) / (float)(2 * n) - x0;
+    kern0[i0] = __expf(coeff1 * w0 * w0);
+  }
   for (int i1 = 0; i1 < 2 * m + 1; i1++)
   {
-    ell1 = floorf(2 * n * y0) - m + i1;
+    float w1 = (base1 + i1) / (float)(2 * n) - y0;
+    kern1[i1] = __expf(coeff1 * w1 * w1);
+  }
+
+  int stride = 2 * n + 2 * m;
+  int f_base = tz * stride * stride + (n + m + base1) * stride + (n + m + base0);
+  #pragma unroll
+  for (int i1 = 0; i1 < 2 * m + 1; i1++)
+  {
+    #pragma unroll
     for (int i0 = 0; i0 < 2 * m + 1; i0++)
     {
-      ell0 = floorf(2 * n * x0) - m + i0;
-      w0 = ell0 / (float)(2 * n) - x0;
-      w1 = ell1 / (float)(2 * n) - y0;
-      w = coeff0 * mexp(static_cast<real>(coeff1 * (w0 * w0 + w1 * w1))); //the inner part is in float32 precision since involves large and small values
-      g0t.x = w * g0.x;
-      g0t.y = w * g0.y;
-      f_ind = n + m + ell0 + (2 * n + 2 * m) * (n + m + ell1) + tz * (2 * n + 2 * m) * (2 * n + 2 * m);
+      real w = coeff0 * static_cast<real>(kern0[i0] * kern1[i1]); // inner part in float32
+      int f_ind = f_base + i1 * stride + i0;
 #ifdef HALF
+      real2 g0t = {w * g0.x, w * g0.y};
       atomicAdd(&(f[f_ind]), g0t);
 #else
-      atomicAdd(&(f[f_ind].x), g0t.x);
-      atomicAdd(&(f[f_ind].y), g0t.y);
+      atomicAdd(&(f[f_ind].x), w * g0.x);
+      atomicAdd(&(f[f_ind].y), w * g0.y);
 #endif
     }
   }

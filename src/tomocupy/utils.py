@@ -43,8 +43,7 @@ import numpy as np
 import h5py
 import cupy as cp
 import argparse
-from threading import Thread
-import time
+from threading import Thread, Event
 import numexpr as ne
 import sys
 import os
@@ -124,33 +123,35 @@ def signal_handler(sig, frame):
 class WRThread():
     def __init__(self):
         self.thread = None
+        self._done = Event()
+        self._done.set()  # initially idle
 
     def run(self, fun, args):
-        self.thread = Thread(target=fun, args=args)
+        self._done.clear()
+        def _wrapper():
+            try:
+                fun(*args)
+            finally:
+                self._done.set()
+        self.thread = Thread(target=_wrapper)
         self.thread.start()
 
     def is_alive(self):
-        if self.thread == None:
-            return False
-        return self.thread.is_alive()
+        return not self._done.is_set()
 
     def join(self):
-        if self.thread == None:
+        if self.thread is None:
             return
         self.thread.join()
 
 
 def find_free_thread(threads):
-    ithread = 0
     while True:
-        if not threads[ithread].is_alive():
-            break
-        ithread = ithread+1
-        # ithread=(ithread+1)%len(threads)
-        if ithread == len(threads):
-            ithread = 0
-            time.sleep(0.01)
-    return ithread
+        for ithread, t in enumerate(threads):
+            if not t.is_alive():
+                return ithread
+        # block until any thread signals done instead of spinning
+        threads[0]._done.wait(timeout=0.01)
 
 
 def downsample(data, binning):

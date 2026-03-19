@@ -36,6 +36,17 @@ cfunc_fourierrec::cfunc_fourierrec(size_t nproj, size_t nz, size_t n, size_t the
         nproj*nz, &workSize, CUDA_C);                      
     
     theta = (float*)theta_;
+
+    // Pre-compute grid dimensions (constant for lifetime of object)
+    dim3 dimBlock(32, 32, 1);
+    GS2d0 = dim3(ceil(n / 32.0), ceil(nproj / 32.0));
+    GS3d0 = dim3(ceil(n / 32.0), ceil(n / 32.0), nz);
+    GS3d1 = dim3(ceil(2 * n / 32.0), ceil(2 * n / 32.0), nz);
+    GS3d2 = dim3(ceil((2 * n + 2 * m) / 32.0), ceil((2 * n + 2 * m) / 32.0), nz);
+    GS3d3 = dim3(ceil(n / 32.0), ceil(nproj / 32.0), nz);
+
+    // Pre-compute x, y once (theta is fixed for lifetime of object)
+    takexy <<<GS2d0, dimBlock>>> (x, y, theta, n, nproj);
   }
 
 
@@ -60,23 +71,13 @@ void cfunc_fourierrec::backprojection(size_t f_, size_t g_, size_t stream_) {
     cufftSetStream(plan1d, stream);
     cufftSetStream(plan2d, stream);    
 
-    // set thread block, grid sizes will be computed before cuda kernel execution
-    dim3 dimBlock(32,32,1);    
-    dim3 GS2d0,GS3d0,GS3d1,GS3d2,GS3d3;  
-    GS2d0 = dim3(ceil(n / 32.0), ceil(nproj / 32.0));
-    GS3d0 = dim3(ceil(n / 32.0), ceil(n / 32.0),nz);
-    GS3d1 = dim3(ceil(2 * n / 32.0), ceil(2 * n / 32.0),nz);
-    GS3d2 = dim3(ceil((2 * n + 2 * m) / 32.0),ceil((2 * n + 2 * m) / 32.0), nz);
-    GS3d3 = dim3(ceil(n / 32.0), ceil(nproj / 32.0),nz);
-   
-    
-    cudaMemsetAsync(fde, 0, (2 * n + 2 * m) * (2 * n + 2 * m) * nz * sizeof(real2),stream);
-    
-    takexy <<<GS2d0, dimBlock, 0, stream>>> (x, y, theta, n, nproj);        
+    dim3 dimBlock(32, 32, 1);
+
+    cudaMemsetAsync(fde, 0, (2 * n + 2 * m) * (2 * n + 2 * m) * nz * sizeof(real2), stream);
+
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);
     cufftXtExec(plan1d, g, g, CUFFT_FORWARD);
     ifftshiftc <<<GS3d3, dimBlock, 0, stream>>> (g, n, nproj, nz);    
-    mulc <<<GS3d3, dimBlock, 0, stream>>> (g, 4/(float)n, n, nproj, nz);
     
     gather <<<GS3d3, dimBlock, 0, stream>>> (g, fde, x, y, m, mu, n, nproj, nz);    
     

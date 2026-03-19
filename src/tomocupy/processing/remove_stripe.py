@@ -88,107 +88,72 @@ def _mypad(x, pad, value=0):
         xe = _reflect(cp.arange(-m1, l+m2, dtype='int32'), -0.5, l-0.5)
         return x[:, :, :, xe]
 
-def _conv2d(x, w, stride, pad, groups=1):
-    """ Convolution (equivalent pytorch.conv2d)
-    """
-    if pad != 0:
-        x = cp.pad(x, ((0, 0), (0, 0), (pad, pad), (pad, pad)), 'constant')
-
-    b,  ci, hi, wi = x.shape
-    co, _, hk, wk = w.shape
-    ho = int(cp.floor(1 + (hi - hk) / stride[0]))
-    wo = int(cp.floor(1 + (wi - wk) / stride[1]))
-    out = cp.zeros([b, co, ho, wo], dtype='float32')
-    x = cp.expand_dims(x, axis=1)
-    w = cp.expand_dims(w, axis=0)
-    chunk = ci//groups
-    chunko = co//groups
-    for g in range(groups):
-        for ii in range(hk):
-            for jj in range(wk):
-                x_windows = x[:, :, g*chunk:(g+1)*chunk, ii:ho *
-                              stride[0]+ii:stride[0], jj:wo*stride[1]+jj:stride[1]]
-                out[:, g*chunko:(g+1)*chunko] += cp.sum(x_windows *
-                                                        w[:, g*chunko:(g+1)*chunko, :, ii:ii+1, jj:jj+1], axis=2)
-    return out
-
-def _conv_transpose2d(x, w, stride, pad, bias=None, groups=1):
-    """ Transposed convolution (equivalent pytorch.conv_transpose2d)
-    """
-    b,  co, ho, wo = x.shape
-    co, ci, hk, wk = w.shape
-
-    hi = (ho-1)*stride[0]+hk
-    wi = (wo-1)*stride[1]+wk
-    out = cp.zeros([b, ci, hi, wi], dtype='float32')
-    chunk = ci//groups
-    chunko = co//groups
-    for g in range(groups):
-        for ii in range(hk):
-            for jj in range(wk):
-                x_windows = x[:, g*chunko:(g+1)*chunko]
-                out[:, g*chunk:(g+1)*chunk, ii:ho*stride[0]+ii:stride[0], jj:wo*stride[1] +
-                    jj:stride[1]] += x_windows * w[g*chunko:(g+1)*chunko, :, ii:ii+1, jj:jj+1]
-    if pad != 0:
-        out = out[:, :, pad[0]:out.shape[2]-pad[0], pad[1]:out.shape[3]-pad[1]]
-    return out
-
 def afb1d(x, h0, h1='zero', dim=-1):
-    """ 1D analysis filter bank (along one dimension only) of an image
+    """1D analysis filter bank: stride-2 convolution along dim, all channels in parallel.
 
-    Parameters
-    ----------
-    x (array): 4D input with the last two dimensions the spatial input
-    h0 (array): 4D input for the lowpass filter. Should have shape (1, 1,
-        h, 1) or (1, 1, 1, w)
-    h1 (array): 4D input for the highpass filter. Should have shape (1, 1,
-        h, 1) or (1, 1, 1, w)
-    dim (int) - dimension of filtering. d=2 is for a vertical filter (called
-        column filtering but filters across the rows). d=3 is for a
-        horizontal filter, (called row filtering but filters across the
-        columns).
-
-    Returns
-    -------
-    lohi: lowpass and highpass subbands concatenated along the channel
-        dimension
+    Output channels interleaved [lo_0, hi_0, lo_1, hi_1, ...] to match
+    the grouped-convolution ordering expected by DWTForward.
     """
     C = x.shape[1]
-    # Convert the dim to positive
     d = dim % 4
-    s = (2, 1) if d == 2 else (1, 2)
     N = x.shape[d]
-    L = h0.size
-    L2 = L // 2
-    shape = [1, 1, 1, 1]
-    shape[d] = L
-    h = cp.concatenate([h0.reshape(*shape), h1.reshape(*shape)]*C, axis=0)
-    # Calculate the pad size
+    h0f = h0.flatten()
+    h1f = h1.flatten()
+    L = h0f.size
     outsize = pywt.dwt_coeff_len(N, L, mode='symmetric')
     p = 2 * (outsize - 1) - N + L
     pad = (0, 0, p//2, (p+1)//2) if d == 2 else (p//2, (p+1)//2, 0, 0)
     x = _mypad(x, pad=pad)
-    lohi = _conv2d(x, h, stride=s, pad=0, groups=C)
-    return lohi
+    B = x.shape[0]
+    if d == 3:  # row direction: stride-2 along axis 3
+        H = x.shape[2]
+        # Accumulate directly into interleaved output: avoids cp.zeros×2 + cp.stack copy
+        out = cp.empty((B, C, 2, H, outsize), dtype='float32')
+        sl0 = x[:, :, :, 0:2*outsize:2]
+        out[:, :, 0] = h0f[0] * sl0
+        out[:, :, 1] = h1f[0] * sl0
+        for j in range(1, L):
+            sl = x[:, :, :, j:j + 2*outsize:2]
+            out[:, :, 0] += h0f[j] * sl
+            out[:, :, 1] += h1f[j] * sl
+    else:  # col direction: stride-2 along axis 2
+        W = x.shape[3]
+        out = cp.empty((B, C, 2, outsize, W), dtype='float32')
+        sl0 = x[:, :, 0:2*outsize:2, :]
+        out[:, :, 0] = h0f[0] * sl0
+        out[:, :, 1] = h1f[0] * sl0
+        for i in range(1, L):
+            sl = x[:, :, i:i + 2*outsize:2, :]
+            out[:, :, 0] += h0f[i] * sl
+            out[:, :, 1] += h1f[i] * sl
+    return out.reshape(B, 2*C, *out.shape[3:])
+
 
 def sfb1d(lo, hi, g0, g1='zero', dim=-1):
-    """ 1D synthesis filter bank of an image Array
-    """
+    """1D synthesis filter bank: scatter-add (upsampled transposed conv).
 
+    Combines lo and hi in a single pass to avoid one temporary allocation.
+    """
     C = lo.shape[1]
     d = dim % 4
-    L = g0.size
-    shape = [1, 1, 1, 1]
-    shape[d] = L
-    N = 2*lo.shape[d]
-    s = (2, 1) if d == 2 else (1, 2)
-    g0 = cp.concatenate([g0.reshape(*shape)]*C, axis=0)
-    g1 = cp.concatenate([g1.reshape(*shape)]*C, axis=0)
-    pad = (L-2, 0) if d == 2 else (0, L-2)
-    y = _conv_transpose2d(cp.asarray(lo), cp.asarray(g0), stride=s, pad=pad, groups=C) + \
-        _conv_transpose2d(cp.asarray(hi), cp.asarray(g1),
-                          stride=s, pad=pad, groups=C)
-    return y
+    g0f = g0.flatten()
+    g1f = g1.flatten()
+    L = g0f.size
+    B = lo.shape[0]
+    if d == 3:  # row direction: stride (1, 2)
+        H, W = lo.shape[2], lo.shape[3]
+        wi = (W - 1) * 2 + L
+        out = cp.zeros((B, C, H, wi), dtype='float32')
+        for j in range(L):
+            out[:, :, :, j:j + 2*W:2] += g0f[j] * lo + g1f[j] * hi
+        return out[:, :, :, (L - 2):wi - (L - 2)]
+    else:  # col direction: stride (2, 1)
+        H, W = lo.shape[2], lo.shape[3]
+        hi_size = (H - 1) * 2 + L
+        out = cp.zeros((B, C, hi_size, W), dtype='float32')
+        for i in range(L):
+            out[:, :, i:i + 2*H:2, :] += g0f[i] * lo + g1f[i] * hi
+        return out[:, :, (L - 2):hi_size - (L - 2), :]
 
 class DWTForward():
     """ Performs a 2d DWT Forward decomposition of an image
@@ -277,12 +242,12 @@ class DWTInverse():
 
         """
         yl, yh = coeffs
-        lh = yh[:, :, 0]
-        hl = yh[:, :, 1]
-        hh = yh[:, :, 2]
-        lo = sfb1d(yl, lh, self.g0_col, self.g1_col, dim=2)
-        hi = sfb1d(hl, hh, self.g0_col, self.g1_col, dim=2)
-        yl = sfb1d(lo, hi, self.g0_row, self.g1_row, dim=3)
+        # Batch the two independent sfb1d(dim=2) calls into one C=2 call,
+        # doubling GPU utilisation and halving kernel launches.
+        lo_hi = sfb1d(cp.concatenate([yl,        yh[:, :, 1]], axis=1),
+                      cp.concatenate([yh[:, :, 0], yh[:, :, 2]], axis=1),
+                      self.g0_col, self.g1_col, dim=2)   # [B, 2, H, W']
+        yl = sfb1d(lo_hi[:, :1], lo_hi[:, 1:], self.g0_row, self.g1_row, dim=3)
         return yl
 
 def remove_stripe_fw(data, sigma, wname, level):
@@ -291,7 +256,6 @@ def remove_stripe_fw(data, sigma, wname, level):
     [nproj, nz, ni] = data.shape
 
     nproj_pad = nproj + nproj // 8
-    xshift = int((nproj_pad - nproj) // 2)
 
     # Accepts all wave types available to PyWavelets
     xfm = DWTForward(wave=wname)
@@ -306,15 +270,15 @@ def remove_stripe_fw(data, sigma, wname, level):
     for k in range(level):
         sli, c = xfm.apply(sli)
         cc.append(c)
-        # FFT
-        fcV = cp.fft.fft(cc[k][:, 0, 1], axis=1)
-        _, my, mx = fcV.shape
-        # Damping of ring artifact information.
-        y_hat = cp.fft.ifftshift((cp.arange(-my, my, 2) + 1) / 2)
+        # FFT – use rfft (real input → ~2× faster, half memory)
+        band = cc[k][:, 0, 1]
+        _, my, mx = band.shape
+        fcV = cp.fft.rfft(band, axis=1)          # [nz, my//2+1, mx]
+        myr = my // 2 + 1
+        y_hat = cp.fft.ifftshift((cp.arange(-my, my, 2) + 1) / 2)[:myr]
         damp = -cp.expm1(-y_hat**2 / (2 * sigma**2))
-        fcV *= cp.tile(damp, (mx, 1)).swapaxes(0, 1)
-        # Inverse FFT.
-        cc[k][:, 0, 1] = cp.fft.ifft(fcV, my, axis=1).real
+        fcV *= damp[:, None]
+        cc[k][:, 0, 1] = cp.fft.irfft(fcV, my, axis=1)  # always real
 
     # Wavelet reconstruction.
     for k in range(level)[::-1]:
@@ -382,6 +346,33 @@ def _detect_stripe(listdata, snr):
         listmask[listdata <= lower_thresh] = 1.0
     return listmask
 
+def _detect_stripe_batch(listdata, snr):
+    """Batched version of _detect_stripe for 2D input [nz, ni]."""
+    nz, numdata = listdata.shape
+    listsorted = cp.sort(listdata, axis=1)[:, ::-1]
+    xlist = cp.arange(numdata, dtype='float32')
+    ndrop = int(0.25 * numdata)
+    x = xlist[ndrop:-ndrop - 1]
+    y = listsorted[:, ndrop:-ndrop - 1]
+    n = x.size
+    xm = float(x.mean())
+    ym = y.mean(axis=1)                               # [nz]
+    Sxy = (y * x).sum(axis=1) - n * ym * xm          # [nz]
+    Sxx = float((x**2).sum() - n * xm**2)
+    slope = Sxy / Sxx                                  # [nz]
+    intercept = ym - slope * xm                        # [nz]
+    numt1 = intercept + slope * xlist[-1]              # [nz]
+    noiselevel = cp.clip(cp.abs(numt1 - intercept), 1e-6, None)  # [nz]
+    val1 = cp.abs(listsorted[:, 0]  - intercept) / noiselevel    # [nz]
+    val2 = cp.abs(listsorted[:, -1] - numt1)     / noiselevel    # [nz]
+    listmask = cp.zeros((nz, numdata), dtype='float32')
+    upper = (intercept + noiselevel * snr * 0.5)[:, None]        # [nz, 1]
+    lower = (numt1    - noiselevel * snr * 0.5)[:, None]         # [nz, 1]
+    listmask = cp.where((val1 >= snr)[:, None] & (listdata > upper),  1.0, listmask)
+    listmask = cp.where((val2 >= snr)[:, None] & (listdata <= lower), 1.0, listmask)
+    return listmask
+
+
 def _inverse_perm3(ids):
     """O(n) inverse permutation along axis=2 via scatter (put_along_axis).
 
@@ -427,11 +418,10 @@ def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
     del sinosort
     list2 = cp.mean(sinosmooth[ndrop:nproj - ndrop], axis=0)      # [nz, ni]
     listfact = list1 / list2                                       # [nz, ni]
-    listmask = cp.zeros((nz, ni), dtype=listfact.dtype)
-    for m in range(nz):
-        lm = _detect_stripe(listfact[m], snr)
-        lm = binary_dilation(lm, iterations=1).astype(lm.dtype)
-        listmask[m] = lm
+    listmask = _detect_stripe_batch(listfact, snr)                # [nz, ni]
+    listmask = binary_dilation(
+        listmask, iterations=1,
+        structure=cp.ones((1, 3), dtype=bool)).astype(listmask.dtype)
     if norm:
         tomo = tomo / listfact[None]
     sinosmooth_t = cp.transpose(sinosmooth, (2, 1, 0))            # [ni, nz, nproj]
@@ -441,10 +431,7 @@ def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
     sino_corrected = cp.transpose(
         cp.take_along_axis(sinosmooth_t, ids2, axis=2), (2, 1, 0))  # [nproj, nz, ni]
     del sinosmooth_t, ids2
-    for m in range(nz):
-        listxmiss = cp.where(listmask[m] > 0.0)[0]
-        if len(listxmiss) > 0:
-            tomo[:, m, listxmiss] = sino_corrected[:, m, listxmiss]
+    cp.copyto(tomo, sino_corrected, where=(listmask[None] > 0.0))
     return tomo
 
 
@@ -454,15 +441,17 @@ def _rs_dead3(tomo, snr, size, norm=True):
     nproj, nz, ni = tomo.shape
     sinosmooth = uniform_filter1d(tomo, 10, axis=0)
     listdiff = cp.sum(cp.abs(tomo - sinosmooth), axis=0)          # [nz, ni]
+    listdiffbck = median_filter(listdiff, (1, size))               # [nz, ni]
+    listfact = listdiff / listdiffbck                              # [nz, ni]
+    listmask = _detect_stripe_batch(listfact, snr)                 # [nz, ni]
+    listmask = binary_dilation(
+        listmask, iterations=1,
+        structure=cp.ones((1, 3), dtype=bool)).astype(listmask.dtype)
+    listmask[:, 0:2] = 0.0
+    listmask[:, -2:] = 0.0
     for m in range(nz):
-        listdiffbck = median_filter(listdiff[m], size)
-        listfact = listdiff[m] / listdiffbck
-        listmask = _detect_stripe(listfact, snr)
-        listmask = binary_dilation(listmask, iterations=1).astype(listmask.dtype)
-        listmask[0:2] = 0.0
-        listmask[-2:] = 0.0
-        listx = cp.where(listmask < 1.0)[0]
-        listxmiss = cp.where(listmask > 0.0)[0]
+        listx = cp.where(listmask[m] < 1.0)[0]
+        listxmiss = cp.where(listmask[m] > 0.0)[0]
         if len(listxmiss) > 0:
             matz = tomo[:, m, listx]
             ids = cp.searchsorted(listx, listxmiss)
