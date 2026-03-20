@@ -36,6 +36,8 @@ def inference_pipeline(args, img_cache_original, center_of_rotation_cache, out_d
     assert isinstance(szs,list)
     seed_number = args.infer_seed_number
     model_path = args.infer_model_path
+    if model_path == 'none':
+        raise ValueError("--infer-model-path must be set when using --rotation-axis-method ai")
     if len(nums_windows)>1:
         multi_instances = True
     elif len(nums_windows)==1 and nums_windows[0]>1:

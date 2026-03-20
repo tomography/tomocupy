@@ -113,6 +113,18 @@ Additional instructions for Windows
 .. note::
     It is better to have only one version of VS and one version of CUDA toolkit on your system to avoid problems with environmental variables
 
+================================
+AI-based Center of Rotation
+================================
+
+To use the AI-based center of rotation detection (``--rotation-axis-method ai``), install the following additional dependencies::
+
+    (tomocupy)$ conda install -c conda-forge pytorch pillow einops
+
+Then run reconstruction with::
+
+    (tomocupy)$ tomocupy recon --file-name <file.h5> --rotation-axis-method ai --rotation-axis-auto auto --infer-model-path <path/to/model.pth>
+
 ==========
 Unit tests
 ==========
