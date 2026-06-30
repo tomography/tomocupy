@@ -130,9 +130,13 @@ class Writer():
         elif args.save_format == 'h5':
             # if save results as h5 virtual datasets
             fnameout += '.h5'
+            # Recon volume z-dim: lamino runs produce params.rh slices (set by
+            # reader.init_sizes_lamino when args.lamino_angle != 0);
+            # regular tomo produces nzi/2**binning.
+            z_dim = params.rh if args.lamino_angle != 0 else int(params.nzi/2**args.binning)
             # Assemble virtual dataset
             layout = h5py.VirtualLayout(shape=(
-                params.nzi/2**args.binning, params.n, params.n), dtype=params.dtype)
+                z_dim, params.n, params.n), dtype=params.dtype)
             if not os.path.exists(f'{fnameout[:-3]}_parts'):
                 os.makedirs(f'{fnameout[:-3]}_parts')
             for k in range(params.nzchunk):
@@ -167,8 +171,12 @@ class Writer():
         elif args.save_format == 'h5nolinks':
             fnameout += '.h5'
             h5w = h5py.File(fnameout, "w")
+            # Recon volume z-dim: lamino runs produce params.rh slices (set by
+            # reader.init_sizes_lamino when args.lamino_angle != 0);
+            # regular tomo produces nzi/2**binning.
+            z_dim = params.rh if args.lamino_angle != 0 else int(params.nzi/2**args.binning)
             dset_rec = h5w.create_dataset("/exchange/data", shape=(
-                int(params.nzi/2**args.binning), params.n, params.n), dtype=params.dtype)
+                z_dim, params.n, params.n), dtype=params.dtype)
 
             # saving command line to repeat the reconstruction as attribute of /exchange/data
             rec_line = sys.argv
