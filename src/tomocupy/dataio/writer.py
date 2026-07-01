@@ -234,14 +234,18 @@ class Writer():
             log.info(f'Zarr dataset will be created at {fnameout}')
             log.info(f"ZARR chunk structure: {args.zarr_chunk}")
 
-        # CLI invocation log, sibling to the output
+        # CLI invocation log, sibling to the output.
+        # For h5/h5nolinks the command line is already stored as an attribute
+        # of /exchange/data, so the sidecar txt is redundant and skipped.
         if args.save_format == 'tiff':
             rec_line_path = os.path.dirname(fnameout) + '/rec_line.txt'
-        elif args.save_format in ('h5', 'h5nolinks', 'h5sino'):
+            self._save_rec_line(rec_line_path)
+        elif args.save_format == 'h5sino':
             rec_line_path = fnameout[:-3] + '_line.txt'
+            self._save_rec_line(rec_line_path)
         elif args.save_format == 'zarr':
             rec_line_path = fnameout[:-5] + '_line.txt'
-        self._save_rec_line(rec_line_path)
+            self._save_rec_line(rec_line_path)
 
         params.fnameout = fnameout
         log.info(f'Output: {fnameout}')
