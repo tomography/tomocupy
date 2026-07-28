@@ -83,6 +83,10 @@ class FindCenter():
             center = self.find_center_vo()
         return (center*2**args.binning).astype('float32')
 
+    def find_center_range_ai(self, args, img_cache, center_of_rotation_cache, out_dir):
+        from tomocupy.ai.inference import bin_inference_pipeline
+        return bin_inference_pipeline(args, img_cache, center_of_rotation_cache, out_dir)
+
     def find_center_ai(self, args, img_cache, center_of_rotation_cache, out_dir):
         from tomocupy.ai.inference import inference_pipeline
         return inference_pipeline(args, img_cache, center_of_rotation_cache, out_dir)

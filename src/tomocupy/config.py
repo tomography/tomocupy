@@ -408,6 +408,14 @@ SECTIONS['reconstruction'] = {
         'type': str,
         'help': "Method for automatic rotation search.",
         'choices': ['sift', 'vo','ai']},
+    'ai-search-method': {
+        'default': 'fine',
+        'type': str,
+        'choices': ['fine','full']},
+    'save-test-results': {
+        'default': False,
+        'help': 'When set save the running times',
+        'action': 'store_true'},
     'find-center-start-row': {
         'type': int,
         'default': 0,
@@ -663,13 +671,98 @@ SECTIONS['inference'] = {
     },
 }
 
+SECTIONS['bin-inference'] = {
+    'bin-infer-bin-sizes': {
+        'default': [24,12],
+        'type': list_of_ints,
+        'help': "Differences in pixels in neighboring tomograms' COR parameters",
+    },
+    'bin-infer-bin-counts': {
+        'default': [4,2],
+        'type': list_of_ints,
+        'help': "Numbers of bins to use for parameter range search",
+    },
+    'bin-infer-seed-number': {
+        'default': 10,
+        'type': int,
+        'help': "Seed number for random number generator"
+    },
+    'bin-infer-input-data-type': {
+        'default': 'raw',
+        'type': str,
+        'help': "Center of rotation algorithm input",
+        'choices': ['raw','try']
+    },
+    'bin-infer-use-8bits': {
+        'default': True,
+        'help': "When set requantize the pixel values with 8 bits",
+        'action': 'store_true'
+    },
+    'bin-infer-downsample-factor': {
+        'default': [1],
+        'type': list_of_ints,
+        'help': "Downsample factor applied to the try reconstruction slices"
+    },
+    'bin-infer-num-windows': {
+        'default': [20],
+        'type': list_of_ints,
+        'help': "Number of windows to aggregate try recon image features"
+    },
+    'bin-infer-window-size': {
+        'default': [518],
+        'type': list_of_ints,
+        'help': "Size of each square window to aggregate try recon image features"
+    },
+    'bin-infer-model-path': {
+        'default': 'none',
+        'type': str,
+        'help': "Path to the trained model weights"
+    },
+    'bin-infer-input-dir': {
+        'default': 'none',
+        'type': str,
+        'help': 'Input directory if tiff images are the direct inputs'
+    },
+    'bin-infer-save-intermediate-data': {
+        'default': False,
+        'help': 'When set save the per-slice model predictions',
+        'action': 'store_true'
+    },
+    'bin-infer-batch-list': {
+        'default': None,
+        'type': str,
+        'help': 'When supplied txt file process a list of input directories',
+    },
+    'bin-infer-out-dir-name': {
+        'default': None,
+        'type': Path,
+        'help': "Directory for output batches",
+        'metavar': 'PATH'
+    },
+    'bin-infer-num-frames': {
+        'default': 2,
+        'type': int,
+        'help':"Number of frames to aggregate try recon image features",
+    },
+    'bin-infer-aggregator-depth': {
+        'default': 5,
+        'type': int,
+        'help': "Number of attention layers in the feature aggregator",
+    },
+    'bin-infer-aggregator-num-heads': {
+        'default': 12,
+        'type': int,
+        'help': "Number of attention heads in each attention layer in the feature aggregator",
+    },
+}
+
 RECON_PARAMS = ('file-reading', 'remove-stripe',
                 'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types', 'beam-hardening', 'inference', 'output')
 RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
                       'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj', 'beam-hardening', 'inference', 'output')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',
-              'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo', 'Retrieve phase', 'Reconstruction','Inference')
+              'Remove stripe FW', 'Remove stripe Titarenko', 'Remove stripe Vo', 'Retrieve phase', 'Reconstruction','Inference','Bin inference')
 
 
 def get_config_name():

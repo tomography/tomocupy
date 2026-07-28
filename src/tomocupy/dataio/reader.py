@@ -226,8 +226,12 @@ class Reader():
 
         if args.reconstruction_type == 'try':
             # invert shifts for calculations if centeri<ni for double_fov
-            shift_array = np.arange(-args.center_search_width,
-                                    args.center_search_width, args.center_search_step*2**args.binning).astype('float32')/2**args.binning
+            if args.symmetric_center_search:
+                shift_array = np.arange(-args.center_search_width,
+                                        (args.center_search_width+args.center_search_step*2**args.binning), args.center_search_step*2**args.binning).astype('float32')/2**args.binning
+            else:
+                shift_array = np.arange(-args.center_search_width,
+                                        args.center_search_width, args.center_search_step*2**args.binning).astype('float32')/2**args.binning
             save_centers = (params.centeri - shift_array) * \
                 2**args.binning+params.st_n
             if (args.file_type == 'double_fov') and (params.centeri < params.ni//2):
