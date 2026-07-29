@@ -130,6 +130,7 @@ def run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = False):
         exit()
     if args.reconstruction_type != 'try':
         log.error(f"Error: reconstruction type is not 'try'. Detected {args.reconstruction_type} instead.")
+        exit()
     cache_to_infer = args.reconstruction_type == 'try' and use_ai
     clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
 
@@ -352,7 +353,6 @@ def main():
                 results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
                 if save_test_results_ok:
                     results_all["Stage 2"] = results
-                    print(results_all)
                     import json
                     with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
                         json.dump(results_all, f, indent=4, ensure_ascii=False)

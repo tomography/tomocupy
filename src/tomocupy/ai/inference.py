@@ -99,9 +99,6 @@ def bin_inference_pipeline(args, img_cache_original, center_of_rotation_cache, o
     msg = model.load_state_dict(states,strict=False)
     model.to(device)
 
-    # print('starting model inference...')
-    # t_start3 = time.time()
-
     imgs_cache = load_images(img_cache_original, downsample_factors, use_8bits, preprocessed=preprocessed)
 
     patches_corners = []
@@ -144,8 +141,6 @@ def bin_inference_pipeline(args, img_cache_original, center_of_rotation_cache, o
             feature = model(samples)
         features.append(feature)
     
-    # t_stop3 = time.time()
-    # print(f"done. Elapsed time is {t_stop3-t_start3} s.")
     features_all = torch.cat(features,dim=0).detach().cpu().numpy()
     if args.bin_infer_save_intermediate_data:
         np.savez(Path(out_dir)/'range_predicts_all',features_all,center_of_rotation_cache)
