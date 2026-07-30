@@ -44,7 +44,7 @@ from functools import partial
 import math
 
 from typing import Sequence, Tuple, Union, Callable, Optional, List
-
+from tomocupy.ai.aggregator import Aggregator
 
 def _make_dinov2_model(img_size:int=518,patch_size:int=14,init_values:float=1.0,ffn_layer:str='mlp',block_chunks: int = 0,\
                        num_register_tokens:int= 0,interpolate_antialias:bool=False,interpolate_offset:float=0.1):
@@ -779,3 +779,99 @@ class ClassificationModel(nn.Module):
             return torch.mean(self.head(torch.bmm(attn,features_all)),dim=1)
         else:
             return self.head(features_all) #features_ is b*c
+
+class RangeClassificationModel(nn.Module):
+    def __init__(self, model, embed_dim:int, num_windows:List[int], num_frames:int, num_classes:int=2, multi_instances:bool=False, multi_frames:bool=False,\
+                 aggregator_depth=12, aggregator_num_heads=12, attn_branches:int=1, attn_embed_dim:int=None, freeze_backbone_ok:bool=True):
+        super().__init__()
+        self.model = model
+        self.embed_dim = embed_dim
+        self.num_windows = num_windows
+        self.num_frames = num_frames
+        self.num_classes = num_classes
+        self.multi_instances = multi_instances
+        self.multi_frames = multi_frames
+        if multi_frames:
+            assert multi_instances
+        self.freeze_backbone_ok = freeze_backbone_ok
+        if multi_frames:
+            self.aggregator = Aggregator(embed_dim=embed_dim,depth=aggregator_depth,num_heads=aggregator_num_heads)
+
+        if multi_instances:
+            if attn_embed_dim is None:
+                attn_embed_dim = embed_dim
+            assert type(attn_embed_dim) is int
+            
+            self.attention = nn.Sequential(
+                nn.Linear(embed_dim, attn_embed_dim), # matrix V
+                nn.Tanh(),
+            )
+            self.gate = nn.Sequential(
+                nn.Linear(embed_dim, attn_embed_dim), # matrix U
+                nn.Sigmoid(),
+            )
+            self.fc = nn.Linear(attn_embed_dim, attn_branches)
+            
+            self.attn_embed_dim = attn_embed_dim
+            self.attn_branches = attn_branches
+
+        self.head = nn.Linear(embed_dim, num_classes)
+    
+    def load_weights(self,model_path, replace_pattern="module."):
+        if Path(model_path).suffix == '.pt':
+            states = torch.load(model_path, map_location='cpu')['state_dict']
+        elif Path(model_path).suffix == '.pth':
+            states = torch.load(model_path, map_location='cpu')['model']
+        states = {(k.replace(replace_pattern, "") if replace_pattern in k else k): v for k, v in states.items()}
+        msg = self.model.load_state_dict(states,strict=False)
+        print(f"missing keys: {msg.missing_keys}")
+        print(f"unexpected keys: {msg.unexpected_keys}")
+
+    def forward(self, sample):
+        
+        # if self.model is not None:
+        features_all = []
+        for idx_,sample_ in enumerate(sample):
+            images = sample_['images']
+            
+
+            if self.freeze_backbone_ok:
+                self.model.eval()
+                with torch.no_grad():
+                    if not self.multi_frames:
+                        assert self.num_frames == 1
+                        print("warning: only one frame input to the model which has been optimized for two-frame inputs")
+                        features_ = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1))
+                        features_ = rearrange(features_,'(b k) c -> b k c', k=self.num_windows[idx_])
+                    else:
+                        
+                        features_ = self.model(rearrange(images,'b r s c h w -> (b r s) c h w').repeat(1,3,1,1),is_training=True)['x_norm_patchtokens']
+                        img_h, img_w = images.shape[-2:]
+                        features_ = rearrange(features_,'(b r s) (h w) c -> b r s h w c',r=self.num_windows[idx_],s=self.num_frames,h=img_h//self.model.patch_size,w=img_w//self.model.patch_size)
+            else:
+                if not self.multi_frames:
+                    assert self.num_frames == 1
+                    print("warning: only one frame input to the model which has been optimized for two-frame inputs")
+                    features_ = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1),is_training=True)["x_norm_clstoken"]
+                    features_ = rearrange(features_,'(b k) c -> b k c', k=self.num_windows[idx_])
+                else:
+                    
+                    features_ = self.model(rearrange(images,'b r s c h w -> (b r s) c h w').repeat(1,3,1,1),is_training=True)['x_norm_patchtokens']
+                    img_h, img_w = images.shape[-2:]
+                    features_ = rearrange(features_,'(b r s) (h w) c -> b r s h w c',r=self.num_windows[idx_],s=self.num_frames,h=img_h//self.model.patch_size,w=img_w//self.model.patch_size)
+            
+            if self.multi_frames:
+                features_,_ = self.aggregator(features_)
+                features_ = features_[:,:,0] #b*k*c or b*r*c
+            
+            features_all.append(features_)
+
+        features_all = torch.cat(features_all,dim=1)
+        if (self.multi_instances or len(sample)>1):
+            attn = self.fc(self.attention(features_all) * self.gate(features_all)) #features_ is b*k*c
+            attn = torch.transpose(attn, 2, 1)  #attn is b*ATTENTION_BRANCHES*K after transposition
+            attn = F.softmax(attn, dim=2)  # softmax over K
+            return torch.mean(self.head(torch.bmm(attn,features_all)),dim=1)
+        else:
+            # return self.head(features_) #features_ is b*c
+            return self.head(features_all[:,0]) #features_ is b*c
