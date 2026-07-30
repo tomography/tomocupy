@@ -75,7 +75,7 @@ def bin_inference_pipeline(args, img_cache_original, center_of_rotation_cache, o
     seed_number = args.bin_infer_seed_number
     model_path = args.bin_infer_model_path
     if model_path == 'none':
-        raise ValueError("--bin-infer-model-path must be set")
+        raise ValueError("--bin-infer-model-path must be set when using --rotation-axis-method ai and --ai-search-method full\n The model can be downloaded from: https://anl.box.com/s/sacl4mnvktwinwiidp6jjj8pilsjp25u.")
     if len(nums_windows)>1:
         multi_instances = True
     elif len(nums_windows)==1 and nums_windows[0]>1:
