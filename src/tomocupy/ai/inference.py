@@ -229,3 +229,6 @@ def inference_pipeline(args, img_cache_original, center_of_rotation_cache, out_d
     with open(Path(out_dir)/'center_of_rotation.txt','a') as f:
         for cor in centers_of_rotation:
             f.write(f"{cor:.1f}\n")
+    # Return the best-scoring center so find_center_ai can propagate it to
+    # args.rotation_axis. Multiple centers tied for max are averaged.
+    return float(np.mean(centers_of_rotation))
