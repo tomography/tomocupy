@@ -229,3 +229,7 @@ def inference_pipeline(args, img_cache_original, center_of_rotation_cache, out_d
     with open(Path(out_dir)/'center_of_rotation.txt','a') as f:
         for cor in centers_of_rotation:
             f.write(f"{cor:.1f}\n")
+    # Return the picked COR so callers (e.g. _find_center_ai in __main__)
+    # can assign it to args.rotation_axis; without this the assignment
+    # silently gets None and downstream logs "set rotation axis None".
+    return float(centers_of_rotation[-1]) if centers_of_rotation else None

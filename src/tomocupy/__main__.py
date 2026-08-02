@@ -326,9 +326,9 @@ def main():
                         
                     cl_reader = reader.Reader()
                     cl_writer = writer.Writer()
-                    log.info(f"shift array is {params.shift_array}")#
-                    log.info(f"save center is {params.save_centers}")
-                    log.info(f"centeri is {params.centeri}")
+                    log.info(f"shift array is {getattr(params, 'shift_array', 'n/a')}")
+                    log.info(f"save center is {getattr(params, 'save_centers', 'n/a')}")
+                    log.info(f"centeri is {getattr(params, 'centeri', 'n/a')}")
                     if args._func == run_rec:
                         results = run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
                     elif args._func == run_recsteps:
@@ -346,9 +346,13 @@ def main():
             
             cl_reader = reader.Reader()
             cl_writer = writer.Writer()
-            log.info(f"shift array is {params.shift_array}")#
-            log.info(f"save center is {params.save_centers}")
-            log.info(f"centeri is {params.centeri}")
+            # shift_array / save_centers are only populated by
+            # Reader.init_sizes_try; in full mode they don't exist yet.
+            # Log defensively so a fresh --reconstruction-type full run
+            # doesn't crash on an unrelated attribute access.
+            log.info(f"shift array is {getattr(params, 'shift_array', 'n/a')}")
+            log.info(f"save center is {getattr(params, 'save_centers', 'n/a')}")
+            log.info(f"centeri is {getattr(params, 'centeri', 'n/a')}")
             if (args._func == run_rec) or (args._func == run_recsteps):
                 results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
                 if save_test_results_ok:
