@@ -379,11 +379,16 @@ def _inverse_perm3(ids):
     Replaces argsort(ids, axis=2) which is O(n log n).
     Valid because matindex[i,j]=j so the permutation tracked by matindex
     is identical to ids itself.
+
+    Falls back to O(n log n) argsort on cupy<13 where put_along_axis is
+    unavailable (argsort of a permutation IS its inverse permutation).
     """
-    ids2 = cp.empty_like(ids)
-    src = cp.broadcast_to(cp.arange(ids.shape[2], dtype=ids.dtype)[None, None, :], ids.shape)
-    cp.put_along_axis(ids2, ids, src, axis=2)
-    return ids2
+    if hasattr(cp, 'put_along_axis'):
+        ids2 = cp.empty_like(ids)
+        src = cp.broadcast_to(cp.arange(ids.shape[2], dtype=ids.dtype)[None, None, :], ids.shape)
+        cp.put_along_axis(ids2, ids, src, axis=2)
+        return ids2
+    return cp.argsort(ids, axis=2)
 
 
 def _rs_sort3(tomo, size, dim):

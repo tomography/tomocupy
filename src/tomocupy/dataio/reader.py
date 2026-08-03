@@ -366,8 +366,14 @@ class Reader():
         """Read a chunk of projections with binning"""
 
         with h5py.File(args.file_name) as fid:
-            d = fid['/exchange/data'][args.start_proj +
-                                      st_proj:args.start_proj+end_proj, st_z:end_z, st_n:end_n]
+            if isinstance(params.ids_proj, np.ndarray):
+                ids = params.ids_proj[st_proj:end_proj]
+                lo, hi = int(ids[0]), int(ids[-1]) + 1
+                d = fid['/exchange/data'][lo:hi, st_z:end_z, st_n:end_n]
+                d = d[ids - lo]
+            else:
+                d = fid['/exchange/data'][args.start_proj +
+                                          st_proj:args.start_proj+end_proj, st_z:end_z, st_n:end_n]
             data[st_proj:end_proj] = utils.downsample(d, args.binning)
 
     def read_flat_dark(self, st_n, end_n):
@@ -422,8 +428,7 @@ class Reader():
         procs = []
         for k in range(nthreads):
             st_proj = k*lchunk
-            end_proj = min((k+1)*lchunk, args.end_proj -
-                           args.start_proj)
+            end_proj = min((k+1)*lchunk, data.shape[0])
             if st_proj >= end_proj:
                 continue
             read_thread = Thread(
