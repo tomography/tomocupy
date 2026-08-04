@@ -186,7 +186,7 @@ def run_rec(args, cl_reader, cl_writer, save_test_results_ok = False):
     if save_test_results_ok:
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
-        results['rotation axis'] = args.rotation_axis
+        results['rotation axis'] = float(args.rotation_axis)
     return results
 
 def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok = False):
@@ -247,7 +247,7 @@ def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok = False):
     if save_test_results_ok:
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
-        results['rotation axis'] = args.rotation_axis
+        results['rotation axis'] = float(args.rotation_axis)
     log.warning(f'Reconstruction time {t2-t:.1f}s')
     return results
 
@@ -349,6 +349,7 @@ def main():
                 results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
                 if save_test_results_ok:
                     results_all["Stage 2"] = results
+                    print(f"results are: {results_all}")
                     import json
                     with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
                         json.dump(results_all, f, indent=4, ensure_ascii=False)
