@@ -285,7 +285,7 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
                 preprocessed_cache = None
             else:
                 cache_preprocessed = False
-                recon_from_cache_preprocessed = True
+                recon_from_cache_preprocessed = True if preprocessed_cache is not None else False
                 
             results = run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok,\
                 recon_from_cache_preprocessed=recon_from_cache_preprocessed,preprocessed_cache=preprocessed_cache,cache_preprocessed=cache_preprocessed)
@@ -309,7 +309,7 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
         results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
     elif args._func == run_recsteps:
         cache_preprocessed = False
-        recon_from_cache_preprocessed = True
+        recon_from_cache_preprocessed = True if preprocessed_cache is not None else False
         results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok,\
         recon_from_cache_preprocessed=recon_from_cache_preprocessed,preprocessed_cache=preprocessed_cache,cache_preprocessed=cache_preprocessed)
     if save_test_results_ok:
