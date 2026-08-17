@@ -212,8 +212,6 @@ def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok:bool 
         center_of_rotation_cache = center_of_rotation_cache[::-1]
     center_lb, center_ub = _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache)
     t2 = time.time()
-    print(f"Number of images is {len(img_cache)}")
-    print(f"Size of image is {img_cache[0].shape}")
     results = {'center_lb':float(center_lb), 'center_ub':float(center_ub)}
     if cache_preprocessed:
         results['preprocessed_cache'] = results_['data']
