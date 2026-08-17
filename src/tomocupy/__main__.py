@@ -234,10 +234,10 @@ def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, 
     if args.rotation_axis_auto == 'auto' and not use_ai:
         _find_center(cl_reader)
 
-    cache_to_infer = use_ai
+    cache_to_infer = args.reconstruction_type == 'try' and use_ai
     clpthandle = GPURecSteps(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
 
-    if use_ai:
+    if cache_to_infer:
         results_ = clpthandle.recon_steps_all(recon_from_cache_preprocessed=recon_from_cache_preprocessed, preprocessed_cache=preprocessed_cache, cache_preprocessed=cache_preprocessed)
         img_cache, center_of_rotation_cache = results_['img_cache'], results_['center_of_rotation_cache']
         t1 = time.time()
@@ -258,7 +258,7 @@ def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, 
     log.warning(f'Reconstruction time {t2-t:.1f}s')
     return results
 
-def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=False):
+def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=False,export_results_ok=False):
     if len(args.bin_infer_bin_sizes) != len(args.bin_infer_bin_counts):
         log.error(f"Numbers of bin sizes and bin counts do not match: got {len(args.bin_infer_bin_sizes)} and {len(args.bin_infer_bin_counts)}, respectively.")
         exit()
@@ -314,21 +314,38 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
         recon_from_cache_preprocessed=recon_from_cache_preprocessed,preprocessed_cache=preprocessed_cache,cache_preprocessed=cache_preprocessed)
     if save_test_results_ok:
         results_all["Stage 2"] = results
+    if export_results_ok:
         print(f"results are: {results_all}")
         import json
         with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
             json.dump(results_all, f, indent=4, ensure_ascii=False)
 
-def recon(results_all,save_test_results_ok=False):
+def recon(results_all,save_test_results_ok=False,export_results_ok=False):
     cl_reader = reader.Reader()
     cl_writer = writer.Writer()
     results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
     if save_test_results_ok:
-        results_all["Stage 2"] = results
+        if args.reconstruction_type == 'try':
+            results_all["Stage 2"] = results
+        elif args.reconstruction_type == 'full':
+            results_all["Stage full"] = results
+    if export_results_ok:
         print(f"results are: {results_all}")
         import json
-        with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
-            json.dump(results_all, f, indent=4, ensure_ascii=False)
+        if args.reconstruction_type == 'try':
+            with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
+                json.dump(results_all, f, indent=4, ensure_ascii=False)
+        elif args.reconstruction_type == 'full':
+            if Path(params.fnameout).is_file():
+                with open(str(Path(params.fnameout).parent)+f"/test_results_{Path(params.fnameout).stem}.json", "w", encoding="utf-8") as f:
+                    json.dump(results_all, f, indent=4, ensure_ascii=False)
+            elif (Path(params.fnameout).is_dir() and args.save_format == 'zarr'):
+                with open(str(Path(params.fnameout).parent)+f"/test_results_{Path(params.fnameout).stem}.json", "w", encoding="utf-8") as f:
+                        json.dump(results_all, f, indent=4, ensure_ascii=False)
+            
+            elif args.save_format == 'tiff':
+                with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
+                        json.dump(results_all, f, indent=4, ensure_ascii=False)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -386,13 +403,37 @@ def main():
             args._func(args)
         else:
             save_test_results_ok = args.save_test_results
-            if save_test_results_ok:
-                results_all = {}
+            
+            results_all = {}
             args.symmetric_center_search = False
             if ((args._func == run_rec) or (args._func == run_recsteps)) and (args.rotation_axis_method == 'ai') and (args.ai_search_method == 'full') and (args.reconstruction_type == 'try'):
+                try_recon_ai_full(results_all,save_test_results_ok=save_test_results_ok,cache_preprocessed=args.bin_infer_cache_preprocessed,export_results_ok=save_test_results_ok)
+            elif ((args._func == run_rec) or (args._func == run_recsteps)) and (args.rotation_axis_method == 'ai') and (args.ai_search_method == 'full') and (args.reconstruction_type == 'full'):
+                from copy import deepcopy
+                args_dict = deepcopy(args.__dict__)
+                params_dict = deepcopy(params.__dict__)
+                args.reconstruction_type = 'try'
                 try_recon_ai_full(results_all,save_test_results_ok=save_test_results_ok,cache_preprocessed=args.bin_infer_cache_preprocessed)
-            elif (args._func == run_rec) or (args._func == run_recsteps):
+                args.__dict__.clear()
+                args.__dict__.update(args_dict)
+                params.__dict__.clear()
+                params.__dict__.update(params_dict)
+                recon(results_all,save_test_results_ok=save_test_results_ok,export_results_ok=save_test_results_ok)
+
+            elif ((args._func == run_rec) or (args._func == run_recsteps)) and (args.rotation_axis_method == 'ai') and (args.ai_search_method == 'fine') and (args.reconstruction_type == 'full'):
+                from copy import deepcopy
+                args_dict = deepcopy(args.__dict__)
+                params_dict = deepcopy(params.__dict__)
+                args.reconstruction_type = 'try'
                 recon(results_all,save_test_results_ok=save_test_results_ok)
+                args.__dict__.clear()
+                args.__dict__.update(args_dict)
+                params.__dict__.clear()
+                params.__dict__.update(params_dict)
+                recon(results_all,save_test_results_ok=save_test_results_ok,export_results_ok=save_test_results_ok)
+
+            elif (args._func == run_rec) or (args._func == run_recsteps):
+                recon(results_all,save_test_results_ok=save_test_results_ok,export_results_ok=save_test_results_ok)
             else:
                 cl_reader = reader.Reader()
                 cl_writer = writer.Writer()
