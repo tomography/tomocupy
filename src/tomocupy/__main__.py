@@ -412,10 +412,12 @@ def main():
                 params_dict = deepcopy(params.__dict__)
                 args.reconstruction_type = 'try'
                 try_recon_ai_full(results_all,save_test_results_ok=save_test_results_ok,cache_preprocessed=args.bin_infer_cache_preprocessed)
+                rotation_axis = args.rotation_axis
                 args.__dict__.clear()
                 args.__dict__.update(args_dict)
                 params.__dict__.clear()
                 params.__dict__.update(params_dict)
+                args.rotation_axis = rotation_axis
                 recon(results_all,save_test_results_ok=save_test_results_ok,export_results_ok=save_test_results_ok)
 
             elif ((args._func == run_rec) or (args._func == run_recsteps)) and (args.rotation_axis_method == 'ai') and (args.ai_search_method == 'fine') and (args.reconstruction_type == 'full'):
@@ -424,10 +426,12 @@ def main():
                 params_dict = deepcopy(params.__dict__)
                 args.reconstruction_type = 'try'
                 recon(results_all,save_test_results_ok=save_test_results_ok)
+                rotation_axis = args.rotation_axis
                 args.__dict__.clear()
                 args.__dict__.update(args_dict)
                 params.__dict__.clear()
                 params.__dict__.update(params_dict)
+                args.rotation_axis = rotation_axis
                 recon(results_all,save_test_results_ok=save_test_results_ok,export_results_ok=save_test_results_ok)
 
             elif (args._func == run_rec) or (args._func == run_recsteps):
