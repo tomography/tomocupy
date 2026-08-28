@@ -2,7 +2,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
+# found in the LICENSE_DINOV2 file in the /third_party_licenses directory of this source tree.
 
 # References:
 #   https://github.com/facebookresearch/dino/blob/main/vision_transformer.py
@@ -30,6 +30,8 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
+# Modifications Copyright 2026 tomocupy authors
 
 import torch
 from torch import Tensor

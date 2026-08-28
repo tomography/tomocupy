@@ -2,7 +2,9 @@
 # All rights reserved.
 #
 # This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+# LICENSE_VGGT file in the /third_party_licenses directory of this source tree.
+
+# Modifications Copyright 2026 tomocupy authors
 
 import logging
 import torch
