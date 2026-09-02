@@ -75,7 +75,7 @@ def bin_inference_pipeline(args, img_cache_original, center_of_rotation_cache, o
     seed_number = args.bin_infer_seed_number
     model_path = args.bin_infer_model_path
     if model_path == 'none':
-        raise ValueError("--bin-infer-model-path must be set")
+        raise ValueError("--bin-infer-model-path must be set when using --rotation-axis-method ai and --ai-search-method full\n The model can be downloaded from: https://anl.box.com/s/sacl4mnvktwinwiidp6jjj8pilsjp25u.")
     if len(nums_windows)>1:
         multi_instances = True
     elif len(nums_windows)==1 and nums_windows[0]>1:
@@ -92,15 +92,12 @@ def bin_inference_pipeline(args, img_cache_original, center_of_rotation_cache, o
     np.random.seed(seed_number)
     device = torch.device('cuda') if torch.cuda.is_available() else 'cpu'
     model_ = _make_dinov2_model()
-
     model = RangeClassificationModel(model_,embed_dim=model_.embed_dim,num_windows=nums_windows,multi_instances=multi_instances,num_frames=num_frames,multi_frames=multi_frames,aggregator_depth=aggregator_depth,aggregator_num_heads=aggregator_num_heads)
     states = torch.load(model_path, map_location='cpu')['state_dict']
     states = {(k.replace("module.", "") if "module." in k else k): v for k, v in states.items()}
     msg = model.load_state_dict(states,strict=False)
     model.to(device)
-
     imgs_cache = load_images(img_cache_original, downsample_factors, use_8bits, preprocessed=preprocessed)
-
     patches_corners = []
     for img_cache,num_windows,sz in zip(imgs_cache,nums_windows,szs):
         row, col = img_cache.shape[1:]
@@ -140,7 +137,6 @@ def bin_inference_pipeline(args, img_cache_original, center_of_rotation_cache, o
         with torch.no_grad():
             feature = model(samples)
         features.append(feature)
-    
     features_all = torch.cat(features,dim=0).detach().cpu().numpy()
     if args.bin_infer_save_intermediate_data:
         np.savez(Path(out_dir)/'range_predicts_all',features_all,center_of_rotation_cache)
@@ -177,9 +173,6 @@ def inference_pipeline(args, img_cache_original, center_of_rotation_cache, out_d
     states = {(k.replace("module.", "") if "module." in k else k): v for k, v in states.items()}
     msg = model.load_state_dict(states,strict=False)
     model.to(device)
-
-    # print('starting model inference...')
-    # t_start3 = time.time()
 
     imgs_cache = load_images(img_cache_original, downsample_factors, use_8bits, preprocessed=preprocessed)
 
@@ -218,8 +211,6 @@ def inference_pipeline(args, img_cache_original, center_of_rotation_cache, out_d
         with torch.no_grad():
             feature = model(samples)
         features.append(feature)
-    # t_stop3 = time.time()
-    # print(f"done. Elapsed time is {t_stop3-t_start3} s.")
     
     features_all = torch.cat(features,dim=0).detach().cpu().numpy()
     if args.infer_save_intermediate_data:

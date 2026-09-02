@@ -672,6 +672,11 @@ SECTIONS['inference'] = {
 }
 
 SECTIONS['bin-inference'] = {
+    'bin-infer-cache-preprocessed': {
+        'default': False,
+        'help': "When set cache the preprocessed projection data for the full ai inference pipeline",
+        'action': 'store_true'
+    },
     'bin-infer-bin-sizes': {
         'default': [24,12],
         'type': list_of_ints,
