@@ -46,7 +46,7 @@ from functools import partial
 import math
 
 from typing import Sequence, Tuple, Union, Callable, Optional, List
-from tomocupy.ai.aggregator import Aggregator
+from tomocupy.ai.aggregator5 import VisionTransformerAggregator
 
 def _make_dinov2_model(img_size:int=518,patch_size:int=14,init_values:float=1.0,ffn_layer:str='mlp',block_chunks: int = 0,\
                        num_register_tokens:int= 0,interpolate_antialias:bool=False,interpolate_offset:float=0.1):
@@ -466,16 +466,6 @@ class DinoVisionTransformer(nn.Module):
         if ffn_layer == "mlp":
             # logger.info("using MLP layer as FFN")
             ffn_layer = Mlp
-        # elif ffn_layer == "swiglufused" or ffn_layer == "swiglu":
-        #     logger.info("using SwiGLU layer as FFN")
-        #     ffn_layer = SwiGLUFFNFused
-        # elif ffn_layer == "identity":
-        #     logger.info("using Identity layer as FFN")
-
-        #     def f(*args, **kwargs):
-        #         return nn.Identity()
-
-        #     ffn_layer = f
         else:
             raise NotImplementedError
 
@@ -693,16 +683,6 @@ class DinoVisionTransformer(nn.Module):
             return ret
         else:
             return self.head(ret["x_norm_clstoken"])
-# class ClassificationModel(nn.Module):
-#     def __init__(self, model, num_classes=2):
-#         super().__init__()
-#         self.model = model
-#         self.num_classes = num_classes
-#         self.head = nn.Linear(model.embed_dim, num_classes)
-
-#     def forward(self, x):
-#         features = self.model(x)
-#         return self.head(features)
 
 class ClassificationModel(nn.Module):
     def __init__(self, model, embed_dim:int, num_windows:List[int], num_classes:int=2, multi_instances:bool=False,\
@@ -797,7 +777,7 @@ class RangeClassificationModel(nn.Module):
             assert multi_instances
         self.freeze_backbone_ok = freeze_backbone_ok
         if multi_frames:
-            self.aggregator = Aggregator(embed_dim=embed_dim,depth=aggregator_depth,num_heads=aggregator_num_heads)
+            self.aggregator = VisionTransformerAggregator(embed_dim=embed_dim,depth=aggregator_depth,num_heads=aggregator_num_heads)
 
         if multi_instances:
             if attn_embed_dim is None:
