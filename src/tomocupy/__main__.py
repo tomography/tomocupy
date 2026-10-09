@@ -264,6 +264,11 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
     args.symmetric_center_search = True
     args.clear_folder = 'True'
     center_search_step = args.center_search_step
+    if args.binning != args.bin_infer_binning:
+        binning = args.binning
+        args.binning = args.bin_infer_binning
+    else:
+        binning = None
     if args.use_relative_bin_size and any(np.array(args.bin_infer_bin_sizes)>1):
         log.error(f"bin-infer-bin-sizes are set to {args.bin_infer_bin_sizes}. All elements are required to be in the range of 0 to 1.")
         exit()
@@ -312,6 +317,13 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
         log.info(f"Level {i+1}: refined range is ({center_lb},{center_ub})")
     args.center_search_step = center_search_step
     args.center_search_width = (center_ub-center_lb)/2
+    if binning is not None:
+        args.binning = binning
+    if args.binning != args.infer_binning:
+        binning = args.binning
+        args.binning = args.infer_binning
+    else:
+        binning = None
     if args.use_relative_bin_size:
         log.info(f"Relative bin size is disabled for fine search.")
         args.use_relative_bin_size = False
@@ -325,6 +337,8 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
         recon_from_cache_preprocessed = True if preprocessed_cache is not None else False
         results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok,\
         recon_from_cache_preprocessed=recon_from_cache_preprocessed,preprocessed_cache=preprocessed_cache,cache_preprocessed=cache_preprocessed)
+    if binning is not None:
+        args.binning = binning
     if save_test_results_ok:
         results_all["Stage 2"] = results
     if export_results_ok:
@@ -442,7 +456,14 @@ def main():
                 args_dict = deepcopy(args.__dict__)
                 params_dict = deepcopy(params.__dict__)
                 args.reconstruction_type = 'try'
+                if args.binning != args.infer_binning:
+                    binning = args.binning
+                    args.binning = args.infer_binning
+                else:
+                    binning = None
                 recon(results_all,save_test_results_ok=save_test_results_ok)
+                if binning is not None:
+                    args.binning = binning
                 rotation_axis = args.rotation_axis
                 args.__dict__.clear()
                 args.__dict__.update(args_dict)
@@ -452,7 +473,14 @@ def main():
                 recon(results_all,save_test_results_ok=save_test_results_ok,export_results_ok=save_test_results_ok)
 
             elif (args._func == run_rec) or (args._func == run_recsteps):
+                if args.rotation_axis_method == 'ai' and args.binning != args.infer_binning:
+                    binning = args.binning
+                    args.binning = args.infer_binning
+                else:
+                    binning = None
                 recon(results_all,save_test_results_ok=save_test_results_ok,export_results_ok=save_test_results_ok)
+                if binning is not None:
+                    args.binning = binning
             else:
                 if args.use_relative_bin_size:
                     log.info(f"Relative bin size is disabled when ai search method is set to fine.")

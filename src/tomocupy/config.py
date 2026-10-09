@@ -679,6 +679,11 @@ SECTIONS['inference'] = {
         'help': "Directory for output batches",
         'metavar': 'PATH'
     },
+    'infer-binning': {
+        'type': utils.positive_int,
+        'default': 0,
+        'help': "Reconstruction binning factor as power(2, choice)",
+        'choices': [0, 1, 2, 3]},
 }
 
 SECTIONS['bin-inference'] = {
@@ -769,6 +774,11 @@ SECTIONS['bin-inference'] = {
         'type': int,
         'help': "Number of attention heads in each attention layer in the feature aggregator",
     },
+    'bin-infer-binning': {
+        'type': utils.positive_int,
+        'default': 0,
+        'help': "Reconstruction binning factor as power(2, choice)",
+        'choices': [0, 1, 2, 3]},
 }
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',
