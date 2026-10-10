@@ -61,6 +61,10 @@ log = logging.getLogger(__name__)
 
 # Number of grey levels the entropy search scores a reconstruction with.
 ENTROPY_BINS = 256
+# Step of its coarse pass, and the radius its fine pass covers around the
+# coarse winner, both in binned pixels; find_center_vo uses the same two.
+ENTROPY_COARSE_STEP = 0.5
+ENTROPY_FINE_RADIUS = 6
 
 
 class FindCenter():
@@ -80,10 +84,19 @@ class FindCenter():
         self.cl_reader = cl_reader
 
     def find_center(self):
+        """Rotation axis location, in unbinned pixels of the full projection.
+
+        The caller stores the result in args.rotation_axis, which reader
+        init_sizes reads in that frame, so every method has to report in it.
+        """
+
         if args.rotation_axis_method == 'sift':
             center = self.find_center_sift()
         elif args.rotation_axis_method == 'vo':
-            center = self.find_center_vo()
+            # vo measures the axis on the sinogram it was handed, which for
+            # float16 is the power-of-2 crop of the projections, so its
+            # result is low by the columns that crop dropped on the left
+            center = self.find_center_vo()+params.fp16_crop
         elif args.rotation_axis_method == 'entropy':
             center = self.find_center_entropy()
         return (center*2**args.binning).astype('float32')
@@ -212,9 +225,11 @@ class FindCenter():
         A reconstruction at the right center is sharp, so its grey levels
         concentrate in a few histogram bins and the entropy is low; a wrong
         center smears every feature into a halo and spreads the histogram.
-        The slice is reconstructed once per candidate center over the same
-        --center-search-width / --center-search-step grid the try mode uses,
-        and the lowest-entropy candidate wins.
+        The search is coarse to fine, as find_center_vo is: a coarse pass
+        covers the whole --center-search-width at a fixed ENTROPY_COARSE_STEP,
+        then a fine pass covers +-ENTROPY_FINE_RADIUS around the coarse winner
+        at --center-search-step. Candidates lie on the same grid, and follow
+        the same center = centeri - shift convention, the try mode uses.
 
         All candidates are scored with the SAME ENTROPY_BINS bins over the same
         grey range, otherwise two entropies are not comparable. The range is
@@ -237,18 +252,14 @@ class FindCenter():
         # at module level would pull the CUDA kernels into every run
         from tomocupy.reconstruction import backproj_functions
 
-        # candidate centers, same grid and the same convention (center =
-        # centeri - shift) as reader.init_sizes_try, so a center reported here
-        # means what the same number means in the try reconstruction
+        # --center-search-width is in unbinned pixels and --center-search-step
+        # in binned ones, as reader.init_sizes_try reads them
         bin = 2**args.binning
-        shift_array = np.arange(-args.center_search_width,
-                                args.center_search_width +
-                                args.center_search_step*bin,
-                                args.center_search_step*bin).astype('float32')/bin
-        centers = params.centeri - shift_array
-        if (args.file_type == 'double_fov') and (params.centeri < params.ni//2):
-            # shifts are inverted for the computation, not for the labels
-            shift_array = -shift_array
+        radius = args.center_search_width/bin
+        fine_step = min(args.center_search_step, ENTROPY_COARSE_STEP)
+        # the sign the shifts are applied with; the labels keep the other one
+        sgn = -1 if (args.file_type == 'double_fov' and
+                     params.centeri < params.ni//2) else 1
 
         # one slice, with the preprocessing the reconstruction would do
         data_queue = Queue(1)
@@ -295,26 +306,51 @@ class FindCenter():
                 log.error('Entropy center search: the reconstruction is flat')
                 return np.float32(params.centeri)
 
-            entropies = np.zeros(len(shift_array), dtype='float32')
-            for k in range(0, len(shift_array), ncz):
-                chunk = shift_array[k:k+ncz]
-                utils.printProgressBar(
-                    k, len(shift_array), len(shift_array)-k, length=40)
-                for i, r in enumerate(reconstruct(chunk)):
-                    entropies[k+i] = _entropy(r, mask, lo, hi)
-            utils.printProgressBar(
-                len(shift_array), len(shift_array), 0, length=40)
+            def score(shifts, total, done):
+                """Entropy of the reconstruction at each shift."""
+
+                out = np.zeros(len(shifts), dtype='float32')
+                for k in range(0, len(shifts), ncz):
+                    utils.printProgressBar(
+                        done+k, total, total-done-k, length=40)
+                    for i, r in enumerate(reconstruct(sgn*shifts[k:k+ncz])):
+                        out[k+i] = _entropy(r, mask, lo, hi)
+                return out
+
+            # coarse pass over the whole range, at a step that does not depend
+            # on --center-search-step, then a fine pass around its winner
+            coarse = np.arange(-radius, radius+ENTROPY_COARSE_STEP,
+                               ENTROPY_COARSE_STEP).astype('float32')
+            fine = np.arange(-ENTROPY_FINE_RADIUS,
+                             ENTROPY_FINE_RADIUS+fine_step,
+                             fine_step).astype('float32')
+            total = len(coarse)+len(fine)
+
+            ec = score(coarse, total, 0)
+            icoarse = int(np.argmin(ec))
+            if icoarse == 0 or icoarse == len(coarse)-1:
+                log.warning(
+                    'Entropy minimum is at the edge of the search range, '
+                    'please extend center-search-width: %g',
+                    args.center_search_width)
+            log.debug('Entropy coarse minimum %.5f at center %g',
+                      ec[icoarse], (params.centeri-coarse[icoarse])*bin)
+
+            # keep the fine grid anchored on the coarse one so the two passes
+            # agree on the candidates they share
+            fine = np.clip(coarse[icoarse]+fine, -radius, radius)
+            ef = score(fine, total, len(coarse))
+            utils.printProgressBar(total, total, 0, length=40)
+
+            shifts = np.concatenate([coarse, fine])
+            entropies = np.concatenate([ec, ef])
         finally:
             params.center, params.centeri = center0, centeri0
             del rec, datat, data, cl_backproj_func
             cp.get_default_memory_pool().free_all_blocks()
 
         imin = int(np.argmin(entropies))
-        center = np.float32(centers[imin])
-        if imin == 0 or imin == len(centers)-1:
-            log.warning(
-                'Entropy minimum is at the edge of the search range, '
-                'please extend center-search-width: %g', args.center_search_width)
+        center = np.float32(params.centeri-shifts[imin])
         log.info(
             f'Entropy {entropies[imin]:.5f} at center {center*bin}, '
             f'{entropies.max():.5f} at worst, {ENTROPY_BINS} bins in [{lo:.4g}, {hi:.4g}]')
