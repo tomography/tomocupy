@@ -59,6 +59,9 @@ __all__ = ['FindCenter', ]
 
 log = logging.getLogger(__name__)
 
+# Number of grey levels the entropy search scores a reconstruction with.
+ENTROPY_BINS = 256
+
 
 class FindCenter():
     '''
@@ -81,6 +84,8 @@ class FindCenter():
             center = self.find_center_sift()
         elif args.rotation_axis_method == 'vo':
             center = self.find_center_vo()
+        elif args.rotation_axis_method == 'entropy':
+            center = self.find_center_entropy()
         return (center*2**args.binning).astype('float32')
 
     def find_center_range_ai(self, args, img_cache, center_of_rotation_cache, out_dir):
@@ -198,6 +203,140 @@ class FindCenter():
                                 init_cen, ratio, drop)
         log.debug('Rotation center search finished: %i', fine_cen)
         return fine_cen
+
+    def find_center_entropy(self):
+        """
+        Find rotation axis by minimizing the Shannon entropy of the FBP
+        reconstruction of one slice (the one selected by --nsino).
+
+        A reconstruction at the right center is sharp, so its grey levels
+        concentrate in a few histogram bins and the entropy is low; a wrong
+        center smears every feature into a halo and spreads the histogram.
+        The slice is reconstructed once per candidate center over the same
+        --center-search-width / --center-search-step grid the try mode uses,
+        and the lowest-entropy candidate wins.
+
+        All candidates are scored with the SAME ENTROPY_BINS bins over the same
+        grey range, otherwise two entropies are not comparable. The range is
+        fixed once from the reconstruction at the current center, and values
+        outside it are clipped into the end bins rather than dropped -- with
+        them dropped the search could lower the entropy simply by pushing mass
+        out of the range. Only a centered disc of the field of view, of
+        diameter --rotation-axis-entropy-mask times the width, is scored: the
+        reconstruction corners are never sampled by all angles, and a bright
+        container wall just inside the border would otherwise stretch the grey
+        range so far that the sample itself lands in a handful of bins.
+
+        Returns
+        -------
+        float
+            Rotation axis location, in binned pixels.
+        """
+
+        # the reconstruction classes are only needed here, and importing them
+        # at module level would pull the CUDA kernels into every run
+        from tomocupy.reconstruction import backproj_functions
+
+        # candidate centers, same grid and the same convention (center =
+        # centeri - shift) as reader.init_sizes_try, so a center reported here
+        # means what the same number means in the try reconstruction
+        bin = 2**args.binning
+        shift_array = np.arange(-args.center_search_width,
+                                args.center_search_width +
+                                args.center_search_step*bin,
+                                args.center_search_step*bin).astype('float32')/bin
+        centers = params.centeri - shift_array
+        if (args.file_type == 'double_fov') and (params.centeri < params.ni//2):
+            # shifts are inverted for the computation, not for the labels
+            shift_array = -shift_array
+
+        # one slice, with the preprocessing the reconstruction would do
+        data_queue = Queue(1)
+        self.read_data_try(data_queue, params.id_slices[0])
+        item = data_queue.get()
+        data = cp.array(item['data'])
+        dark = cp.array(item['dark'])
+        flat = cp.array(item['flat'])
+        data = self.cl_proc_func.proc_sino(data, dark, flat)
+        data = self.cl_proc_func.proc_proj(data)
+        data = cp.ascontiguousarray(data.swapaxes(0, 1))  # [1, nproj, n]
+
+        # lprec nudges params.center by 0.5 when its solver is built, and the
+        # solver the reconstruction builds later would then do it twice
+        center0, centeri0 = params.center, params.centeri
+        cl_backproj_func = backproj_functions.BackprojFunctions()
+
+        ncz = params.ncz
+        rec = cp.zeros([ncz, params.n, params.n], dtype=params.dtype)
+        datat = cp.empty((ncz, data.shape[1], data.shape[2]), dtype=data.dtype)
+        sht = cp.zeros(ncz, dtype='float32')
+        stream = cp.cuda.get_current_stream()
+
+        def reconstruct(shifts):
+            """Reconstruct the slice once per shift; [len(shifts), n, n]."""
+            k = len(shifts)
+            sht[:k] = cp.asarray(shifts)
+            sht[k:] = 0
+            datat[:] = data  # the same sinogram for every center
+            cl_backproj_func.fbp_filter_center(datat, sht)
+            cl_backproj_func.cl_rec.backprojection(rec, datat, stream)
+            stream.synchronize()
+            return rec[:k]
+
+        try:
+            mask = _disc_mask(params.n, args.rotation_axis_entropy_mask)
+            # grey range from the reconstruction at the current center
+            ref = reconstruct(np.zeros(1, dtype='float32'))[
+                0][mask].astype('float32')
+            lo, hi = (float(v)
+                      for v in cp.percentile(ref, cp.array([0.05, 99.95])))
+            del ref
+            if not hi > lo:
+                log.error('Entropy center search: the reconstruction is flat')
+                return np.float32(params.centeri)
+
+            entropies = np.zeros(len(shift_array), dtype='float32')
+            for k in range(0, len(shift_array), ncz):
+                chunk = shift_array[k:k+ncz]
+                utils.printProgressBar(
+                    k, len(shift_array), len(shift_array)-k, length=40)
+                for i, r in enumerate(reconstruct(chunk)):
+                    entropies[k+i] = _entropy(r, mask, lo, hi)
+            utils.printProgressBar(
+                len(shift_array), len(shift_array), 0, length=40)
+        finally:
+            params.center, params.centeri = center0, centeri0
+            del rec, datat, data, cl_backproj_func
+            cp.get_default_memory_pool().free_all_blocks()
+
+        imin = int(np.argmin(entropies))
+        center = np.float32(centers[imin])
+        if imin == 0 or imin == len(centers)-1:
+            log.warning(
+                'Entropy minimum is at the edge of the search range, '
+                'please extend center-search-width: %g', args.center_search_width)
+        log.info(
+            f'Entropy {entropies[imin]:.5f} at center {center*bin}, '
+            f'{entropies.max():.5f} at worst, {ENTROPY_BINS} bins in [{lo:.4g}, {hi:.4g}]')
+        log.debug('Rotation center search finished: %f', center)
+        return center
+
+
+def _disc_mask(n, frac):
+    """[n, n] bool: a centered disc of diameter `frac` * n."""
+
+    x = cp.arange(n)-(n-1)/2.0
+    return x[:, cp.newaxis]**2+x[cp.newaxis]**2 < (frac*n/2)**2
+
+
+def _entropy(rec, mask, lo, hi, nbins=ENTROPY_BINS):
+    """Shannon entropy, in nats, of the masked grey-level histogram."""
+
+    h = cp.histogram(cp.clip(rec[mask].astype('float32'), lo, hi),
+                     bins=nbins, range=(lo, hi))[0].astype('float64')
+    p = h/cp.maximum(h.sum(), 1)
+    p = p[p > 0]
+    return float(-cp.sum(p*cp.log(p)))
 
 
 def _find_min_max(data):

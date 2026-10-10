@@ -26,6 +26,24 @@ Try center
 
    (tomocupy)$ tomocupy recon --file-name data/test_data.h5 --nsino-per-chunk 4 --reconstruction-type try --center-search-width 100
 
+Automatic center
+~~~~~~~~~~~~~~~~
+
+``--rotation-axis-auto auto`` searches for the rotation axis before the reconstruction.
+``--rotation-axis-method`` selects how: ``sift`` (default, registers the 0 and 180 degree
+projections), ``vo`` (Nghia Vo's sinogram method), ``ai`` (a trained network), or ``entropy``,
+which reconstructs the single slice given by ``--nsino`` for every center in the search grid
+and keeps the one with the lowest Shannon entropy, i.e. the sharpest slice::
+
+   (tomocupy)$ tomocupy recon --file-name data/test_data.h5 --nsino-per-chunk 4 --rotation-axis-auto auto --rotation-axis-method entropy --nsino 0.5 --center-search-width 50 --center-search-step 0.25 --reconstruction-type full
+
+The grid is the same ``--center-search-width`` / ``--center-search-step`` grid used by
+``--reconstruction-type try``, so a center found here means the same thing as a try-center slice
+label. Only a centered disc of the reconstruction is scored; shrink it with
+``--rotation-axis-entropy-mask`` (default 0.9) if a bright holder or container wall near the
+border dominates the grey range. A warning is printed when the best center lands on the edge of
+the search range, which means ``--center-search-width`` should be increased.
+
 Full volume
 ~~~~~~~~~~~
 ::
