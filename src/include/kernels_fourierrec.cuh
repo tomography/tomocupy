@@ -57,64 +57,224 @@ void __global__ wrap(real2 *f, int n, int nz, int m)
   }
 }
 
-void __global__ gather(real2 *g, real2 *f, float *x, float *y, int m,
-                       float mu, int n, int nproj, int nz)
+// Binned scatter: `gather` with the loop inverted.  One block per (tile of the
+// padded grid, z), accumulating in shared memory, so global memory is touched
+// once per cell instead of once per atomic.  Ported from ~/tomo_usfft.
+
+// Stencil-to-tile mapping for the two index passes below.  2m+1 <= b, so a
+// stencil spans at most 2 tiles per axis; `t` gets their ids, count returned.
+inline __device__ int sample_tiles(int *t, float x0, float y0, int m, int n,
+                                   int b, int ntx)
+{
+  int px = n + (int)floorf(2 * n * x0);   // first stencil column, = n+m+base0
+  int py = n + (int)floorf(2 * n * y0);
+  int ix0 = px / b, ix1 = (px + 2 * m) / b;
+  int iy0 = py / b, iy1 = (py + 2 * m) / b;
+  int k = 0;
+  t[k++] = iy0 * ntx + ix0;
+  if (ix1 != ix0)                 t[k++] = iy0 * ntx + ix1;
+  if (iy1 != iy0)                 t[k++] = iy1 * ntx + ix0;
+  if (ix1 != ix0 && iy1 != iy0)   t[k++] = iy1 * ntx + ix1;
+  return k;
+}
+
+void __global__ count_tiles(int *counts, const float *x, const float *y, int m,
+                            int n, int nproj, int b, int ntx)
 {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;
   int ty = blockDim.y * blockIdx.y + threadIdx.y;
-  int tz = blockDim.z * blockIdx.z + threadIdx.z;
-
-  if (tx >= n || ty >= nproj || tz >= nz)
+  if (tx >= n || ty >= nproj)
     return;
+  int t[4];
+  int k = sample_tiles(t, x[tx + ty * n], y[tx + ty * n], m, n, b, ntx);
+  for (int i = 0; i < k; i++)
+    atomicAdd(&counts[t[i]], 1);
+}
 
-  real2 g0;
-  real coeff0;
-  float x0, y0, coeff1;
-  int g_ind;
+// Counting sort, second pass: each (sample, tile) pair claims a slot in its
+// tile's run.  Order within a run is arbitrary; it only has to keep a warp's
+// staged reads in the same cache lines, which the atomics already do.
+void __global__ fill_tiles(int *bin_samples, int *cursor, const int *offsets,
+                           const float *x, const float *y, int m, int n,
+                           int nproj, int b, int ntx)
+{
+  int tx = blockDim.x * blockIdx.x + threadIdx.x;
+  int ty = blockDim.y * blockIdx.y + threadIdx.y;
+  if (tx >= n || ty >= nproj)
+    return;
+  int t[4];
+  int k = sample_tiles(t, x[tx + ty * n], y[tx + ty * n], m, n, b, ntx);
+  for (int i = 0; i < k; i++)
+    bin_samples[offsets[t[i]] + atomicAdd(&cursor[t[i]], 1)] = tx + ty * n;
+}
 
-  g_ind = tx + ty * n + tz * n * nproj;
-  coeff0 = static_cast<real>(PI / (mu * (4 * n * n)));
-  coeff1 = -PI * PI / mu;
-  x0 = x[tx + ty * n];
-  y0 = y[tx + ty * n];
-  float scale = 4.0f / n;
-  g0.x = static_cast<real>((float)g[g_ind].x * scale);
-  g0.y = static_cast<real>((float)g[g_ind].y * scale);
+#define SCATTER_CH 256   // samples staged per pass == blockDim.x
 
-  // Precompute separable 1D Gaussian weights (reduces (2m+1)^2 to 2*(2m+1) exp calls)
-  // m is always 4 for eps=1e-3 (m = ceil(|log(eps)|*sqrt(3)/pi) = ceil(3.81) = 4)
-  int base0 = (int)floorf(2 * n * x0) - m;
-  int base1 = (int)floorf(2 * n * y0) - m;
-  float kern0[9], kern1[9]; // 2*m+1 = 9 for m=4
-  for (int i0 = 0; i0 < 2 * m + 1; i0++)
+void __global__ scatter_binned(real2 *f, const real2 *__restrict__ g,
+                               const float *__restrict__ x,
+                               const float *__restrict__ y,
+                               const int *__restrict__ bin_samples,
+                               const int *__restrict__ sub_tile,
+                               const int *__restrict__ sub_beg,
+                               const int *__restrict__ sub_end,
+                               const int *__restrict__ sub_scratch,
+                               float2 *scratch,
+                               int m, float mu, int n, int nproj, int nz,
+                               int b, int ntx, int s)
+{
+  // Two planes with row stride b+1, not interleaved real2: interleaved, every
+  // .x address is even and a warp reaches only 16 of the 32 banks.
+  extern __shared__ float sh[];      // 2 * b * (b+1) floats
+  __shared__ int ss[SCATTER_CH];     // staged sample indices
+  __shared__ float2 sg[SCATTER_CH];  // staged sinogram values
+  const int sub = blockIdx.x;
+  const int tz = blockIdx.y;
+  const int nt = b * (b + 1);
+  float *const shx = sh;
+  float *const shy = sh + nt;
+
+  for (int i = threadIdx.x; i < 2 * nt; i += blockDim.x)
+    sh[i] = 0.0f;
+
+  const int tile = sub_tile[sub];
+  const int tx0 = (tile % ntx) * b;
+  const int ty0 = (tile / ntx) * b;
+
+  const float coeff0 = PI / (mu * (4 * n * n));
+  const float coeff1 = -PI * PI / mu;
+  const float scale = 4.0f / n;
+  const int len = 2 * m + 1;
+  const int beg = sub_beg[sub], end = sub_end[sub];
+
+  // Staged samples are consecutive detector bins, 2 grid cells apart, so
+  // consecutive lanes would overlap.  Stage with lane j (coalesced), process
+  // entry perm(j): 8 entries = 16 cells apart, wider than the stencil.
+  const int jperm = (threadIdx.x & 31) * (SCATTER_CH / 32) + (threadIdx.x >> 5);
+
+  for (int base = beg; base < end; base += SCATTER_CH)
   {
-    float w0 = (base0 + i0) / (float)(2 * n) - x0;
-    kern0[i0] = __expf(coeff1 * w0 * w0);
-  }
-  for (int i1 = 0; i1 < 2 * m + 1; i1++)
-  {
-    float w1 = (base1 + i1) / (float)(2 * n) - y0;
-    kern1[i1] = __expf(coeff1 * w1 * w1);
-  }
-
-  int stride = 2 * n + 2 * m;
-  int f_base = tz * stride * stride + (n + m + base1) * stride + (n + m + base0);
-  #pragma unroll
-  for (int i1 = 0; i1 < 2 * m + 1; i1++)
-  {
-    #pragma unroll
-    for (int i0 = 0; i0 < 2 * m + 1; i0++)
+    const int cnt = min(SCATTER_CH, end - base);
+    __syncthreads();
+    if (threadIdx.x < cnt)
     {
-      real w = coeff0 * static_cast<real>(kern0[i0] * kern1[i1]); // inner part in float32
-      int f_ind = f_base + i1 * stride + i0;
-#ifdef HALF
-      real2 g0t = {w * g0.x, w * g0.y};
-      atomicAdd(&(f[f_ind]), g0t);
-#else
-      atomicAdd(&(f[f_ind].x), w * g0.x);
-      atomicAdd(&(f[f_ind].y), w * g0.y);
-#endif
+      int s0 = bin_samples[base + threadIdx.x];
+      ss[threadIdx.x] = s0;
+      real2 v = g[s0 + tz * n * nproj];
+      sg[threadIdx.x] = make_float2((float)v.x * scale, (float)v.y * scale);
     }
+    __syncthreads();
+    if (jperm < cnt)
+    {
+      const int smp = ss[jperm];
+      const float x0 = x[smp], y0 = y[smp];
+      const int base0 = (int)floorf(2 * n * x0) - m;
+      const int base1 = (int)floorf(2 * n * y0) - m;
+      const int px = n + m + base0, py = n + m + base1;
+
+      // The stencil's part inside this tile is contiguous: with lx = i0 - offx
+      // it is [0, len) clamped to [offx, offx + b).
+      const int offx = tx0 - px;
+      const int ia = max(0, offx), ibx = min(len, offx + b);
+      const int offy = ty0 - py;
+      const int ja = max(0, offy), jb = min(len, offy + b);
+      if (ibx > ia && jb > ja)
+      {
+        float wxs[16];   // 2m+1 <= 16 at every size in use
+        for (int i0 = ia; i0 < ibx; i0++)
+        {
+          float w0 = (base0 + i0) / (float)(2 * n) - x0;
+          wxs[i0 - ia] = __expf(coeff1 * w0 * w0);
+        }
+        const float2 g0 = sg[jperm];
+        for (int i1 = ja; i1 < jb; i1++)
+        {
+          float w1 = (base1 + i1) / (float)(2 * n) - y0;
+          float ey = coeff0 * __expf(coeff1 * w1 * w1);
+          int row = (i1 - offy) * (b + 1) - offx;
+          for (int i0 = ia; i0 < ibx; i0++)
+          {
+            float w = wxs[i0 - ia] * ey;
+            int o = row + i0;
+            atomicAdd(&shx[o], w * g0.x);
+            atomicAdd(&shy[o], w * g0.y);
+          }
+        }
+      }
+    }
+  }
+  __syncthreads();
+
+  // An unsplit tile is owned by this block, so it is stored, not accumulated:
+  // one rounding for the whole sum.  f was zeroed, covering untouched tiles.
+  const int slot = sub_scratch[sub];   // < 0 unless this tile is split
+
+#ifdef HALF
+  // Split tiles must not meet in f -- every partial sum would round to 11 bits,
+  // and the dense tiles that split are the central, largest ones.  They meet in
+  // a float32 scratch tile and finalize_tiles rounds once.
+  if (slot >= 0)
+  {
+    float2 *stile = scratch + ((size_t)slot * nz + tz) * b * b;
+    for (int c0 = threadIdx.x; c0 < b * b; c0 += blockDim.x)
+    {
+      int lx = c0 % b, ly = c0 / b;
+      float vx = shx[ly * (b + 1) + lx], vy = shy[ly * (b + 1) + lx];
+      if (vx != 0.0f) atomicAdd(&stile[c0].x, vx);
+      if (vy != 0.0f) atomicAdd(&stile[c0].y, vy);
+    }
+    return;
+  }
+#endif
+
+  real2 *ftile = f + (size_t)tz * s * s;
+  for (int c0 = threadIdx.x; c0 < b * b; c0 += blockDim.x)
+  {
+    int lx = c0 % b, ly = c0 / b;
+    int gx = tx0 + lx, gy = ty0 + ly;
+    if (gx >= s || gy >= s)   // the last tile row/column overhangs the grid
+      continue;
+    float vx = shx[ly * (b + 1) + lx], vy = shy[ly * (b + 1) + lx];
+    size_t o = (size_t)gy * s + gx;
+#ifdef HALF
+    ftile[o] = __floats2half2_rn(vx, vy);
+#else
+    // float32 loses nothing accumulating in f, so no scratch is allocated
+    if (slot >= 0)
+    {
+      if (vx != 0.0f) atomicAdd(&ftile[o].x, vx);
+      if (vy != 0.0f) atomicAdd(&ftile[o].y, vy);
+    }
+    else
+      ftile[o] = make_float2(vx, vy);
+#endif
+  }
+}
+
+// The split tiles' float32 scratch, rounded into the spectrum.  One block per
+// (split tile, z), which owns the tile, so this is a store and not an atomic.
+void __global__ finalize_tiles(real2 *f, const float2 *__restrict__ scratch,
+                               const int *__restrict__ fin_tile, int nz, int b,
+                               int ntx, int s)
+{
+  const int slot = blockIdx.x;
+  const int tz = blockIdx.y;
+  const int tile = fin_tile[slot];
+  const int tx0 = (tile % ntx) * b;
+  const int ty0 = (tile / ntx) * b;
+  const float2 *stile = scratch + ((size_t)slot * nz + tz) * b * b;
+  real2 *ftile = f + (size_t)tz * s * s;
+  for (int c0 = threadIdx.x; c0 < b * b; c0 += blockDim.x)
+  {
+    int gx = tx0 + c0 % b, gy = ty0 + c0 / b;
+    if (gx >= s || gy >= s)
+      continue;
+    float2 v = stile[c0];
+    size_t o = (size_t)gy * s + gx;
+#ifdef HALF
+    ftile[o] = __floats2half2_rn(v.x, v.y);
+#else
+    ftile[o] = v;
+#endif
   }
 }
 
