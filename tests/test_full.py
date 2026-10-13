@@ -88,7 +88,7 @@ class Tests(unittest.TestCase):
                     pass
             try:
                 fid = zarr.open('data_rec/test_data_rec.zarr', mode='r')
-                data = np.abs(fid[0][:].astype(np.float64))
+                data = np.abs(fid['0'][:].astype(np.float64))
                 ssum = np.sum(np.linalg.norm(data, axis=(1, 2)))
             except Exception:
                 pass
