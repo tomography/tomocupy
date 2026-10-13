@@ -233,11 +233,24 @@ class Reader():
         if args.reconstruction_type == 'try':
             # invert shifts for calculations if centeri<ni for double_fov
             if args.symmetric_center_search:
-                shift_array = np.arange(-args.center_search_width,
-                                        (args.center_search_width+args.center_search_step*2**args.binning), args.center_search_step*2**args.binning).astype('float32')/2**args.binning
+                if not args.use_relative_bin_size:
+                    shift_array = np.arange(-args.center_search_width,
+                                            (args.center_search_width+args.center_search_step*2**args.binning), args.center_search_step*2**args.binning).astype('float32')/2**args.binning
+                else:
+                    shift_array = np.arange(-args.center_search_width*params.ni,
+                                            (args.center_search_width*params.ni+args.center_search_step*2**args.binning*params.ni), args.center_search_step*2**args.binning*params.ni)
+                    shift_array[0] = np.floor(shift_array[0])
+                    shift_array[-1] = np.ceil(shift_array[-1])
+                    shift_array = shift_array.astype('int64').astype('float32')/2**args.binning
             else:
-                shift_array = np.arange(-args.center_search_width,
-                                        args.center_search_width, args.center_search_step*2**args.binning).astype('float32')/2**args.binning
+                if not args.use_relative_bin_size:
+                    shift_array = np.arange(-args.center_search_width,
+                                            args.center_search_width, args.center_search_step*2**args.binning).astype('float32')/2**args.binning
+                else:
+                    log.warning(f"Relative bin size is commonly used only for symmetric center search.")
+                    shift_array = np.arange(-args.center_search_width*params.ni,
+                                            args.center_search_width*params.ni, args.center_search_step*2**args.binning*params.ni).astype('float32')/2**args.binning
+
             save_centers = (params.centeri - shift_array) * \
                 2**args.binning+params.st_n
             if (args.file_type == 'double_fov') and (params.centeri < params.ni//2):

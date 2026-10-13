@@ -60,6 +60,12 @@ __docformat__ = 'restructuredtext en'
 
 log = logging.getLogger(__name__)
 
+def list_of_floats(arg):
+    if ',' in arg:
+        return [float(val) for val in (arg.split(','))]
+    else:
+        return [float(arg)]
+
 def list_of_ints(arg):
     if ',' in arg:
         return [int(val) for val in (arg.split(','))]
@@ -420,6 +426,10 @@ SECTIONS['reconstruction'] = {
         'default': False,
         'help': 'When set save the running times',
         'action': 'store_true'},
+    'use-relative-bin-size': {
+        'default': True,
+        'action': argparse.BooleanOptionalAction,
+        'help': "When set bin-infer-bin-sizes are interpreted as relative to the full width of the input projection data",},
     'find-center-start-row': {
         'type': int,
         'default': 0,
@@ -673,16 +683,26 @@ SECTIONS['inference'] = {
         'help': "Directory for output batches",
         'metavar': 'PATH'
     },
+    'infer-binning': {
+        'type': utils.positive_int,
+        'default': 0,
+        'help': "Reconstruction binning factor as power(2, choice)",
+        'choices': [0, 1, 2, 3]},
 }
 
 SECTIONS['bin-inference'] = {
+    'bin-infer-cache-preprocessed': {
+        'default': False,
+        'help': "When set cache the preprocessed projection data for the full ai inference pipeline",
+        'action': 'store_true'
+    },
     'bin-infer-bin-sizes': {
-        'default': [24,12],
-        'type': list_of_ints,
-        'help': "Differences in pixels in neighboring tomograms' COR parameters",
+        'default': [0.05,0.0125],
+        'type': list_of_floats,
+        'help': "Differences in neighboring tomograms' COR parameters",
     },
     'bin-infer-bin-counts': {
-        'default': [4,2],
+        'default': [20,4],
         'type': list_of_ints,
         'help': "Numbers of bins to use for parameter range search",
     },
@@ -708,7 +728,7 @@ SECTIONS['bin-inference'] = {
         'help': "Downsample factor applied to the try reconstruction slices"
     },
     'bin-infer-num-windows': {
-        'default': [20],
+        'default': [10],
         'type': list_of_ints,
         'help': "Number of windows to aggregate try recon image features"
     },
@@ -758,6 +778,11 @@ SECTIONS['bin-inference'] = {
         'type': int,
         'help': "Number of attention heads in each attention layer in the feature aggregator",
     },
+    'bin-infer-binning': {
+        'type': utils.positive_int,
+        'default': 0,
+        'help': "Reconstruction binning factor as power(2, choice)",
+        'choices': [0, 1, 2, 3]},
 }
 
 RECON_PARAMS = ('file-reading', 'remove-stripe',

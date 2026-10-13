@@ -113,21 +113,33 @@ class GPURecSteps():
         
         self.cache_to_infer = cache_to_infer
 
-    def recon_steps_all(self):
+    def recon_steps_all(self, recon_from_cache_preprocessed:bool=False, preprocessed_cache=None, cache_preprocessed:bool=False):
         """GPU reconstruction by loading a full dataset in memory and processing by steps, with reading the whole data to memory """
-
-        log.info('Reading data.')
-        data, flat, dark = self.cl_reader.read_data_parallel()
-        if args.pre_processing == 'True':
-            log.info('Processing by chunks in z.')
-            data = self.proc_sino_parallel(data, dark, flat)
-            log.info('Processing by chunks in angles.')
-            data = self.proc_proj_parallel(data)
+        if recon_from_cache_preprocessed:
+            log.info('Run reconstruction from cached raw data.')
+            data = preprocessed_cache
+        else:
+            log.info('Reading data.')
+            data, flat, dark = self.cl_reader.read_data_parallel()
+            if args.pre_processing == 'True':
+                log.info('Processing by chunks in z.')
+                data = self.proc_sino_parallel(data, dark, flat)
+                log.info('Processing by chunks in angles.')
+                data = self.proc_proj_parallel(data)
         log.info('Filtered backprojection and writing by chunks.')
+
+        results = {}
         if self.cache_to_infer:
-            return self.cl_backproj.rec_fun(data)
+            img_cache, center_of_rotation_cache,id_slice_cache = self.cl_backproj.rec_fun(data)
+            results['img_cache'] = img_cache
+            results['center_of_rotation_cache'] = center_of_rotation_cache
+            results['id_slice_cache'] = id_slice_cache
         else:
             self.cl_backproj.rec_fun(data)
+        
+        if cache_preprocessed:
+            results['data'] = data
+        return results
 
     def proc_sino_parallel(self, data, dark, flat):
         """Data processing by splitting into sinogram chunks"""
