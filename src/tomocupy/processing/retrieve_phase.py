@@ -41,8 +41,9 @@
 ''' Paganin phase retrieval implementation 
 '''
 
+from functools import lru_cache
+
 import cupy as cp
-from cupy.fft import fft2, ifft2
 
 __all__ = ['paganin_filter', ]
 
@@ -88,22 +89,13 @@ def paganin_filter(
         Approximated 3D tomographic phase data.
     """
 
-    # New dimensions and pad value after padding.
-    py, pz, val = _calc_pad(data, pixel_size, dist, energy, pad)
+    # New dimensions after padding.
+    py, pz = _calc_pad(data, pixel_size, dist, energy, pad)
 
-    # Compute the reciprocal grid.
     dx, dy, dz = data.shape
-    if method == 'paganin':
-        w2 = _reciprocal_grid(pixel_size, dy + 2 * py, dz + 2 * pz)
-        phase_filter = cp.fft.fftshift(
-            _paganin_filter_factor(energy, dist, alpha, w2))
-    elif method == 'Gpaganin':
-        kf = _reciprocal_gridG(pixel_size, dy + 2 * py, dz + 2 * pz)
-        phase_filter = cp.fft.fftshift(
-            _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W))
-
-    prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype=data.dtype)
-    _retrieve_phase(data, phase_filter, py, pz, prj, pad)
+    phase_filter = _phase_filter(method, dy + 2 * py, dz + 2 * pz,
+                                 pixel_size, dist, energy, alpha, db, W)
+    _retrieve_phase(data, phase_filter, py, pz)
 
     return data
 
@@ -135,38 +127,81 @@ def farago_filter(
         Approximated 3D tomographic phase data.
     """
 
-    # New dimensions and pad value after padding.
-    py, pz, val = _calc_pad(data, pixel_size, dist, energy, pad)
+    # New dimensions after padding.
+    py, pz = _calc_pad(data, pixel_size, dist, energy, pad)
 
-    # Compute the reciprocal grid.
     dx, dy, dz = data.shape
-    w2 = _reciprocal_grid(pixel_size, dy + 2 * py, dz + 2 * pz)
-    phase_filter = cp.fft.fftshift(
-        _farago_filter_factor(energy, dist, db, w2))
-
-    prj = cp.full((dy + 2 * py, dz + 2 * pz), val, dtype=data.dtype)
-    _retrieve_phase(data, phase_filter, py, pz, prj, pad)
+    phase_filter = _phase_filter('farago', dy + 2 * py, dz + 2 * pz,
+                                 pixel_size, dist, energy, 0, db, 0)
+    _retrieve_phase(data, phase_filter, py, pz)
 
     return data
 
 
-def _retrieve_phase(data, phase_filter, px, py, prj, pad):
-    dx, dy, dz = data.shape
-    num_jobs = data.shape[0]
-    normalized_phase_filter = phase_filter / phase_filter.max()
+def _phase_filter(method, ny, nx, pixel_size, dist, energy, alpha, db, W):
+    return _phase_filter_dev(method, ny, nx, pixel_size, dist, energy,
+                             alpha, db, W, cp.cuda.runtime.getDevice())
 
-    for m in range(num_jobs):
-        prj[px:dy + px, py:dz + py] = data[m]
-        prj[:px] = prj[px]
-        prj[-px:] = prj[-px-1]
-        prj[:, :py] = prj[:, py][:, cp.newaxis]
-        prj[:, -py:] = prj[:, -py-1][:, cp.newaxis]
-        fproj = fft2(prj)
-        fproj *= normalized_phase_filter
-        proj = cp.real(ifft2(fproj))
-        if pad:
-            proj = proj[px:dy + px, py:dz + py]
-        data[m] = proj
+
+@lru_cache(maxsize=8)
+def _phase_filter_dev(method, ny, nx, pixel_size, dist, energy,
+                      alpha, db, W, device):
+    """Normalized filter in rfft2 layout, i.e. with the last axis halved.
+
+    Cached: the pipeline calls the filter once per chunk with the same
+    geometry every time, and building it allocates several ny*nx grids.
+    """
+    if method == 'Gpaganin':
+        kf = _reciprocal_gridG(pixel_size, ny, nx)
+        pf = _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W)
+    else:
+        w2 = _reciprocal_grid(pixel_size, ny, nx)
+        if method == 'farago':
+            pf = _farago_filter_factor(energy, dist, db, w2)
+        else:
+            pf = _paganin_filter_factor(energy, dist, alpha, w2)
+    pf = cp.fft.fftshift(pf)
+    pf /= pf.max()
+    # _reciprocal_coord puts the frequencies on a half-sample-offset grid, so
+    # the filter is not even and H[-k] != H[k]. Taking the real part of a full
+    # ifft2 silently used the even part of it; rfft2 reuses the half spectrum
+    # for both signs, so symmetrize explicitly to keep the same result.
+    pf = 0.5 * (pf + cp.roll(pf[::-1, ::-1], (1, 1), axis=(0, 1)))
+    # rfft2 keeps only the non-redundant half of the last axis
+    return cp.ascontiguousarray(pf[:, :nx // 2 + 1])
+
+
+# Cap on the spectrum held at once. Batching several projections per FFT pays
+# off while they are small enough to be launch bound; at full detector size a
+# single one already saturates the bandwidth and a batch would only cost memory.
+_BATCH_BYTES = 32 * 1024 ** 2
+
+
+def _retrieve_phase(data, phase_filter, px, py):
+    """Edge-pad each projection, apply the filter, write it back in place."""
+
+    dx, dy, dz = data.shape
+    ny, nx = dy + 2 * px, dz + 2 * py
+    nb = max(1, min(dx, _BATCH_BYTES // (ny * (nx // 2 + 1) * 8)))
+    prj = cp.empty((nb, ny, nx), dtype=data.dtype)
+
+    for m in range(0, dx, nb):
+        k = min(nb, dx - m)
+        buf = prj[:k]
+        buf[:, px:dy + px, py:dz + py] = data[m:m + k]
+        # replicate the edges into the margins; the keepdims slices broadcast,
+        # and unlike a negative index they stay correct when px or py is 0
+        if px:
+            buf[:, :px] = buf[:, px:px + 1]
+            buf[:, dy + px:] = buf[:, dy + px - 1:dy + px]
+        if py:
+            buf[:, :, :py] = buf[:, :, py:py + 1]
+            buf[:, :, dz + py:] = buf[:, :, dz + py - 1:dz + py]
+        # the input is real, so half the spectrum carries all the information
+        fprj = cp.fft.rfft2(buf, axes=(1, 2))
+        fprj *= phase_filter
+        proj = cp.fft.irfft2(fprj, (ny, nx), axes=(1, 2))
+        data[m:m + k] = proj[:, px:dy + px, py:dz + py]
 
 
 def _calc_pad(data, pixel_size, dist, energy, pad):
@@ -192,18 +227,15 @@ def _calc_pad(data, pixel_size, dist, energy, pad):
         Pad amount in projection axis.
     int
         Pad amount in sinogram axis.
-    float
-        Pad value.
     """
     dx, dy, dz = data.shape
     wavelength = _wavelength(energy)
-    py, pz, val = 0, 0, 0
+    py, pz = 0, 0
     if pad:
-        val = _calc_pad_val(data)
         py = _calc_pad_width(dy, pixel_size, wavelength, dist)
         pz = _calc_pad_width(dz, pixel_size, wavelength, dist)
 
-    return py, pz, val
+    return py, pz
 
 
 def _paganin_filter_factor(energy, dist, alpha, w2):
@@ -225,10 +257,6 @@ def _paganin_filter_factorG(energy, dist, kf, pixel_size, db, W):
 def _calc_pad_width(dim, pixel_size, wavelength, dist):
     pad_pix = cp.ceil(PI * wavelength * dist / pixel_size ** 2)
     return int((pow(2, cp.ceil(cp.log2(dim + pad_pix))) - dim) * 0.5)
-
-
-def _calc_pad_val(data):
-    return cp.mean((data[..., 0] + data[..., -1]) * 0.5)
 
 
 def _reciprocal_grid(pixel_size, nx, ny):

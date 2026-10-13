@@ -152,7 +152,12 @@ class Reader():
             center = centeri
 
         # adjust sizes for 16bit processing
+        fp16_crop = 0
         if args.dtype == 'float16':
+            # the columns this crop drops on the left: a center measured on
+            # the cropped projections is this much lower than the same center
+            # measured on the full ones (see find_center.find_center)
+            fp16_crop = (ni-2**int(np.log2(ni)))/2
             center += (2**int(np.log2(ni))-ni)/2
             st_n = (ni-2**int(np.log2(ni)))//2
             end_n = st_n+2**int(np.log2(ni))
@@ -216,6 +221,7 @@ class Reader():
         params.in_dtype = in_dtype
         params.st_n = st_n
         params.end_n = end_n
+        params.fp16_crop = fp16_crop
 
         # full shapes
         params.shape_data_full = (nproj, nz, ni)
