@@ -470,37 +470,69 @@ def _detect_stripe_batch(listdata, snr):
     return listmask
 
 
-def _inverse_perm3(ids):
-    """O(n) inverse permutation along axis=2 via scatter (put_along_axis).
+# float32 ordered by its bit pattern reinterpreted as uint32: flip the sign
+# bit for positives, invert everything for negatives. Carrying the position in
+# the low half then makes one radix sort of uint64 do the work of argsort,
+# which on these shapes goes through a comparison sort at about twice the cost.
+# Two IEEE cases are not ordered by their bits the way a comparison sort orders
+# them: -0.0 has the sign bit set yet equals +0.0, and a negative NaN would
+# sort below everything instead of above it. Both are mapped to one key first.
+_pack_key = cp.ElementwiseKernel(
+    'float32 x, int32 n', 'uint64 out',
+    '''
+    unsigned int u = __float_as_uint(x);
+    unsigned int k;
+    if (x != x) k = 0xffffffffu;                    // every NaN sorts last
+    else if (u == 0x80000000u) k = 0x80000000u;     // -0.0 reads as +0.0
+    else k = (u >> 31) ? ~u : (u | 0x80000000u);
+    out = ((unsigned long long)k << 32) | (unsigned long long)(i % n);
+    ''', '_rs_pack_key')
 
-    Replaces argsort(ids, axis=2) which is O(n log n).
-    Valid because matindex[i,j]=j so the permutation tracked by matindex
-    is identical to ids itself.
+_unpack_key = cp.ElementwiseKernel(
+    'uint64 p', 'float32 val, int64 idx',
+    '''
+    unsigned int k = (unsigned int)(p >> 32);
+    unsigned int u = (k >> 31) ? (k & 0x7fffffffu) : ~k;
+    val = __uint_as_float(u);
+    idx = (long long)(p & 0xffffffffu);
+    ''', '_rs_unpack_key')
 
-    Falls back to O(n log n) argsort on cupy<13 where put_along_axis is
-    unavailable (argsort of a permutation IS its inverse permutation).
+
+def _sort_with_ids3(x):
+    """Sorted values along axis 2 and the positions they came from.
+
+    Ties keep their original order, so this matches a stable argsort.
+    """
+    x = cp.ascontiguousarray(x, dtype='float32')
+    packed = _pack_key(x, cp.int32(x.shape[2]))
+    packed.sort(axis=2)
+    return _unpack_key(packed)
+
+
+def _unsort3(ids, vals):
+    """Scatter vals back to the positions ids came from, along axis=2.
+
+    The inverse permutation is implicit: out[ids[r]] = vals[r] in one pass,
+    where gathering through an explicit inverse would take two.
     """
     if hasattr(cp, 'put_along_axis'):
-        ids2 = cp.empty_like(ids)
-        src = cp.broadcast_to(cp.arange(ids.shape[2], dtype=ids.dtype)[None, None, :], ids.shape)
-        cp.put_along_axis(ids2, ids, src, axis=2)
-        return ids2
-    return cp.argsort(ids, axis=2)
+        out = cp.empty_like(vals)
+        cp.put_along_axis(out, ids, vals, axis=2)
+        return out
+    # cupy<13: argsort of a permutation is its inverse permutation
+    return cp.take_along_axis(vals, cp.argsort(ids, axis=2), axis=2)
 
 
 def _rs_sort3(tomo, size, dim):
     """Batched _rs_sort for 3D input [nproj, nz, ni]."""
     t = cp.transpose(tomo, (2, 1, 0))                              # [ni, nz, nproj]
-    ids = cp.argsort(t, axis=2)
-    matsort_vals = cp.take_along_axis(t, ids, axis=2)
+    matsort_vals, ids = _sort_with_ids3(t)
     del t
     if dim == 1:
         matsort_vals = median_filter(matsort_vals, (size, 1, 1))
     else:
         matsort_vals = median_filter(matsort_vals, (size, 1, size))
-    ids2 = _inverse_perm3(ids)
-    del ids
-    return cp.transpose(cp.take_along_axis(matsort_vals, ids2, axis=2), (2, 1, 0))
+    return cp.transpose(_unsort3(ids, matsort_vals), (2, 1, 0))
 
 
 def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
@@ -508,13 +540,13 @@ def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
     drop_ratio = max(min(drop_ratio, 0.8), 0)
     nproj, nz, ni = tomo.shape
     ndrop = int(0.5 * drop_ratio * nproj)
-    # Single argsort replaces cp.sort + later cp.argsort (same logical axis).
-    # Normalization divides each nproj-column by a scalar, preserving sort
-    # order, so ids computed on the original tomo is reused after normalization.
+    # One sort yields both the ordered values and the positions they came
+    # from. Normalization divides each nproj-column by a scalar, preserving
+    # sort order, so ids stays valid after it.
     t = cp.transpose(tomo, (2, 1, 0))                              # [ni, nz, nproj]
-    ids = cp.argsort(t, axis=2)
-    sinosort = cp.transpose(cp.take_along_axis(t, ids, axis=2), (2, 1, 0))  # [nproj, nz, ni]
-    del t
+    sortvals, ids = _sort_with_ids3(t)
+    sinosort = cp.transpose(sortvals, (2, 1, 0))                   # [nproj, nz, ni]
+    del t, sortvals
     sinosmooth = median_filter(sinosort, (1, 1, size))             # [nproj, nz, ni]
     list1 = cp.mean(sinosort[ndrop:nproj - ndrop], axis=0)        # [nz, ni]
     del sinosort
@@ -526,13 +558,12 @@ def _rs_large3(tomo, snr, size, drop_ratio=0.1, norm=True):
         structure=cp.ones((1, 3), dtype=bool)).astype(listmask.dtype)
     if norm:
         tomo = tomo / listfact[None]
-    sinosmooth_t = cp.transpose(sinosmooth, (2, 1, 0))            # [ni, nz, nproj]
+    sinosmooth_t = cp.ascontiguousarray(
+        cp.transpose(sinosmooth, (2, 1, 0)))                       # [ni, nz, nproj]
     del sinosmooth
-    ids2 = _inverse_perm3(ids)                                     # O(n) scatter
-    del ids
     sino_corrected = cp.transpose(
-        cp.take_along_axis(sinosmooth_t, ids2, axis=2), (2, 1, 0))  # [nproj, nz, ni]
-    del sinosmooth_t, ids2
+        _unsort3(ids, sinosmooth_t), (2, 1, 0))                    # [nproj, nz, ni]
+    del sinosmooth_t, ids
     cp.copyto(tomo, sino_corrected, where=(listmask[None] > 0.0))
     return tomo
 
