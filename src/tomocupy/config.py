@@ -413,7 +413,11 @@ SECTIONS['reconstruction'] = {
         'default': 'sift',
         'type': str,
         'help': "Method for automatic rotation search.",
-        'choices': ['sift', 'vo','ai']},
+        'choices': ['sift', 'vo', 'entropy', 'ai']},
+    'rotation-axis-entropy-mask': {
+        'default': 0.9,
+        'type': float,
+        'help': "Fraction of the reconstruction width scored by the entropy rotation search. Lower it to keep a bright holder or container wall near the border out of the grey range.", },
     'ai-search-method': {
         'default': 'fine',
         'type': str,

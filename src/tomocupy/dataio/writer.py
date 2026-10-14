@@ -69,6 +69,30 @@ __all__ = ['Writer', ]
 
 log = logging.getLogger(__name__)
 
+# zarr 3 renamed DirectoryStore and dropped Group.create_dataset. We keep
+# writing the v2 format either way, so OME-Zarr 0.4 readers still work.
+_ZARR_V3 = int(zarr.__version__.split('.')[0]) >= 3
+
+
+def _zarr_store(path):
+    if _ZARR_V3:
+        return zarr.storage.LocalStore(path)
+    return zarr.DirectoryStore(path)
+
+
+def _zarr_group(store):
+    if _ZARR_V3:
+        return zarr.group(store=store, zarr_format=2)
+    return zarr.group(store=store)
+
+
+def _zarr_array(group, name, shape, chunks, dtype, compressor):
+    if _ZARR_V3:
+        return group.create_array(name=name, shape=shape, chunks=tuple(chunks),
+                                  dtype=dtype, compressors=[compressor])
+    return group.create_dataset(name=name, shape=shape, chunks=chunks,
+                                dtype=dtype, compressor=compressor)
+
 
 class Writer():
     '''
@@ -229,6 +253,9 @@ class Writer():
         if args.save_format == 'zarr':  # Zarr format support
             fnameout += '.zarr'
             self.zarr_output_path = fnameout
+            # chunks span several slices, so two writer threads can read-modify-
+            # write the same chunk and lose one of the updates
+            self.zarr_lock = threading.Lock()
             if not args.large_data:
                  clean_zarr(self.zarr_output_path)
             log.info(f'Zarr dataset will be created at {fnameout}')
@@ -306,34 +333,35 @@ class Writer():
         elif args.save_format == 'zarr':  # Zarr format support
 
             chunks = [int(c.strip()) for c in args.zarr_chunk.split(',')]
-            if not hasattr(self, 'zarr_array'):
-                shape = (int(params.nz / 2**args.binning), params.n, params.n)  # Full dataset shape
-                print('initialize')
-                max_levels = lambda X, Y: (lambda r: (int(r).bit_length() - 1) if r != 0 else (X.bit_length() - 1))(int(X) % int(Y))
+            with self.zarr_lock:
+                if not hasattr(self, 'zarr_array'):
+                    shape = (int(params.nz / 2**args.binning), params.n, params.n)  # Full dataset shape
+                    print('initialize')
+                    max_levels = lambda X, Y: (lambda r: (int(r).bit_length() - 1) if r != 0 else (X.bit_length() - 1))(int(X) % int(Y))
 
-                #levels = min(max_levels(params.nz, end-st),6)
-                levels = min(max_levels(int(rec.shape[0]), end-st),6)
+                    #levels = min(max_levels(params.nz, end-st),6)
+                    levels = min(max_levels(int(rec.shape[0]), end-st),6)
 
-                log.info(f"Resolution levels: {levels}")
-                
-                scale_factors = [float(args.pixel_size) * (i + 1) for i in range(levels)]
-                self.zarr_array, datasets = initialize_zarr(
-                    output_path=self.zarr_output_path,
-                    base_shape=shape,
-                    chunks=chunks,
-                    dtype=params.dtype,
-                    num_levels=levels,
-                    scale_factors=scale_factors,
-                    compression=args.zarr_compression
+                    log.info(f"Resolution levels: {levels}")
+
+                    scale_factors = [float(args.pixel_size) * (i + 1) for i in range(levels)]
+                    self.zarr_array, datasets = initialize_zarr(
+                        output_path=self.zarr_output_path,
+                        base_shape=shape,
+                        chunks=chunks,
+                        dtype=params.dtype,
+                        num_levels=levels,
+                        scale_factors=scale_factors,
+                        compression=args.zarr_compression
+                    )
+                    fill_zarr_meta(self.zarr_array, datasets, self.zarr_output_path, args)
+                # Write the current chunk to the Zarr container
+                write_zarr_chunk(
+                    zarr_group=self.zarr_array,  # Pre-initialized Zarr container
+                    data_chunk=rec[:end - st],  # Data chunk to save
+                    start=st-args.start_row,  # Starting index for this chunk along the z-axis
+                    end=end-args.start_row    # Ending index for this chunk along the z-axis
                 )
-                fill_zarr_meta(self.zarr_array, datasets, self.zarr_output_path, args)
-            # Write the current chunk to the Zarr container
-            write_zarr_chunk(
-                zarr_group=self.zarr_array,  # Pre-initialized Zarr container
-                data_chunk=rec[:end - st],  # Data chunk to save
-                start=st-args.start_row,  # Starting index for this chunk along the z-axis
-                end=end-args.start_row    # Ending index for this chunk along the z-axis
-            )
 
     def write_data_try(self, rec, cid, id_slice):
         """Write tiff reconstruction with a given name"""
@@ -487,7 +515,7 @@ def initialize_zarr(output_path, base_shape, chunks, dtype, num_levels, scale_fa
     store_exists = os.path.exists(output_path) and os.path.isdir(output_path)
 
     # Prepare the store reference
-    store = zarr.DirectoryStore(output_path)
+    store = _zarr_store(output_path)
     compressor = Blosc(cname=compression, clevel=5, shuffle=2)
 
     if store_exists:
@@ -515,7 +543,7 @@ def create_zarr(store, output_path, base_shape, chunks, dtype, num_levels, scale
     - list: Metadata for the datasets.
     """
     log.info(f"Creating a new Zarr container at {output_path}")
-    root_group = zarr.group(store=store)
+    root_group = _zarr_group(store)
 
     current_shape = base_shape
     datasets = []
@@ -526,13 +554,8 @@ def create_zarr(store, output_path, base_shape, chunks, dtype, num_levels, scale
         scalef = 2 ** level
         
         # Create the dataset for this resolution level
-        root_group.create_dataset(
-            name=level_name,
-            shape=current_shape,
-            chunks=chunks,
-            dtype=dtype,
-            compressor=compressor
-        )
+        _zarr_array(root_group, level_name, current_shape, chunks, dtype,
+                    compressor)
 
         # Add metadata
         datasets.append({

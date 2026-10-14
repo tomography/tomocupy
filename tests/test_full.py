@@ -36,6 +36,7 @@ cmd_dict = {
     f'{prefix} --flat-linear True': 28.308,
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method sift  --reconstruction-type full' : 28.305,
     f'{prefix} --rotation-axis-auto auto --rotation-axis-method vo --center-search-step 0.1 --nsino 0.5 --center-search-width 100 --reconstruction-type full' : 28.303,
+    f'{prefix} --rotation-axis-auto auto --rotation-axis-method entropy --center-search-step 0.25 --nsino 0.5 --center-search-width 50 --reconstruction-type full' : 28.307,
     f'{prefix} --remove-stripe-method vo-all ': 27.993,
     f'{prefix} --bright-ratio 10': 32.631,
     f'{prefix} --end-column 1535': 28.293,
@@ -87,7 +88,7 @@ class Tests(unittest.TestCase):
                     pass
             try:
                 fid = zarr.open('data_rec/test_data_rec.zarr', mode='r')
-                data = np.abs(fid[0][:].astype(np.float64))
+                data = np.abs(fid['0'][:].astype(np.float64))
                 ssum = np.sum(np.linalg.norm(data, axis=(1, 2)))
             except Exception:
                 pass
