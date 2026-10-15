@@ -272,7 +272,6 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
     if args.use_relative_bin_size and any(np.array(args.bin_infer_bin_sizes)>1):
         log.error(f"bin-infer-bin-sizes are set to {args.bin_infer_bin_sizes}. All elements are required to be in the range of 0 to 1.")
         exit()
-
     for i, (bin_size, bin_count) in enumerate(zip(args.bin_infer_bin_sizes,args.bin_infer_bin_counts)):
         if bin_count%2 != 0:
             log.error(f"Number of bins to search should be even: got {bin_count} instead.")
@@ -310,13 +309,13 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
         else:
             center_lb = results['center_lb']
             center_ub = results['center_ub']
-        args.rotation_axis = (center_lb+center_ub)/2
+        args.rotation_axis = float((center_lb+center_ub)/2)
         if save_test_results_ok:
             results_all[f"Stage 1 level {i+1}"] = results
             results_all[f"Stage 1 level {i+1}"].pop("preprocessed_cache", None)
         log.info(f"Level {i+1}: refined range is ({center_lb},{center_ub})")
     args.center_search_step = center_search_step
-    args.center_search_width = (center_ub-center_lb)/2
+    args.center_search_width = float((center_ub-center_lb)/2)
     if binning is not None:
         args.binning = binning
     if args.binning != args.infer_binning:
