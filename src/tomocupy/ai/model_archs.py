@@ -2,7 +2,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # This source code is licensed under the Apache License, Version 2.0
-# found in the LICENSE file in the root directory of this source tree.
+# found in the LICENSE_DINOV2 file in the /third_party_licenses directory of this source tree.
 
 # References:
 #   https://github.com/facebookresearch/dino/blob/main/vision_transformer.py
@@ -31,6 +31,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+# Modifications Copyright 2026 tomocupy authors
+
 import torch
 from torch import Tensor
 import torch.nn as nn
@@ -44,7 +46,7 @@ from functools import partial
 import math
 
 from typing import Sequence, Tuple, Union, Callable, Optional, List
-from tomocupy.ai.aggregator import Aggregator
+from tomocupy.ai.aggregator5 import VisionTransformerAggregator
 
 def _make_dinov2_model(img_size:int=518,patch_size:int=14,init_values:float=1.0,ffn_layer:str='mlp',block_chunks: int = 0,\
                        num_register_tokens:int= 0,interpolate_antialias:bool=False,interpolate_offset:float=0.1):
@@ -464,16 +466,6 @@ class DinoVisionTransformer(nn.Module):
         if ffn_layer == "mlp":
             # logger.info("using MLP layer as FFN")
             ffn_layer = Mlp
-        # elif ffn_layer == "swiglufused" or ffn_layer == "swiglu":
-        #     logger.info("using SwiGLU layer as FFN")
-        #     ffn_layer = SwiGLUFFNFused
-        # elif ffn_layer == "identity":
-        #     logger.info("using Identity layer as FFN")
-
-        #     def f(*args, **kwargs):
-        #         return nn.Identity()
-
-        #     ffn_layer = f
         else:
             raise NotImplementedError
 
@@ -691,16 +683,6 @@ class DinoVisionTransformer(nn.Module):
             return ret
         else:
             return self.head(ret["x_norm_clstoken"])
-# class ClassificationModel(nn.Module):
-#     def __init__(self, model, num_classes=2):
-#         super().__init__()
-#         self.model = model
-#         self.num_classes = num_classes
-#         self.head = nn.Linear(model.embed_dim, num_classes)
-
-#     def forward(self, x):
-#         features = self.model(x)
-#         return self.head(features)
 
 class ClassificationModel(nn.Module):
     def __init__(self, model, embed_dim:int, num_windows:List[int], num_classes:int=2, multi_instances:bool=False,\
@@ -731,46 +713,27 @@ class ClassificationModel(nn.Module):
             self.attn_branches = attn_branches
 
         self.head = nn.Linear(embed_dim, num_classes)
-    
-    def load_weights(self,model_path, replace_pattern="module."):
-        if Path(model_path).suffix == '.pt':
-            states = torch.load(model_path, map_location='cpu')['state_dict']
-        elif Path(model_path).suffix == '.pth':
-            states = torch.load(model_path, map_location='cpu')['model']
-        states = {(k.replace(replace_pattern, "") if replace_pattern in k else k): v for k, v in states.items()}
-        msg = self.model.load_state_dict(states,strict=False)
-        print(f"missing keys: {msg.missing_keys}")
-        print(f"unexpected keys: {msg.unexpected_keys}")
 
     def forward(self, sample):
-        self.model.eval()
-        assert len(sample) == len(self.num_windows)
-        # if self.model is not None:
-        if len(self.num_windows) == 1:
         
+        assert len(sample) == len(self.num_windows)
+        if len(self.num_windows) == 1:
             images = sample[0]['images']
-            
-            with torch.no_grad():
-                if not self.multi_instances:
-                    assert self.num_windows[0] == 1
-                    features_all = self.model(images[:,0].repeat(1,3,1,1))
-                else:
-                    features_all = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1))
-                    features_all = rearrange(features_all,'(b k) c -> b k c', k=self.num_windows[0])
+            if not self.multi_instances:
+                assert self.num_windows[0] == 1
+                features_all = self.model(images[:,0].repeat(1,3,1,1))
+            else:
+                features_all = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1))
+                features_all = rearrange(features_all,'(b k) c -> b k c', k=self.num_windows[0])
         elif len(self.num_windows) > 1:
             assert self.multi_instances
             features_all = []
             for idx_,sample_ in enumerate(sample):
                 images = sample_['images']
-                with torch.no_grad():
-                    features_ = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1))
-                    features_ = rearrange(features_,'(b k) c -> b k c', k=self.num_windows[idx_])
+                features_ = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1))
+                features_ = rearrange(features_,'(b k) c -> b k c', k=self.num_windows[idx_])
                 features_all.append(features_)
             features_all = torch.cat(features_all,dim=1)
-
-        
-        # else:
-        #     features_ = sample['features_']
         
         if self.multi_instances:
             attn = self.fc(self.attention(features_all) * self.gate(features_all)) #features_ is b*k*c
@@ -781,8 +744,8 @@ class ClassificationModel(nn.Module):
             return self.head(features_all) #features_ is b*c
 
 class RangeClassificationModel(nn.Module):
-    def __init__(self, model, embed_dim:int, num_windows:List[int], num_frames:int, num_classes:int=2, multi_instances:bool=False, multi_frames:bool=False,\
-                 aggregator_depth=12, aggregator_num_heads=12, attn_branches:int=1, attn_embed_dim:int=None, freeze_backbone_ok:bool=True):
+    def __init__(self, model, embed_dim:int, num_windows:List[int], num_frames:int, num_classes:int=2, multi_instances:bool=False,\
+                 aggregator_depth=12, aggregator_num_heads=12, attn_branches:int=1, attn_embed_dim:int=None):
         super().__init__()
         self.model = model
         self.embed_dim = embed_dim
@@ -790,12 +753,7 @@ class RangeClassificationModel(nn.Module):
         self.num_frames = num_frames
         self.num_classes = num_classes
         self.multi_instances = multi_instances
-        self.multi_frames = multi_frames
-        if multi_frames:
-            assert multi_instances
-        self.freeze_backbone_ok = freeze_backbone_ok
-        if multi_frames:
-            self.aggregator = Aggregator(embed_dim=embed_dim,depth=aggregator_depth,num_heads=aggregator_num_heads)
+        self.aggregator = VisionTransformerAggregator(embed_dim=embed_dim,depth=aggregator_depth,num_heads=aggregator_num_heads)
 
         if multi_instances:
             if attn_embed_dim is None:
@@ -816,16 +774,6 @@ class RangeClassificationModel(nn.Module):
             self.attn_branches = attn_branches
 
         self.head = nn.Linear(embed_dim, num_classes)
-    
-    def load_weights(self,model_path, replace_pattern="module."):
-        if Path(model_path).suffix == '.pt':
-            states = torch.load(model_path, map_location='cpu')['state_dict']
-        elif Path(model_path).suffix == '.pth':
-            states = torch.load(model_path, map_location='cpu')['model']
-        states = {(k.replace(replace_pattern, "") if replace_pattern in k else k): v for k, v in states.items()}
-        msg = self.model.load_state_dict(states,strict=False)
-        print(f"missing keys: {msg.missing_keys}")
-        print(f"unexpected keys: {msg.unexpected_keys}")
 
     def forward(self, sample):
         
@@ -833,37 +781,11 @@ class RangeClassificationModel(nn.Module):
         features_all = []
         for idx_,sample_ in enumerate(sample):
             images = sample_['images']
-            
-
-            if self.freeze_backbone_ok:
-                self.model.eval()
-                with torch.no_grad():
-                    if not self.multi_frames:
-                        assert self.num_frames == 1
-                        print("warning: only one frame input to the model which has been optimized for two-frame inputs")
-                        features_ = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1))
-                        features_ = rearrange(features_,'(b k) c -> b k c', k=self.num_windows[idx_])
-                    else:
-                        
-                        features_ = self.model(rearrange(images,'b r s c h w -> (b r s) c h w').repeat(1,3,1,1),is_training=True)['x_norm_patchtokens']
-                        img_h, img_w = images.shape[-2:]
-                        features_ = rearrange(features_,'(b r s) (h w) c -> b r s h w c',r=self.num_windows[idx_],s=self.num_frames,h=img_h//self.model.patch_size,w=img_w//self.model.patch_size)
-            else:
-                if not self.multi_frames:
-                    assert self.num_frames == 1
-                    print("warning: only one frame input to the model which has been optimized for two-frame inputs")
-                    features_ = self.model(rearrange(images,'b k c h w -> (b k) c h w').repeat(1,3,1,1),is_training=True)["x_norm_clstoken"]
-                    features_ = rearrange(features_,'(b k) c -> b k c', k=self.num_windows[idx_])
-                else:
-                    
-                    features_ = self.model(rearrange(images,'b r s c h w -> (b r s) c h w').repeat(1,3,1,1),is_training=True)['x_norm_patchtokens']
-                    img_h, img_w = images.shape[-2:]
-                    features_ = rearrange(features_,'(b r s) (h w) c -> b r s h w c',r=self.num_windows[idx_],s=self.num_frames,h=img_h//self.model.patch_size,w=img_w//self.model.patch_size)
-            
-            if self.multi_frames:
-                features_,_ = self.aggregator(features_)
-                features_ = features_[:,:,0] #b*k*c or b*r*c
-            
+            features_ = self.model(rearrange(images,'b r s c h w -> (b r s) c h w').repeat(1,3,1,1),is_training=True)['x_norm_patchtokens']
+            img_h, img_w = images.shape[-2:]
+            features_ = rearrange(features_,'(b r s) (h w) c -> b r s h w c',r=self.num_windows[idx_],s=self.num_frames,h=img_h//self.model.patch_size,w=img_w//self.model.patch_size)
+            features_,_ = self.aggregator(features_)
+            features_ = features_[:,:,0] #b*k*c or b*r*c
             features_all.append(features_)
 
         features_all = torch.cat(features_all,dim=1)
