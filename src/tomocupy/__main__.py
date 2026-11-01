@@ -318,11 +318,15 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
     args.center_search_width = float((center_ub-center_lb)/2)
     if binning is not None:
         args.binning = binning
-    if args.binning != args.infer_binning:
+    if args.bin_infer_cache_preprocessed:
         binning = args.binning
-        args.binning = args.infer_binning
+        args.binning = args.bin_infer_binning
     else:
-        binning = None
+        if args.binning != args.infer_binning:
+            binning = args.binning
+            args.binning = args.infer_binning
+        else:
+            binning = None
     if args.use_relative_bin_size:
         log.info(f"Relative bin size is disabled for fine search.")
         args.use_relative_bin_size = False
