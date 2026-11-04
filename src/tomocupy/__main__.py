@@ -276,14 +276,16 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
         if bin_count%2 != 0:
             log.error(f"Number of bins to search should be even: got {bin_count} instead.")
             exit()
-        
-        args.center_search_step = float(bin_size) / 2**args.binning
+        if not args.use_relative_bin_size:
+            args.center_search_step = float(bin_size) / 2**args.binning
+        else:
+            args.center_search_step = float(bin_size)
         args.center_search_width = float(bin_count) / 2 * float(bin_size)
         cl_reader = reader.Reader()
         cl_writer = writer.Writer()
         if args.use_relative_bin_size:
             log.info(f"Level {i+1}: search range is {bin_count} bins each of {bin_size*params.ni} pixels")
-            args.bin_infer_bin_size = float(np.int64(bin_size * params.ni))
+            args.bin_infer_bin_size = float(np.int64(bin_size * params.ni * 2**args.binning))
         else:
             log.info(f"Level {i+1}: search range is {bin_count} bins each of {bin_size} pixels")
             args.bin_infer_bin_size = float(bin_size)
@@ -318,7 +320,7 @@ def try_recon_ai_full(results_all,save_test_results_ok=False,cache_preprocessed=
     args.center_search_width = float((center_ub-center_lb)/2)
     if binning is not None:
         args.binning = binning
-    if args.bin_infer_cache_preprocessed:
+    if (args.bin_infer_cache_preprocessed) and (args._func == run_recsteps):
         binning = args.binning
         args.binning = args.bin_infer_binning
     else:
