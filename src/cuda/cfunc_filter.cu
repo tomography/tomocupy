@@ -7,12 +7,16 @@ cfunc_filter::cfunc_filter(size_t nproj, size_t nz, size_t n)
     //fft filter R<->C
     cufftCreate(&plan_filter_fwd);
     cufftCreate(&plan_filter_inv);
+    // the two plans never run concurrently (filter() puts both on one stream),
+    // so they share a single work area instead of each allocating its own
+    cufftSetAutoAllocation(plan_filter_fwd, 0);
+    cufftSetAutoAllocation(plan_filter_inv, 0);
     long long ffts[1] = {};
     long long inembed[1] = {};
     long long onembed[1] = {};
     long long idist = 0;
     long long odist = 0;
-    size_t workSize = 0;
+    size_t ws_fwd = 0, ws_inv = 0;
 
     ffts[0] = n;
 	  idist = n;odist = n/2+1;
@@ -25,12 +29,15 @@ cfunc_filter::cfunc_filter(size_t nproj, size_t nz, size_t n)
         1, ffts, 
         inembed, 1, idist, CUDA_R, 
         onembed, 1, odist, CUDA_C, 
-        nproj*nz, &workSize, CUDA_C);      
+        nproj*nz, &ws_fwd, CUDA_C);      
     cufftXtMakePlanMany(plan_filter_inv, 
         1, ffts, 
         onembed, 1, odist, CUDA_C, 
         inembed, 1, idist, CUDA_R, 
-        nproj*nz, &workSize, CUDA_C);        
+        nproj*nz, &ws_inv, CUDA_C);        
+    cudaMalloc(&work, ws_fwd > ws_inv ? ws_fwd : ws_inv);
+    cufftSetWorkArea(plan_filter_fwd, work);
+    cufftSetWorkArea(plan_filter_inv, work);
     }
 
 
@@ -42,6 +49,7 @@ void cfunc_filter::free() {
     cufftDestroy(plan_filter_fwd);
     cufftDestroy(plan_filter_inv);
     cudaFree(ge);
+    cudaFree(work);
     is_free = true;   
   }
 }

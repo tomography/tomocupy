@@ -268,8 +268,9 @@ class DWTForward():
         """
         # Do a multilevel transform
         # Do 1 level of the transform
-        lohi = afb1d(x, self.h0_row, self.h1_row, dim=3)
-        y = afb1d(lohi, self.h0_col, self.h1_col, dim=2)
+        # nested so the row-pass intermediate is freed before the split copies
+        y = afb1d(afb1d(x, self.h0_row, self.h1_row, dim=3),
+                  self.h0_col, self.h1_col, dim=2)
         s = y.shape
         y = y.reshape(s[0], -1, 4, s[-2], s[-1])
         x = cp.ascontiguousarray(y[:, :, 0])
@@ -351,8 +352,27 @@ def _fw_transforms(wname):
     return _fw_transforms_dev(wname, cp.cuda.runtime.getDevice())
 
 
-def remove_stripe_fw(data, sigma, wname, level):
-    """Remove stripes with wavelet filtering"""
+def remove_stripe_fw(data, sigma, wname, level, chunk_bytes=256 * 2**20):
+    """Remove stripes with wavelet filtering.
+
+    Slices are independent, so they go through the wavelet pyramid in groups
+    of at most `chunk_bytes` of padded float32 input. The pyramid's working
+    set is a few times its input, so without this the peak grew with however
+    many slices the caller passed in. The result is written back into data.
+    """
+
+    [nproj, nz, ni] = data.shape
+    nproj_pad = nproj + nproj // 8
+    nzc = max(1, min(nz, chunk_bytes // (nproj_pad * ni * 4)))
+    for z0 in range(0, nz, nzc):
+        z1 = min(z0 + nzc, nz)
+        data[:, z0:z1] = _remove_stripe_fw_chunk(
+            data[:, z0:z1], sigma, wname, level)
+    return data
+
+
+def _remove_stripe_fw_chunk(data, sigma, wname, level):
+    """Wavelet-FFT stripe removal for one group of slices; returns float32."""
 
     [nproj, nz, ni] = data.shape
 
@@ -366,7 +386,7 @@ def remove_stripe_fw(data, sigma, wname, level):
     sli = cp.zeros([nz, 1, nproj_pad, ni], dtype='float32')
 
     sli[:, 0, (nproj_pad - nproj)//2:(nproj_pad + nproj) //
-        2] = data.astype('float32').swapaxes(0, 1)
+        2] = data.astype('float32', copy=False).swapaxes(0, 1)
     for k in range(level):
         sli, c = xfm.apply(sli)
         cc.append(c)
@@ -376,18 +396,19 @@ def remove_stripe_fw(data, sigma, wname, level):
         fcV = cp.fft.rfft(band, axis=1)          # [nz, my//2+1, mx]
         fcV *= _fw_damp(my, float(sigma))[:, None]
         cc[k][:, 0, 1] = cp.fft.irfft(fcV, my, axis=1)  # always real
+        del fcV
 
-    # Wavelet reconstruction.
-    for k in range(level)[::-1]:
-        shape0 = cc[k][0, 0, 1].shape
+    # Wavelet reconstruction, popping each level so it is freed once used.
+    while cc:
+        c = cc.pop()
+        shape0 = c[0, 0, 1].shape
         sli = sli[:, :, :shape0[0], :shape0[1]]
-        sli = ifm.apply((sli, cc[k]))
+        sli = ifm.apply((sli, c))
+        del c
 
-    data = sli[:, 0, (nproj_pad - nproj)//2:(nproj_pad + nproj) //
-               2, :ni].astype(data.dtype)  # modified
-    data = data.swapaxes(0, 1)
-
-    return data
+    # the caller casts on assignment, so no full-size astype copy here
+    return sli[:, 0, (nproj_pad - nproj)//2:(nproj_pad + nproj) //
+               2, :ni].swapaxes(0, 1)
 
 ######## Titarenko ring removal ################
 def remove_stripe_ti(data, beta, mask_size):

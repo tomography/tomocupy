@@ -12,6 +12,7 @@ class cfunc_filter {
   cufftHandle plan_filter_fwd;
   cufftHandle plan_filter_inv;
   real2* ge;
+  void* work;   // cuFFT work area shared by both plans
 
 public:
   size_t n;      // width of square slices
