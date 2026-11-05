@@ -88,7 +88,7 @@ def _find_center(cl_reader):
 
 def _find_center_ai(cl_reader, img_cache, center_of_rotation_cache):
     clrotthandle = FindCenter(cl_reader)
-    args.rotation_axis = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+    args.rotation_axis, score = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
     params.center = args.rotation_axis
     log.warning(f'set rotation axis {args.rotation_axis}')
 
@@ -96,12 +96,13 @@ def _find_center_ai(cl_reader, img_cache, center_of_rotation_cache):
     if args.reconstruction_type[:3] == 'try' and hasattr(params, 'shift_array'):
         params.save_centers = ((params.centeri - params.shift_array)
                                 * 2**args.binning + params.st_n)
+    return score
 
 def _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache):
     clrotthandle = FindCenter(cl_reader)
-    center_lb, center_ub = clrotthandle.find_center_range_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+    center_lb, center_ub, score = clrotthandle.find_center_range_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
     log.warning(f'center range refined to ({center_lb},{center_ub})')
-    return center_lb, center_ub
+    return center_lb, center_ub, score
 
 def _check_use_ai():
     if args.rotation_axis_auto != 'auto' or args.rotation_axis_method != 'ai':
@@ -139,13 +140,14 @@ def run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = False):
     if center_of_rotation_cache[-1] < center_of_rotation_cache[0]:
         img_cache = img_cache[::-1]
         center_of_rotation_cache = center_of_rotation_cache[::-1]
-    center_lb, center_ub = _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache)
+    center_lb, center_ub, score = _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache)
     t2 = time.time()
     log.warning(f'Reconstruction time {t2-t:.1e}s')
     results = {'center_lb':float(center_lb),'center_ub':float(center_ub)}
     if save_test_results_ok:
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
+        results['score'] = score
     
     return results
 
@@ -174,7 +176,7 @@ def run_rec(args, cl_reader, cl_writer, save_test_results_ok = False):
         if use_ai:
             img_cache, center_of_rotation_cache, _ = clpthandle.recon_try()
             t1 = time.time()
-            _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
+            score = _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
             t2 = time.time()
         else:
             clpthandle.recon_try()
@@ -187,6 +189,7 @@ def run_rec(args, cl_reader, cl_writer, save_test_results_ok = False):
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
         results['rotation axis'] = float(args.rotation_axis)
+        results['score'] = score
     return results
 
 def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, recon_from_cache_preprocessed:bool=False, preprocessed_cache=None, cache_preprocessed:bool=False):
@@ -210,7 +213,7 @@ def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok:bool 
     if center_of_rotation_cache[-1] < center_of_rotation_cache[0]:
         img_cache = img_cache[::-1]
         center_of_rotation_cache = center_of_rotation_cache[::-1]
-    center_lb, center_ub = _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache)
+    center_lb, center_ub, score = _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache)
     t2 = time.time()
     results = {'center_lb':float(center_lb), 'center_ub':float(center_ub)}
     if cache_preprocessed:
@@ -218,6 +221,7 @@ def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok:bool 
     if save_test_results_ok:
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
+        results['score'] = score
     log.warning(f'Reconstruction time {t2-t:.1f}s')
     return results
 
@@ -239,7 +243,7 @@ def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, 
         results_ = clpthandle.recon_steps_all(recon_from_cache_preprocessed=recon_from_cache_preprocessed, preprocessed_cache=preprocessed_cache, cache_preprocessed=cache_preprocessed)
         img_cache, center_of_rotation_cache = results_['img_cache'], results_['center_of_rotation_cache']
         t1 = time.time()
-        _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
+        score = _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
         t2 = time.time()
     else:
         clpthandle.recon_steps_all()
@@ -253,6 +257,7 @@ def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, 
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
         results['rotation axis'] = float(args.rotation_axis)
+        results['score'] = score
     log.warning(f'Reconstruction time {t2-t:.1f}s')
     return results
 

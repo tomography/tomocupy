@@ -145,7 +145,7 @@ def bin_inference_pipeline(args, img_cache_original, center_of_rotation_cache, o
     bin_idx = np.argmax(scores_all)
     diff = abs(np.array(center_of_rotation_cache)-(center_of_rotation_cache[bin_idx]+bin_size))
     bin_idx2 = diff.argmin()
-    return center_of_rotation_cache[bin_idx], center_of_rotation_cache[bin_idx2]
+    return center_of_rotation_cache[bin_idx], center_of_rotation_cache[bin_idx2], scores_all[bin_idx]
 
 def inference_pipeline(args, img_cache_original, center_of_rotation_cache, out_dir, preprocessed=False):
     from tomocupy.ai.model_archs import ClassificationModel
@@ -219,10 +219,11 @@ def inference_pipeline(args, img_cache_original, center_of_rotation_cache, out_d
     if args.infer_save_intermediate_data:
         np.savez(Path(out_dir)/'predicts_all',features_all,center_of_rotation_cache)
     scores = np.exp(features_all[:,1])/(np.exp(features_all[:,0])+np.exp(features_all[:,1]))
-    centers_of_rotation = [center_of_rotation_cache[i] for i in np.where(scores==max(scores))[0]]
+    max_score = max(scores)
+    centers_of_rotation = [center_of_rotation_cache[i] for i in np.where(scores==max_score)[0]]
     with open(Path(out_dir)/'center_of_rotation.txt','a') as f:
         for cor in centers_of_rotation:
             f.write(f"{cor:.1f}\n")
     # Return the best-scoring center so find_center_ai can propagate it to
     # args.rotation_axis. Multiple centers tied for max are averaged.
-    return float(np.mean(centers_of_rotation))
+    return float(np.mean(centers_of_rotation)), max_score
