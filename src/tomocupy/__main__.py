@@ -91,7 +91,7 @@ def _find_center_ai(cl_reader, img_cache, center_of_rotation_cache):
     args.rotation_axis, score = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
     params.center = args.rotation_axis
     log.warning(f'set rotation axis {args.rotation_axis}')
-
+    log.warning(f'score is {score}')
     # Re-anchor try-mode save_centers labels now that centeri is known.
     if args.reconstruction_type[:3] == 'try' and hasattr(params, 'shift_array'):
         params.save_centers = ((params.centeri - params.shift_array)
@@ -102,6 +102,7 @@ def _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache):
     clrotthandle = FindCenter(cl_reader)
     center_lb, center_ub, score = clrotthandle.find_center_range_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
     log.warning(f'center range refined to ({center_lb},{center_ub})')
+    log.warning(f'score is {score}')
     return center_lb, center_ub, score
 
 def _check_use_ai():
