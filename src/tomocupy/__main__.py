@@ -148,7 +148,7 @@ def run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = False):
     if save_test_results_ok:
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
-        results['score'] = score
+        results['score'] = float(score)
     
     return results
 
@@ -190,7 +190,7 @@ def run_rec(args, cl_reader, cl_writer, save_test_results_ok = False):
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
         results['rotation axis'] = float(args.rotation_axis)
-        results['score'] = score
+        results['score'] = float(score)
     return results
 
 def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, recon_from_cache_preprocessed:bool=False, preprocessed_cache=None, cache_preprocessed:bool=False):
@@ -222,7 +222,7 @@ def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok:bool 
     if save_test_results_ok:
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
-        results['score'] = score
+        results['score'] = float(score)
     log.warning(f'Reconstruction time {t2-t:.1f}s')
     return results
 
@@ -258,7 +258,7 @@ def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, 
         results['running time recon'] = t1-t
         results['running time infer'] = t2-t1
         results['rotation axis'] = float(args.rotation_axis)
-        results['score'] = score
+        results['score'] = float(score)
     log.warning(f'Reconstruction time {t2-t:.1f}s')
     return results
 
