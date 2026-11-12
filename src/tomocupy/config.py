@@ -427,8 +427,8 @@ SECTIONS['reconstruction'] = {
         'help': 'When set save the running times',
         'action': 'store_true'},
     'use-relative-bin-size': {
-        'default': True,
-        'action': argparse.BooleanOptionalAction,
+        'default': False,
+        'action': 'store_true',
         'help': "When set bin-infer-bin-sizes are interpreted as relative to the full width of the input projection data",},
     'find-center-start-row': {
         'type': int,
@@ -697,12 +697,12 @@ SECTIONS['bin-inference'] = {
         'action': 'store_true'
     },
     'bin-infer-bin-sizes': {
-        'default': [0.05,0.0125],
+        'default': [24,12],
         'type': list_of_floats,
         'help': "Differences in neighboring tomograms' COR parameters",
     },
     'bin-infer-bin-counts': {
-        'default': [20,4],
+        'default': [4,2],
         'type': list_of_ints,
         'help': "Numbers of bins to use for parameter range search",
     },
