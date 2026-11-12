@@ -312,4 +312,4 @@ def clean_zarr(output_path):
             log.error(f"Error removing directory {output_path}: {e}")
             raise
     else:
-        log.warning(f"Path does not exist: {output_path}")      
+        log.warning(f"Path does not exist: {output_path}")

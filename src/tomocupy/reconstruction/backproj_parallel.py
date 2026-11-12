@@ -240,10 +240,10 @@ class BackprojParallel():
                         for kk in range(lschunk[ks-2]):
                             self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                                 rec_pinned[ithread, kk], params.save_centers[(ks-2)*ncz+kk], id_slice))
-                        if self.cache_to_infer:
-                            img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
-                            center_of_rotation_cache.append(params.save_centers[(ks-2)*ncz+kk])
-                            id_slice_cache.append(id_slice)
+                            if self.cache_to_infer:
+                                img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
+                                center_of_rotation_cache.append(params.save_centers[(ks-2)*ncz+kk])
+                                id_slice_cache.append(id_slice)
                     self.stream1.synchronize()
                     self.stream2.synchronize()
             for t in self.write_threads:
@@ -326,10 +326,10 @@ class BackprojParallel():
                         for kk in range(lschunk[ks-2]):
                             self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                                 rec_pinned[ithread, kk], params.save_centers[(ks-2)*ncz+kk], id_slice))
-                        if self.cache_to_infer:
-                            img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
-                            center_of_rotation_cache.append(params.save_centers[(ks-2)*ncz+kk])
-                            id_slice_cache.append(id_slice)
+                            if self.cache_to_infer:
+                                img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
+                                center_of_rotation_cache.append(params.save_centers[(ks-2)*ncz+kk])
+                                id_slice_cache.append(id_slice)
                     self.stream1.synchronize()
                     self.stream2.synchronize()
             for t in self.write_threads:
@@ -447,10 +447,10 @@ class BackprojParallel():
                     for kk in range(lschunk[k-2]):
                         self.write_threads[ithread].run(self.cl_writer.write_data_try, (
                             rec_pinned[ithread, kk], params.save_centers[(k-2)*ncz+kk], id_slice))
-                    if self.cache_to_infer:
-                        img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
-                        center_of_rotation_cache.append(params.save_centers[(k-2)*ncz+kk])
-                        id_slice_cache.append(id_slice)
+                        if self.cache_to_infer:
+                            img_cache.append(np.copy(rec_pinned[ithread, kk:kk+1]))
+                            center_of_rotation_cache.append(params.save_centers[(k-2)*ncz+kk])
+                            id_slice_cache.append(id_slice)
 
                 self.stream1.synchronize()
                 self.stream2.synchronize()

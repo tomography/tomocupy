@@ -61,6 +61,16 @@ __docformat__ = 'restructuredtext en'
 
 log = logging.getLogger(__name__)
 
+def _check_use_ai(args):
+    if args.rotation_axis_auto != 'auto' or args.rotation_axis_method != 'ai':
+        return False
+    try:
+        import torch  
+        return True
+    except ImportError:
+        log.warning('torch is not installed — skipping AI center search, falling back to vo method')
+        args.rotation_axis_method = 'vo'
+        return False
 
 def init(args):
     if not os.path.exists(str(args.config)):
@@ -86,169 +96,113 @@ def _find_center(cl_reader):
                                * 2**args.binning + params.st_n)
 
 
-def _find_center_ai(cl_reader, img_cache, center_of_rotation_cache):
-    clrotthandle = FindCenter(cl_reader)
-    args.rotation_axis = clrotthandle.find_center_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+def _find_center_ai(save_test_results_ok=False,cache_preprocessed=False,_func_type='run_rec'):
+    clrotthandle = FindCenter(None)
+    results_all = clrotthandle.find_center_ai(save_test_results_ok=save_test_results_ok, cache_preprocessed=cache_preprocessed, _func_type=_func_type)
+    args.rotation_axis, score = results_all['Stage 2']['rotation axis'], results_all['Stage 2']['score']
     params.center = args.rotation_axis
     log.warning(f'set rotation axis {args.rotation_axis}')
-
+    log.warning(f'score is {score}')
     # Re-anchor try-mode save_centers labels now that centeri is known.
+    #TODO: verify if consistent
     if args.reconstruction_type[:3] == 'try' and hasattr(params, 'shift_array'):
         params.save_centers = ((params.centeri - params.shift_array)
                                 * 2**args.binning + params.st_n)
+    return results_all
 
-def _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache):
-    clrotthandle = FindCenter(cl_reader)
-    center_lb, center_ub = clrotthandle.find_center_range_ai(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
-    log.warning(f'center range refined to ({center_lb},{center_ub})')
-    return center_lb, center_ub
-
-def _check_use_ai():
-    if args.rotation_axis_auto != 'auto' or args.rotation_axis_method != 'ai':
-        return False
-    try:
-        import torch  
-        return True
-    except ImportError:
-        log.warning('torch is not installed — skipping AI center search, falling back to vo method')
-        args.rotation_axis_method = 'vo'
-        return False
-
-def run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = False):
+def run_rec(args, cl_reader, cl_writer, save_test_results_ok:bool = False):
     if not Path(args.file_name).is_file():
         log.error("File Name does not exist: %s" % args.file_name)
         exit()
 
-    t = time.time()
     args.retrieve_phase_method = 'none'
     args.rotate_proj_angle = 0
     args.lamino_angle = 0
 
-    use_ai = _check_use_ai()
-    if not use_ai:
-        log.error("Error: ai is not properly configured.")
-        exit()
-    if args.reconstruction_type != 'try':
-        log.error(f"Error: reconstruction type is not 'try'. Detected {args.reconstruction_type} instead.")
-        exit()
-    cache_to_infer = args.reconstruction_type == 'try' and use_ai
-    clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
-
-    img_cache, center_of_rotation_cache, _ = clpthandle.recon_try()
-    t1 = time.time()
-    if center_of_rotation_cache[-1] < center_of_rotation_cache[0]:
-        img_cache = img_cache[::-1]
-        center_of_rotation_cache = center_of_rotation_cache[::-1]
-    center_lb, center_ub = _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache)
-    t2 = time.time()
-    log.warning(f'Reconstruction time {t2-t:.1e}s')
-    results = {'center_lb':float(center_lb),'center_ub':float(center_ub)}
-    if save_test_results_ok:
-        results['running time recon'] = t1-t
-        results['running time infer'] = t2-t1
-    
-    return results
-
-def run_rec(args, cl_reader, cl_writer, save_test_results_ok = False):
-    if not Path(args.file_name).is_file():
-        log.error("File Name does not exist: %s" % args.file_name)
-        exit()
-
-    t = time.time()
-    args.retrieve_phase_method = 'none'
-    args.rotate_proj_angle = 0
-    args.lamino_angle = 0
-
-    use_ai = _check_use_ai()
+    use_ai = _check_use_ai(args)
     if args.rotation_axis_auto == 'auto' and not use_ai:
         _find_center(cl_reader)
 
     cache_to_infer = args.reconstruction_type == 'try' and use_ai
-    clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
 
     if args.reconstruction_type == 'full':
+        if use_ai:
+            from copy import deepcopy
+            args_dict = deepcopy(args.__dict__)
+            params_dict = deepcopy(params.__dict__)
+            args.reconstruction_type = 'try'
+            results_all = _find_center_ai(save_test_results_ok=save_test_results_ok,_func_type='run_rec')
+            rotation_axis = args.rotation_axis
+            args.__dict__.clear()
+            args.__dict__.update(args_dict)
+            params.__dict__.clear()
+            params.__dict__.update(params_dict)
+            args.rotation_axis = rotation_axis
+            cl_reader = reader.Reader()
+            cl_writer = writer.Writer()
+
+        clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
         clpthandle.recon_all()
-        t1 = time.time()
-        t2 = t1
+        if use_ai:
+            return results_all
     elif args.reconstruction_type == 'try':
         if use_ai:
-            img_cache, center_of_rotation_cache, _ = clpthandle.recon_try()
-            t1 = time.time()
-            _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
-            t2 = time.time()
+            results_all = _find_center_ai(save_test_results_ok=save_test_results_ok,_func_type='run_rec')
+            return results_all
         else:
+            clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
             clpthandle.recon_try()
-            t1 = time.time()
-            t2 = t1
 
-    log.warning(f'Reconstruction time {t2-t:.1e}s')
-    results = {}
-    if save_test_results_ok:
-        results['running time recon'] = t1-t
-        results['running time infer'] = t2-t1
-    return results
-
-def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok = False):
+def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, cache_preprocessed:bool=False):
     if not Path(args.file_name).is_file():
         log.error("File Name does not exist: %s" % args.file_name)
         exit()
 
-    t = time.time()
-
-    use_ai = _check_use_ai()
-    if not use_ai:
-        log.error("Error: ai is not properly configured.")
-        exit()
-
-    cache_to_infer = use_ai
-    clpthandle = GPURecSteps(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
-
-    img_cache, center_of_rotation_cache, _ = clpthandle.recon_steps_all()
-    t1 = time.time()
-    if center_of_rotation_cache[-1] < center_of_rotation_cache[0]:
-        img_cache = img_cache[::-1]
-        center_of_rotation_cache = center_of_rotation_cache[::-1]
-    center_lb, center_ub = _find_center_range_ai(cl_reader, img_cache, center_of_rotation_cache)
-    t2 = time.time()
-    
-    results = {'center_lb':float(center_lb), 'center_ub':float(center_ub)}
-    if save_test_results_ok:
-        results['running time recon'] = t1-t
-        results['running time infer'] = t2-t1
-    log.warning(f'Reconstruction time {t2-t:.1f}s')
-    return results
-
-def run_recsteps(args, cl_reader, cl_writer, save_test_results_ok = False):
-    if not Path(args.file_name).is_file():
-        log.error("File Name does not exist: %s" % args.file_name)
-        exit()
-
-    t = time.time()
-
-    use_ai = _check_use_ai()
+    use_ai = _check_use_ai(args)
     if args.rotation_axis_auto == 'auto' and not use_ai:
         _find_center(cl_reader)
 
-    cache_to_infer = use_ai
-    clpthandle = GPURecSteps(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
+    cache_to_infer = args.reconstruction_type == 'try' and use_ai
 
-    if use_ai:
-        img_cache, center_of_rotation_cache, _ = clpthandle.recon_steps_all()
-        t1 = time.time()
-        _find_center_ai(cl_reader, img_cache, center_of_rotation_cache)
-        t2 = time.time()
+    if cache_to_infer:
+        results_all = _find_center_ai(save_test_results_ok=save_test_results_ok,cache_preprocessed=cache_preprocessed,_func_type='run_recsteps')
+        return results_all
     else:
+        if args.reconstruction_type == 'full' and use_ai:
+            from copy import deepcopy
+            args_dict = deepcopy(args.__dict__)
+            params_dict = deepcopy(params.__dict__)
+            args.reconstruction_type = 'try'
+            results_all = _find_center_ai(save_test_results_ok=save_test_results_ok,cache_preprocessed=cache_preprocessed,_func_type='run_recsteps')
+            rotation_axis = args.rotation_axis
+            args.__dict__.clear()
+            args.__dict__.update(args_dict)
+            params.__dict__.clear()
+            params.__dict__.update(params_dict)
+            args.rotation_axis = rotation_axis
+            cl_reader = reader.Reader()
+            cl_writer = writer.Writer()
+
+        clpthandle = GPURecSteps(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
         clpthandle.recon_steps_all()
-        t1 = time.time()
-        t2 = t1
+        if args.reconstruction_type == 'full' and use_ai:
+            return results_all    
 
-    results = {}
-    if save_test_results_ok:
-        results['running time recon'] = t1-t
-        results['running time infer'] = t2-t1
-    log.warning(f'Reconstruction time {t2-t:.1f}s')
-    return results
-
+def save_results(results_all):
+    import json
+    if args.reconstruction_type == 'try':
+        with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
+            json.dump(results_all, f, indent=4, ensure_ascii=False)
+    elif args.reconstruction_type == 'full':
+        if Path(params.fnameout).is_file():
+            with open(str(Path(params.fnameout).parent)+f"/test_results_{Path(params.fnameout).stem}.json", "w", encoding="utf-8") as f:
+                json.dump(results_all, f, indent=4, ensure_ascii=False)
+        elif (Path(params.fnameout).is_dir() and args.save_format == 'zarr'):
+            with open(str(Path(params.fnameout).parent)+f"/test_results_{Path(params.fnameout).stem}.json", "w", encoding="utf-8") as f:
+                    json.dump(results_all, f, indent=4, ensure_ascii=False) 
+        elif args.save_format == 'tiff':
+            with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
+                    json.dump(results_all, f, indent=4, ensure_ascii=False)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -306,51 +260,20 @@ def main():
             args._func(args)
         else:
             save_test_results_ok = args.save_test_results
-            if save_test_results_ok:
-                results_all = {}
-            if ((args._func == run_rec) or (args._func == run_recsteps)) and (args.rotation_axis_method == 'ai') and (args.ai_search_method == 'full') and (args.reconstruction_type == 'try'):
-                if len(args.bin_infer_bin_sizes) != len(args.bin_infer_bin_counts):
-                    log.error(f"Numbers of bin sizes and bin counts do not match: got {len(args.bin_infer_bin_sizes)} and {len(args.bin_infer_bin_counts)}, respectively.")
-                    exit()
-                args.symmetric_center_search = True
-                args.clear_folder = 'True'
-                center_search_step = args.center_search_step
-                for i, (bin_size, bin_count) in enumerate(zip(args.bin_infer_bin_sizes,args.bin_infer_bin_counts)):
-                    if bin_count%2 != 0:
-                        log.error(f"Number of bins to search should be even: got {bin_count} instead.")
-                        exit()
-                    log.info(f"Level {i+1}: search range is {bin_count} bins each of {bin_size} pixels")
-                    args.center_search_step = float(bin_size)
-                    args.center_search_width = float(bin_count) / 2 * float(bin_size)
-                    args.bin_infer_bin_size = float(bin_size)
-                        
-                    cl_reader = reader.Reader()
-                    cl_writer = writer.Writer()
-                    if args._func == run_rec:
-                        results = run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
-                    elif args._func == run_recsteps:
-                        results = run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
-                    center_lb = results['center_lb']
-                    center_ub = results['center_ub']
-                    args.rotation_axis = (center_lb+center_ub)/2
-                    if save_test_results_ok:
-                        results_all[f"Stage 1 level {i+1}"] = results
-                    # log.info(f"Level {i+1}: refined range is ({center_lb},{center_ub})")
-                args.center_search_step = center_search_step
-                args.center_search_width = (center_ub-center_lb)/2
-            
             args.symmetric_center_search = False
-            
-            cl_reader = reader.Reader()
-            cl_writer = writer.Writer()
+            if args.rotation_axis_method != 'ai':
+                cl_reader = reader.Reader()
+                cl_writer = writer.Writer()
+            else:
+                cl_reader = None
+                cl_writer = None
             if (args._func == run_rec) or (args._func == run_recsteps):
-                results = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
+                if args._func == run_rec:
+                    results_all = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
+                elif args._func == run_recsteps:
+                    results_all = args._func(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok, cache_preprocessed=args.bin_infer_cache_preprocessed)
                 if save_test_results_ok:
-                    results_all["Stage 2"] = results
-                    import json
-                    with open(params.fnameout[:-6]+"/test_results.json", "w", encoding="utf-8") as f:
-                        json.dump(results_all, f, indent=4, ensure_ascii=False)
-
+                    save_results(results_all)
             else:
                 args._func(args, cl_reader, cl_writer)
     except RuntimeError as e:
