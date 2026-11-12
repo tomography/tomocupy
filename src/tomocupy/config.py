@@ -760,9 +760,33 @@ SECTIONS['bin-inference'] = {
     },
 }
 
+SECTIONS['fix-2bm-flats'] = {
+    'fix-2bm-flats': {
+        'default': 'False',
+        'type': str,
+        'help': "Correct moving horizontal flat-field stripes (2-BM mirror deformation): dynamic flat field (eigenflats) + destriping along the tilted stripe direction. Only for recon_steps.",
+        'choices': ['True', 'False']},
+    'fix-2bm-flats-tilt': {
+        'default': 'auto',
+        'type': str,
+        'help': "Stripe tilt angle in degrees, or 'auto' to estimate it from the flat fields"},
+    'fix-2bm-flats-nblocks': {
+        'default': 16,
+        'type': int,
+        'help': "Number of column blocks for the tilted stripe profiles"},
+    'fix-2bm-flats-sigma': {
+        'default': 20,
+        'type': float,
+        'help': "Gaussian sigma (pixels, unbinned) of the z high-pass applied to the stripe profiles"},
+    'fix-2bm-flats-neigen': {
+        'default': 2,
+        'type': int,
+        'help': "Number of eigenflats for the dynamic flat field (0 = mean flat only)"},
+}
+
 RECON_PARAMS = ('file-reading', 'remove-stripe',
                 'reconstruction', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-types', 'beam-hardening', 'inference', 'output', 'bin-inference')
-RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'reconstruction',
+RECON_STEPS_PARAMS = ('file-reading', 'remove-stripe', 'fix-2bm-flats', 'reconstruction',
                       'retrieve-phase', 'fw', 'ti', 'vo-all', 'lamino', 'reconstruction-steps-types', 'rotate-proj', 'beam-hardening', 'inference', 'output', 'bin-inference')
 
 NICE_NAMES = ('General', 'File reading', 'Remove stripe',

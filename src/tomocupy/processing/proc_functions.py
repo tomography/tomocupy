@@ -59,7 +59,9 @@ class ProcFunctions():
         flat0 = flat.astype(args.dtype, copy=False)
         flat0 /= args.bright_ratio  # == exposure_flat/exposure_proj
         # works only for processing all angles
-        if args.flat_linear == 'True' and data.shape[0] == params.nproj:
+        # with fix-2bm-flats the mean flat is used, the moving stripes are corrected later
+        if (args.flat_linear == 'True' and data.shape[0] == params.nproj
+                and getattr(args, 'fix_2bm_flats', 'False') != 'True'):
             flat0_p0 = cp.mean(flat0[:flat0.shape[0]//2], axis=0)
             flat0_p1 = cp.mean(flat0[flat0.shape[0]//2+1:], axis=0)
             v = cp.linspace(0, 1, params.nproj)[..., cp.newaxis, cp.newaxis]
@@ -137,18 +139,23 @@ class ProcFunctions():
 
         return data
 
-    def proc_sino(self, data, dark, flat, res=None):
+    def proc_sino(self, data, dark, flat, res=None, darkflat=True, stripe=True):
         """Processing a sinogram data chunk"""
 
         if not isinstance(res, cp.ndarray):
             res = cp.zeros(data.shape, args.dtype)
-        # dark flat field correrction
-        data[:] = self.remove_outliers(data)
-        dark[:] = self.remove_outliers(dark)
-        flat[:] = self.remove_outliers(flat)
-        res[:] = self.darkflat_correction(data, dark, flat)
+        if darkflat:
+            # dark flat field correrction
+            data[:] = self.remove_outliers(data)
+            dark[:] = self.remove_outliers(dark)
+            flat[:] = self.remove_outliers(flat)
+            res[:] = self.darkflat_correction(data, dark, flat)
+        else:
+            res[:] = data
         # remove stripes
-        if args.remove_stripe_method == 'fw':
+        if not stripe:
+            pass
+        elif args.remove_stripe_method == 'fw':
             res[:] = remove_stripe.remove_stripe_fw(
                 res, args.fw_sigma, args.fw_filter, args.fw_level)
         elif args.remove_stripe_method == 'ti':
