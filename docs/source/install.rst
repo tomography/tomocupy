@@ -158,6 +158,14 @@ Then run reconstruction with::
 
     (tomocupy)$ tomocupy recon --file-name <file.h5> --rotation-axis-method ai --rotation-axis-auto auto --infer-model-path <path/to/model.pth>
 
+``--infer-model-path`` must be set when using ``--rotation-axis-method ai``. For users within the Argonne National Laboratory, download the model from https://anl.box.com/s/4o8qcig6pl9k8p7x4z3qqbrpgnjipolq.
+
+To find the center of rotation across a larger range, the hierarchical search feature is supported. Run reconstruction with::
+
+    (tomocupy)$ tomocupy recon --file-name <file.h5> --rotation-axis-method ai --rotation-axis-auto auto --infer-model-path <path/to/model.pth> --ai-search-method full --bin-infer-model-path <path/to/range_model.pth>
+
+``--bin-infer-model-path`` must be set when using ``--rotation-axis-method ai`` and ``--ai-search-method full``. For users within the Argonne National Laboratory, download the range model from https://anl.box.com/s/7kcmv9yav2j9y1c0b8lwhc1bp43tyrop.
+
 ==========
 Unit tests
 ==========
