@@ -100,8 +100,11 @@ class BackprojFunctions():
         tmp[:, :, self.pad+params.n:] = data[:, :, -1:]
         if not isinstance(sht, cp.ndarray):
             sht = cp.full(nz, sht, dtype='float32')
+        # params.center is measured from the left edge of the detector (pixel
+        # i spans [i, i+1], so the physical middle is n/2), while the
+        # rotation center is at the physical middle of the detector
         w = self.wfilter*cp.exp(-2*cp.complex64(cp.pi*1j)*(-params.center +
-                                               sht[:, cp.newaxis]+params.n/2)*self.t)  # center fix
+                                               sht[:, cp.newaxis]+params.n/2+0.5)*self.t)  # center fix
 
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
         data[:] = tmp[:, :, self.pad:self.pad+params.n]

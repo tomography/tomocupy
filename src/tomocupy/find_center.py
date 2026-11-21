@@ -194,7 +194,7 @@ class FindCenter():
             # vo measures the axis on the sinogram it was handed, which for
             # float16 is the power-of-2 crop of the projections, so its
             # result is low by the columns that crop dropped on the left
-            center = self.find_center_vo()+params.fp16_crop
+            center = self.find_center_vo()+0.5+params.fp16_crop
         elif args.rotation_axis_method == 'entropy':
             center = self.find_center_entropy()
         return (center*2**args.binning).astype('float32')

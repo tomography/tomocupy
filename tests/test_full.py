@@ -8,8 +8,8 @@ import h5py
 import zarr
 import shutil
 
-prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 782.5 --nsino-per-chunk 4'
-prefix2 = 'tomocupy recon --file-name data/Downsampled_WB.h5 --reconstruction-type full --nsino-per-chunk 4 --rotation-axis 808 --sample-material Pb '
+prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type full --rotation-axis 783 --nsino-per-chunk 4'
+prefix2 = 'tomocupy recon --file-name data/Downsampled_WB.h5 --reconstruction-type full --nsino-per-chunk 4 --rotation-axis 808.5 --sample-material Pb '
 prefix3 = '--read-pixel-size --read-scintillator --filter-1-auto True --filter-2-auto True --filter-3-auto True --sample-density 11.34 --dezinger 3 '
 prefix4 = '--filter-1-density 1.85 --filter-2-density 8.9 --filter-3-density 8.9' 
 prefix5 = '--filter-1-density 0.0 --filter-2-density 0.0 --filter-3-density 0.0' 

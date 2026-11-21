@@ -5,7 +5,7 @@ import tifffile
 import inspect
 import shutil
 
-prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type try --rotation-axis 782.5 --nsino-per-chunk 4'
+prefix = 'tomocupy recon --file-name data/test_data.h5 --reconstruction-type try --rotation-axis 783 --nsino-per-chunk 4'
 cmd_dict = {
     f'{prefix} --center-search-width 10 ': 13.98,
     f'{prefix} --center-search-width 10 --nsino [0,0.5] ': 28.36,
@@ -37,7 +37,7 @@ class Tests(unittest.TestCase):
             st = os.system(cmd[0])
             self.assertEqual(st, 0)
             ssum = 0
-            for k in np.arange(758.5, 778.5, 0.5):
+            for k in np.arange(759, 779, 0.5):
                 try:
                     ssum += np.linalg.norm(tifffile.imread(
                         f'data_rec/try_center/test_data/recon_slice0010_center{k:05.2f}.tiff'))

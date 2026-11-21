@@ -271,7 +271,7 @@ class BackprojLamFourierParallel():
         tmp[:, :, :self.pad] = data[:, :, :1]
         tmp[:, :, self.pad+self.n2:] = data[:, :, -1:]
         w = self.wfilter*cp.exp(-2*cp.complex64(cp.pi*1j)*self.t*(-self.center +
-                                               sht[:, cp.newaxis]+self.n2/2))  # center fix
+                                               sht[:, cp.newaxis]+self.n2/2+0.5))  # center fix, 0.5: see BackprojFunctions.fbp_filter_center
         self.cl_filter.filter(tmp, w, cp.cuda.get_current_stream())
         data[:] = tmp[:, :, self.pad:self.pad+self.n2]
 
