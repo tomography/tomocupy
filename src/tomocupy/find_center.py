@@ -43,6 +43,7 @@ from tomocupy import logging
 from tomocupy.processing import proc_functions
 from tomocupy.global_vars import args, params
 
+from pathlib import Path
 from ast import literal_eval
 from queue import Queue
 import cupyx.scipy.ndimage as ndimage
@@ -50,7 +51,7 @@ import cupy as cp
 import numpy as np
 import signal
 import cv2
-
+import time
 
 __author__ = "Viktor Nikitin"
 __copyright__ = "Copyright (c) 2022, UChicago Argonne, LLC."
@@ -66,6 +67,103 @@ ENTROPY_BINS = 256
 ENTROPY_COARSE_STEP = 0.5
 ENTROPY_FINE_RADIUS = 6
 
+def _check_use_ai(args):
+    if args.rotation_axis_auto != 'auto' or args.rotation_axis_method != 'ai':
+        return False
+    try:
+        import torch  
+        return True
+    except ImportError:
+        log.warning('torch is not installed — skipping AI center search, falling back to vo method')
+        args.rotation_axis_method = 'vo'
+        return False
+
+def run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = False):
+    
+    if not Path(args.file_name).is_file():
+        log.error("File Name does not exist: %s" % args.file_name)
+        exit()
+    from tomocupy.ai.inference import bin_inference_pipeline
+    from tomocupy.rec import GPURec
+    t = time.time()
+    args.retrieve_phase_method = 'none'
+    args.rotate_proj_angle = 0
+    args.lamino_angle = 0
+
+    use_ai = _check_use_ai(args)
+    if not use_ai:
+        log.error("Error: ai is not properly configured.")
+        exit()
+    if args.reconstruction_type != 'try':
+        log.error(f"Error: reconstruction type is not 'try'. Detected {args.reconstruction_type} instead.")
+        exit()
+    cache_to_infer = args.reconstruction_type == 'try' and use_ai
+    clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
+
+    img_cache, center_of_rotation_cache, _ = clpthandle.recon_try()
+    t1 = time.time()
+    if center_of_rotation_cache[-1] < center_of_rotation_cache[0]:
+        img_cache = img_cache[::-1]
+        center_of_rotation_cache = center_of_rotation_cache[::-1]
+        
+    center_lb, center_ub, score = bin_inference_pipeline(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+    log.warning(f'center range refined to ({center_lb},{center_ub})')
+    log.warning(f'score is {score}')
+    t2 = time.time()
+    log.warning(f'Reconstruction time {t2-t:.1e}s')
+    results = {'center_lb':float(center_lb),'center_ub':float(center_ub),'score':float(score)}
+    if save_test_results_ok:
+        results['running time recon'] = t1-t
+        results['running time infer'] = t2-t1
+    
+    return results
+
+def run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok:bool = False, recon_from_cache_preprocessed:bool=False, preprocessed_cache=None, cache_preprocessed:bool=False):
+    
+    if not Path(args.file_name).is_file():
+        log.error("File Name does not exist: %s" % args.file_name)
+        exit()
+    from tomocupy.ai.inference import bin_inference_pipeline
+    from tomocupy.rec_steps import GPURecSteps
+    t = time.time()
+
+    use_ai = _check_use_ai(args)
+    if not use_ai:
+        log.error("Error: ai is not properly configured.")
+        exit()
+
+    cache_to_infer = use_ai
+    clpthandle = GPURecSteps(cl_reader, cl_writer, cache_to_infer=cache_to_infer)
+    if recon_from_cache_preprocessed:
+        log.info('Run reconstruction from cached raw data.')
+        data = preprocessed_cache
+    else:
+        log.info('Reading data.')
+        data, flat, dark = clpthandle.cl_reader.read_data_parallel()
+        if args.pre_processing == 'True':
+            log.info('Processing by chunks in z.')
+            data = clpthandle.proc_sino_parallel(data, dark, flat)
+            log.info('Processing by chunks in angles.')
+            data = clpthandle.proc_proj_parallel(data)
+    log.info('Filtered backprojection and writing by chunks.')
+    img_cache, center_of_rotation_cache,id_slice_cache = clpthandle.cl_backproj.rec_fun(data)
+    
+    t1 = time.time()
+    if center_of_rotation_cache[-1] < center_of_rotation_cache[0]:
+        img_cache = img_cache[::-1]
+        center_of_rotation_cache = center_of_rotation_cache[::-1]
+    center_lb, center_ub, score = bin_inference_pipeline(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+    log.warning(f'center range refined to ({center_lb},{center_ub})')
+    log.warning(f'score is {score}')
+    t2 = time.time()
+    results = {'center_lb':float(center_lb), 'center_ub':float(center_ub), 'score':float(score)}
+    if cache_preprocessed:
+        results['preprocessed_cache'] = data
+    if save_test_results_ok:
+        results['running time recon'] = t1-t
+        results['running time infer'] = t2-t1
+    log.warning(f'Reconstruction time {t2-t:.1f}s')
+    return results
 
 class FindCenter():
     '''
@@ -101,13 +199,131 @@ class FindCenter():
             center = self.find_center_entropy()
         return (center*2**args.binning).astype('float32')
 
-    def find_center_range_ai(self, args, img_cache, center_of_rotation_cache, out_dir):
-        from tomocupy.ai.inference import bin_inference_pipeline
-        return bin_inference_pipeline(args, img_cache, center_of_rotation_cache, out_dir)
-
-    def find_center_ai(self, args, img_cache, center_of_rotation_cache, out_dir):
+    def find_center_ai(self,save_test_results_ok=False,cache_preprocessed=False,_func_type='run_rec'):
+        
+        if _func_type not in ['run_rec','run_recsteps']:
+            log.error(f"Function {_func_type} not recognized: only run_rec and run_rec_steps supported.")
+            exit()
         from tomocupy.ai.inference import inference_pipeline
-        return inference_pipeline(args, img_cache, center_of_rotation_cache, out_dir)
+        from tomocupy.dataio import reader, writer
+        import numpy as np
+        results_all = {}
+        if args.ai_search_method == 'full':
+            if len(args.bin_infer_bin_sizes) != len(args.bin_infer_bin_counts):
+                log.error(f"Numbers of bin sizes and bin counts do not match: got {len(args.bin_infer_bin_sizes)} and {len(args.bin_infer_bin_counts)}, respectively.")
+                exit()
+            args.symmetric_center_search = True
+            args.clear_folder = 'True'
+            center_search_step = args.center_search_step
+            if args.binning != args.bin_infer_binning:
+                binning = args.binning
+                args.binning = args.bin_infer_binning
+            else:
+                binning = None
+            if args.use_relative_bin_size and any(np.array(args.bin_infer_bin_sizes)>1):
+                log.error(f"bin-infer-bin-sizes are set to {args.bin_infer_bin_sizes}. All elements are required to be in the range of 0 to 1.")
+                exit()
+            for i, (bin_size, bin_count) in enumerate(zip(args.bin_infer_bin_sizes,args.bin_infer_bin_counts)):
+                if bin_count%2 != 0:
+                    log.error(f"Number of bins to search should be even: got {bin_count} instead.")
+                    exit()
+                if not args.use_relative_bin_size:
+                    args.center_search_step = float(bin_size) / 2**args.binning
+                else:
+                    args.center_search_step = float(bin_size)
+                args.center_search_width = float(bin_count) / 2 * float(bin_size)
+                cl_reader = reader.Reader()
+                cl_writer = writer.Writer()
+                if args.use_relative_bin_size:
+                    log.info(f"Level {i+1}: search range is {bin_count} bins each of {bin_size*params.ni} pixels")
+                    args.bin_infer_bin_size = float(np.int64(bin_size * params.ni * 2**args.binning))
+                else:
+                    log.info(f"Level {i+1}: search range is {bin_count} bins each of {bin_size} pixels")
+                    args.bin_infer_bin_size = float(bin_size)
+                
+                if _func_type == 'run_rec':
+                    results = run_rec_presteps(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok)
+                elif _func_type == 'run_recsteps':
+                    if i == 0:
+                        recon_from_cache_preprocessed = False
+                        preprocessed_cache = None
+                    else:
+                        cache_preprocessed = False
+                        recon_from_cache_preprocessed = True if preprocessed_cache is not None else False
+                    
+                    results = run_recsteps_presteps(args, cl_reader, cl_writer, save_test_results_ok = save_test_results_ok,\
+                        recon_from_cache_preprocessed=recon_from_cache_preprocessed,preprocessed_cache=preprocessed_cache,cache_preprocessed=cache_preprocessed)
+                    
+                    if i == 0 and cache_preprocessed: 
+                        preprocessed_cache = results['preprocessed_cache']
+                if i == (len(args.bin_infer_bin_sizes)-1):
+                    center_lb = np.floor(results['center_lb'])
+                    center_ub = np.ceil(results['center_ub'])
+                else:
+                    center_lb = results['center_lb']
+                    center_ub = results['center_ub']
+                args.rotation_axis = float((center_lb+center_ub)/2)
+                
+                results_all[f"Stage 1 level {i+1}"] = results
+                results_all[f"Stage 1 level {i+1}"].pop("preprocessed_cache", None)
+                log.info(f"Level {i+1}: refined range is ({center_lb},{center_ub})")
+            args.center_search_step = center_search_step
+            args.center_search_width = float((center_ub-center_lb)/2)
+            if binning is not None:
+                args.binning = binning
+        else:
+            preprocessed_cache = None
+        t = time.time()
+        if (args.ai_search_method == 'full') and (args.bin_infer_cache_preprocessed) and (_func_type == 'run_recsteps'):
+            binning = args.binning
+            args.binning = args.bin_infer_binning
+        else:
+            if args.binning != args.infer_binning:
+                binning = args.binning
+                args.binning = args.infer_binning
+            else:
+                binning = None
+        if args.use_relative_bin_size:
+            log.info(f"Relative bin size is disabled for fine search.")
+            args.use_relative_bin_size = False
+        args.symmetric_center_search = False
+        cl_reader = reader.Reader()
+        cl_writer = writer.Writer()
+        if _func_type == 'run_rec':
+            from tomocupy.rec import GPURec
+            clpthandle = GPURec(cl_reader, cl_writer, cache_to_infer=True)
+            img_cache, center_of_rotation_cache, _ = clpthandle.recon_try()
+        elif _func_type == 'run_recsteps':
+            from tomocupy.rec_steps import GPURecSteps
+            cache_preprocessed = False
+            recon_from_cache_preprocessed = True if preprocessed_cache is not None else False
+            clpthandle = GPURecSteps(cl_reader, cl_writer, cache_to_infer=True)
+            if recon_from_cache_preprocessed:
+                log.info('Run reconstruction from cached raw data.')
+                data = preprocessed_cache
+            else:
+                log.info('Reading data.')
+                data, flat, dark = clpthandle.cl_reader.read_data_parallel()
+                if args.pre_processing == 'True':
+                    log.info('Processing by chunks in z.')
+                    data = clpthandle.proc_sino_parallel(data, dark, flat)
+                    log.info('Processing by chunks in angles.')
+                    data = clpthandle.proc_proj_parallel(data)
+            log.info('Filtered backprojection and writing by chunks.')
+            img_cache, center_of_rotation_cache,id_slice_cache = clpthandle.cl_backproj.rec_fun(data)
+
+        t1 = time.time()
+        rotation_axis,score = inference_pipeline(args, img_cache, center_of_rotation_cache, params.fnameout[:-6])
+        t2 = time.time()
+        if binning is not None:
+            args.binning = binning
+        results = {'rotation axis':float(rotation_axis), 'score': float(score)}
+        if save_test_results_ok:
+            results['running time recon'] = t1-t
+            results['running time infer'] = t2-t1
+        results_all["Stage 2"] = results
+        log.info(f"results are: {results_all}")
+        return results_all
 
     def read_data_try(self, data_queue, id_slice):
 

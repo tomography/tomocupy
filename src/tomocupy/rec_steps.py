@@ -115,7 +115,7 @@ class GPURecSteps():
 
     def recon_steps_all(self):
         """GPU reconstruction by loading a full dataset in memory and processing by steps, with reading the whole data to memory """
-
+        
         log.info('Reading data.')
         data, flat, dark = self.cl_reader.read_data_parallel()
         if args.pre_processing == 'True':
