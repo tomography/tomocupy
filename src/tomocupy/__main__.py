@@ -86,8 +86,11 @@ def run_status(args):
 def _find_center(cl_reader):
     clrotthandle = FindCenter(cl_reader)
     args.rotation_axis = clrotthandle.find_center()
-    params.center = args.rotation_axis
-    params.centeri = args.rotation_axis
+    # find_center() returns the axis in unbinned pixels; downstream
+    # (reader.init_sizes, init_sizes_try, the save_centers formula
+    # below) treats params.center / centeri as binned, so divide.
+    params.center = args.rotation_axis / 2**args.binning
+    params.centeri = args.rotation_axis / 2**args.binning
     log.warning(f'set rotation axis {args.rotation_axis}')
 
     # Re-anchor try-mode save_centers labels now that centeri is known.
