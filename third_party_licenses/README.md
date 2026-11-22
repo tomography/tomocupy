@@ -1,0 +1,7 @@
+# License
+The tomocupy project is licensed under the Argonne/DOE BSD 3‑Clause–style license included in [`LICENSE`] in the root directory of this source tree.
+
+* The center-of-rotation parameter classification model and parameter range classification model use the DINOv2 ViT backbone and codes are adapted from the [DINOv2](https://github.com/facebookresearch/dinov2/blob/main/dinov2) repository. The license is [Apache 2.0](/third_party_licenses/LICENSE_DINOV2.txt).
+* The center-of-rotation parameter range classification model uses the aggregator model and rotary position embedding based on repositories [DINOv2](https://github.com/facebookresearch/dinov2/blob/main/dinov2) and [timm](https://github.com/huggingface/pytorch-image-models), respectively. The licenses are [Apache 2.0](/third_party_licenses/LICENSE_DINOV2.txt) and [Apache 2.0](/third_party_licenses/LICENSE_timm.txt), respectively.
+* The center-of-rotation parameter classification model and parameter range classification model use the attention pooling for multi-instance learning and codes are adapted from the [AttentionDeepMIL](https://github.com/AMLab-Amsterdam/AttentionDeepMIL) repository. The license is [MIT](/third_party_licenses/LICENSE_attention_pooling.txt).
+* The center-of-rotation parameter classification model backbone is initialized from the [DINOv2 ViT-B/14] checkpoint. The license is Apache 2.0.

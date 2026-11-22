@@ -6,7 +6,7 @@ import inspect
 import h5py
 import shutil
 
-prefix = 'tomocupy recon_steps --file-name data/test_data.h5 --rotation-axis 782.5 --nsino-per-chunk 4 --reconstruction-type full'
+prefix = 'tomocupy recon_steps --file-name data/test_data.h5 --rotation-axis 783 --nsino-per-chunk 4 --reconstruction-type full'
 cmd_dict = {
     f'{prefix}': 28.307,
     f'{prefix} --retrieve-phase-method paganin --retrieve-phase-alpha 0.0001 --propagation-distance 60 --energy 20 --pixel-size 1.17': 21.437,
