@@ -103,11 +103,15 @@ def _find_center_ai(save_test_results_ok=False,cache_preprocessed=False,_func_ty
     clrotthandle = FindCenter(None)
     results_all = clrotthandle.find_center_ai(save_test_results_ok=save_test_results_ok, cache_preprocessed=cache_preprocessed, _func_type=_func_type)
     args.rotation_axis, score = results_all['Stage 2']['rotation axis'], results_all['Stage 2']['score']
-    params.center = args.rotation_axis
+    # inference_pipeline() also returns the axis in unbinned pixels
+    # (confirmed with the author); mirror the conversion in _find_center
+    # and also set centeri so save_centers below uses a fresh value
+    # instead of whatever init_sizes left behind.
+    params.center = args.rotation_axis / 2**args.binning
+    params.centeri = args.rotation_axis / 2**args.binning
     log.warning(f'set rotation axis {args.rotation_axis}')
     log.warning(f'score is {score}')
     # Re-anchor try-mode save_centers labels now that centeri is known.
-    #TODO: verify if consistent
     if args.reconstruction_type[:3] == 'try' and hasattr(params, 'shift_array'):
         params.save_centers = ((params.centeri - params.shift_array)
                                 * 2**args.binning + params.st_n)
